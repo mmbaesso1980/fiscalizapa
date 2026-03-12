@@ -68,11 +68,12 @@ exports.resetDailyCredits = onSchedule({ schedule: "0 0 * * *", timeZone: "Ameri
   await batch.commit();
 });
 
-const stripe = require('stripe')(process.env.STRIPE_SECRET);
+// stripe initialized in handler
 
 exports.createCheckoutSession = onCall(async (request) => {
   if (!request.auth) throw new Error('Not authenticated');
   const { priceId } = request.data;
+  const stripe = require('stripe')(process.env.STRIPE_SECRET);
   const session = await stripe.checkout.sessions.create({
     mode: priceId === 'price_sub' ? 'subscription' : 'payment',
     payment_method_types: ['card'],
