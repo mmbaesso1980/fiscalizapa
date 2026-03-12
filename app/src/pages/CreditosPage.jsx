@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 const planos = [
-  { nome: 'Basico', creditos: 10, preco: 'R$ 29,00', priceId: 'price_basic' },
-  { nome: 'Premium', creditos: 25, preco: 'R$ 49,00', priceId: 'price_premium' },
-  { nome: 'Assinatura', creditos: 'Ilimitado', preco: 'R$ 39,90/mes', priceId: 'price_sub' },
+  { nome: 'Basico', creditos: 10, preco: 'R$ 29,00', priceId: 'price_1T6Jt1DH8L5YettyWqrMMeMH' },
+  { nome: 'Premium', creditos: 25, preco: 'R$ 49,00', priceId: 'price_1T9XoJDH8L5YettyYh0jtpNy' },
+  { nome: 'Assinatura', creditos: 'Ilimitado', preco: 'R$ 39,90/mes', priceId: 'price_1T9QSSDH8L5Yettym8IMuxmS' },
 ];
 export default function CreditosPage({ user }) {
   const [loading, setLoading] = useState(false);
