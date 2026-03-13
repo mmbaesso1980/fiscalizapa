@@ -45,7 +45,7 @@ export default function Navbar({ user, login, logout }) {
       </Link>
       <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
         <Link to="/dashboard" style={{ fontSize: '14px', color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: 500 }}>Painel</Link>
-        <Link to="/creditos" style={{ fontSize: '14px', color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: 500 }}>Metodologia</Link>
+        <Link to="/metodologia" style={{ fontSize: '14px', color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: 500 }}>Metodologia</Link>
         {user ? (
           <button onClick={logout} style={{
             fontSize: '13px', padding: '7px 16px', borderRadius: '6px',

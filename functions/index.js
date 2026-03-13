@@ -9,8 +9,9 @@ const geminiKey = defineSecret("GEMINI_KEY");
 
 async function callGemini(prompt) {
   const { GoogleGenerativeAI } = require("@google/generative-ai");
-  const genAI = new GoogleGenerativeAI(geminiKey.value());
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const KEY = process.env.GEMINI_KEY || 'AIzaSyBAiwtbVkJah0SKKa--VLfeUkuFiLurooc';
+  const genAI = new GoogleGenerativeAI(KEY);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
   const result = await model.generateContent(prompt);
   return result.response.text();
 }
