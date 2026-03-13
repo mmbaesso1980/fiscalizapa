@@ -4,11 +4,12 @@ const admin = require("firebase-admin");
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-const GEMINI_KEY = "AlzaSyCoD_g37xIpyaTl6RoTytQ_Tr8H2s_Myq4";
+const { defineSecret } = require("firebase-functions/params");
+const geminiKey = defineSecret("GEMINI_KEY");
 
 async function callGemini(prompt) {
   const { GoogleGenerativeAI } = require("@google/generative-ai");
-  const genAI = new GoogleGenerativeAI(GEMINI_KEY);
+  const genAI = new GoogleGenerativeAI(geminiKey.value());
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
   const result = await model.generateContent(prompt);
   return result.response.text();
@@ -32,7 +33,7 @@ exports.createCheckoutSession = onCall({ region: "southamerica-east1" }, async (
 });
 
 // IA Analysis - Analise critica de gastos de um deputado
-exports.analyzeDeputado = onCall({ region: "southamerica-east1", timeoutSeconds: 120 }, async (request) => {
+exports.analyzeDeputado = onCall({ region: "southamerica-east1", timeoutSeconds: 120, secrets: [geminiKey] }, async (request) => {
   const { deputadoId, colecao } = request.data;
   const col = colecao || "deputados";
   const depSnap = await db.collection(col).doc(deputadoId).get();
@@ -248,7 +249,7 @@ exports.criarDenuncia = onCall({ region: "southamerica-east1" }, async (request)
 });
 
 // Gerar dossie completo com IA
-exports.gerarDossie = onCall({ region: "southamerica-east1", timeoutSeconds: 120 }, async (request) => {
+exports.gerarDossie = onCall({ region: "southamerica-east1", timeoutSeconds: 120, secrets: [geminiKey] }, async (request) => {
   const { politicoId, colecao } = request.data;
   const col = colecao || "deputados_federais";
   const pSnap = await db.collection(col).doc(politicoId).get();
