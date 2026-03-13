@@ -1,84 +1,257 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
-import { db } from "../lib/firebase";
+import { useParams } from "react-router-dom";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
+import { db } from "../lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
-export default function PoliticoPage() {
+function fmt(v) {
+  if (!v) return "R$ 0,00";
+  return "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+}
+
+function riskBadge(score) {
+  if (!score || score < 30) return { label: "Baixo risco", cls: "risk-badge-low" };
+  if (score < 60) return { label: "Risco medio", cls: "risk-badge-medium" };
+  return { label: "Alto risco", cls: "risk-badge-high" };
+}
+
+export default function PoliticoPage({ user }) {
   const { colecao, id } = useParams();
   const [pol, setPol] = useState(null);
   const [gastos, setGastos] = useState([]);
   const [emendas, setEmendas] = useState([]);
+  const [tab, setTab] = useState("gastos");
   const [analysis, setAnalysis] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [tab, setTab] = useState("gastos");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    (async () => {
-      const snap = await getDoc(doc(db, colecao, id));
-      if (snap.exists()) setPol({ id: snap.id, ...snap.data() });
-      const gSnap = await getDocs(collection(db, colecao, id, "gastos"));
-      setGastos(gSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      const eSnap = await getDocs(collection(db, colecao, id, "emendas"));
+    async function load() {
+      setLoading(true);
+      const col = colecao || "deputados_federais";
+      const snap = await getDoc(doc(db, col, id));
+      if (snap.exists()) {
+        setPol({ id: snap.id, ...snap.data() });
+        if (snap.data().analise) setAnalysis(snap.data().analise);
+      }
+      const gSnap = await getDocs(collection(db, col, id, "gastos"));
+      const gList = gSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      gList.sort((a, b) => (b.valorLiquido || b.valor || 0) - (a.valorLiquido || a.valor || 0));
+      setGastos(gList);
+      const eSnap = await getDocs(collection(db, col, id, "emendas"));
       setEmendas(eSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    })();
+      setLoading(false);
+    }
+    load();
   }, [colecao, id]);
+
+  const totalGastos = gastos.reduce((a, g) => a + (g.valorLiquido || g.valor || 0), 0);
+  const totalEmendas = emendas.reduce((a, e) => a + (e.valorEmpenhado || e.valor || 0), 0);
+
+  const porCategoria = {};
+  gastos.forEach(g => {
+    const cat = g.tipoDespesa || g.categoria || "Outros";
+    porCategoria[cat] = (porCategoria[cat] || 0) + (g.valorLiquido || g.valor || 0);
+  });
+  const catSorted = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
+  const maxCat = catSorted.length > 0 ? catSorted[0][1] : 1;
+
+  const porFornecedor = {};
+  gastos.forEach(g => {
+    const f = g.fornecedorNome || g.cnpjCpf || "Desconhecido";
+    porFornecedor[f] = (porFornecedor[f] || 0) + (g.valorLiquido || g.valor || 0);
+  });
+  const fornSorted = Object.entries(porFornecedor).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const top3Total = fornSorted.slice(0, 3).reduce((a, b) => a + b[1], 0);
+  const concentracao = totalGastos > 0 ? ((top3Total / totalGastos) * 100).toFixed(0) : 0;
 
   async function runAI() {
     setAnalyzing(true);
     try {
-      const fns = getFunctions(undefined, "southamerica-east1");
-      const analyze = httpsCallable(fns, "analyzeDeputado");
-      const r = await analyze({ deputadoId: id, colecao });
-      setAnalysis(r.data.analysis);
-    } catch (e) { setAnalysis("Erro: " + e.message); }
+      const functions = getFunctions(undefined, "southamerica-east1");
+      const analyze = httpsCallable(functions, "analyzeDeputado");
+      const result = await analyze({ deputadoId: id, colecao: colecao || "deputados_federais" });
+      setAnalysis(result.data.analysis);
+    } catch (e) { setAnalysis("Erro na analise: " + e.message); }
     setAnalyzing(false);
   }
 
-  if (!pol) return <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center"><div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>Carregando dossie...</div>;
+  if (!pol) return <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Politico nao encontrado.</div>;
 
-  const gastosPorCat = {};
-  gastos.forEach(g => { gastosPorCat[g.categoria] = (gastosPorCat[g.categoria] || 0) + g.valor; });
-  const catSorted = Object.entries(gastosPorCat).sort((a, b) => b[1] - a[1]);
-  const maxCat = catSorted[0]?.[1] || 1;
+  const risk = riskBadge(pol.score);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white pt-4">
-      <div className="max-w-5xl mx-auto px-4">
-        <Link to="/dashboard" className="text-gray-500 hover:text-white text-sm mb-4 inline-block">&larr; Voltar</Link>
-        <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-6 mb-6">
-          <div className="flex items-start gap-4">
-            {pol.foto ? <img src={pol.foto} alt="" className="w-20 h-20 rounded-2xl object-cover" /> : <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center text-3xl font-black text-emerald-400">{pol.nome?.[0]}</div>}
-            <div className="flex-1">
-              <h1 className="text-2xl font-black">{pol.nome}</h1>
-              <p className="text-gray-400">{pol.partido} {pol.uf ? "- " + pol.uf : ""} | {pol.cargo}</p>
-              <div className="flex gap-6 mt-3">
-                <div><span className="text-red-400 font-bold">R$ {((pol.gastos_total || 0)/1000).toFixed(0)}k</span><span className="text-gray-600 text-xs ml-1">gastos</span></div>
-                <div><span className="text-amber-400 font-bold">R$ {((pol.emendas_total || 0)/1000).toFixed(0)}k</span><span className="text-gray-600 text-xs ml-1">emendas</span></div>
-                {pol.presenca > 0 && <div><span className="text-emerald-400 font-bold">{pol.presenca}%</span><span className="text-gray-600 text-xs ml-1">presenca</span></div>}
-                {pol.projetos > 0 && <div><span className="text-cyan-400 font-bold">{pol.projetos}</span><span className="text-gray-600 text-xs ml-1">projetos</span></div>}
-              </div>
-            </div>
-            <button onClick={runAI} disabled={analyzing} className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-black px-5 py-2.5 rounded-xl font-bold text-sm hover:shadow-lg hover:shadow-emerald-500/25 transition disabled:opacity-50">
-              {analyzing ? "Analisando..." : "Analisar com IA"}
-            </button>
+    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 20px' }}>
+      {/* Header do politico */}
+      <div className="grain-texture" style={{
+        background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
+        padding: '28px', border: '1px solid var(--border-light)',
+        marginBottom: '24px', display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap'
+      }}>
+        <img src={pol.fotoUrl || pol.foto || ''} alt="" style={{
+          width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover',
+          border: '3px solid var(--border-light)', background: 'var(--bg-secondary)'
+        }} />
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '4px' }}>{pol.nome}</h1>
+          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+            {pol.partido} - {pol.uf} &middot; {pol.cargo || 'Deputado Federal'}
+          </p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {pol.score != null && (
+              <span className={risk.cls} style={{ padding: '5px 14px', borderRadius: '14px', fontSize: '12px', fontWeight: 600 }}>
+                Score {pol.score} &middot; {risk.label}
+              </span>
+            )}
+            {Number(concentracao) > 70 && (
+              <span className="risk-badge-medium" style={{ padding: '5px 14px', borderRadius: '14px', fontSize: '12px', fontWeight: 600 }}>
+                Alta concentracao fornecedores
+              </span>
+            )}
           </div>
         </div>
-
-        {analysis && <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-6 mb-6"><h3 className="text-emerald-400 font-bold mb-3">Analise da IA FiscalizaBR</h3><div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">{analysis}</div></div>}
-
-        <div className="flex gap-2 mb-6">
-          <button onClick={() => setTab("gastos")} className={`px-4 py-2 rounded-xl text-sm font-medium ${tab === "gastos" ? "bg-red-500/20 text-red-400" : "bg-gray-900 text-gray-500"}`}>Gastos ({gastos.length})</button>
-          <button onClick={() => setTab("emendas")} className={`px-4 py-2 rounded-xl text-sm font-medium ${tab === "emendas" ? "bg-amber-500/20 text-amber-400" : "bg-gray-900 text-gray-500"}`}>Emendas ({emendas.length})</button>
-          <button onClick={() => setTab("categorias")} className={`px-4 py-2 rounded-xl text-sm font-medium ${tab === "categorias" ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-900 text-gray-500"}`}>Por Categoria</button>
-        </div>
-
-        {tab === "gastos" && <div className="space-y-2">{gastos.slice(0,50).map(g => <div key={g.id} className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-3 flex justify-between items-center"><div><div className="text-sm font-medium">{g.categoria}</div><div className="text-xs text-gray-600">{g.mes} | {g.descricao}</div></div><div className="text-red-400 font-bold text-sm">R$ {g.valor?.toFixed(2)}</div></div>)}</div>}
-
-        {tab === "emendas" && <div className="space-y-2">{emendas.map(e => <div key={e.id} className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-3 flex justify-between items-center"><div><div className="text-sm font-medium">{e.tipo} - {e.municipio}</div><div className="text-xs text-gray-600">{e.beneficiario} | {e.status}</div></div><div className="text-amber-400 font-bold text-sm">R$ {e.valor?.toFixed(2)}</div></div>)}</div>}
-
-        {tab === "categorias" && <div className="space-y-3">{catSorted.map(([cat, val]) => <div key={cat} className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-4"><div className="flex justify-between mb-2"><span className="text-sm font-medium">{cat}</span><span className="text-red-400 font-bold text-sm">R$ {val.toFixed(2)}</span></div><div className="w-full bg-gray-800 rounded-full h-2"><div className="bg-gradient-to-r from-red-500 to-red-400 h-2 rounded-full" style={{width: (val/maxCat*100) + "%"}} /></div></div>)}</div>}
       </div>
+
+      {/* Cards de resumo */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+        {[
+          { label: 'Gastos totais', value: fmt(totalGastos), color: 'var(--accent-orange)' },
+          { label: 'Emendas', value: fmt(totalEmendas), color: 'var(--accent-gold)' },
+          { label: 'Notas fiscais', value: gastos.length, color: 'var(--accent-green)' },
+          { label: 'Fornecedores', value: Object.keys(porFornecedor).length, color: 'var(--text-primary)' },
+          { label: 'Top 3 fornecedores', value: concentracao + '%', color: Number(concentracao) > 70 ? 'var(--accent-red)' : 'var(--accent-green)' }
+        ].map((c, i) => (
+          <div key={i} style={{
+            background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
+            padding: '18px', border: '1px solid var(--border-light)', textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '22px', fontWeight: 700, fontFamily: 'Space Grotesk', color: c.color }}>{c.value}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{c.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Botao IA */}
+      <div style={{ marginBottom: '24px' }}>
+        <button onClick={runAI} disabled={analyzing} style={{
+          padding: '12px 24px', borderRadius: '8px', fontSize: '14px', fontWeight: 600,
+          background: 'var(--accent-green)', color: '#fff', border: 'none',
+          cursor: analyzing ? 'wait' : 'pointer', opacity: analyzing ? 0.7 : 1,
+          transition: 'all 0.2s'
+        }}>
+          {analyzing ? 'Analisando com IA...' : 'Gerar analise com IA'}
+        </button>
+      </div>
+
+      {/* Analise IA */}
+      {analysis && (
+        <div style={{
+          background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
+          padding: '24px', border: '1px solid var(--accent-gold)',
+          marginBottom: '24px', boxShadow: 'var(--shadow-glow)'
+        }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--accent-gold)', marginBottom: '12px' }}>
+            Analise da IA FiscalizaBR
+          </h3>
+          <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{analysis}</div>
+        </div>
+      )}
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+        {[{k:'gastos',l:'Gastos ('+gastos.length+')'},{k:'categorias',l:'Por Categoria'},{k:'fornecedores',l:'Fornecedores'},{k:'emendas',l:'Emendas ('+emendas.length+')'}].map(t => (
+          <button key={t.k} onClick={() => setTab(t.k)} style={{
+            padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 500,
+            border: tab === t.k ? '1px solid var(--accent-green)' : '1px solid transparent',
+            background: tab === t.k ? 'var(--accent-green)' : 'transparent',
+            color: tab === t.k ? '#fff' : 'var(--text-secondary)',
+            cursor: 'pointer'
+          }}>{t.l}</button>
+        ))}
+      </div>
+
+      {/* Gastos */}
+      {tab === 'gastos' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {gastos.slice(0, 80).map(g => (
+            <div key={g.id} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '12px 16px', background: 'var(--bg-card)',
+              borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)',
+              fontSize: '13px'
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {g.tipoDespesa || g.categoria || 'Despesa'}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {g.fornecedorNome || g.cnpjCpf || ''} {g.dataDocumento ? '| ' + g.dataDocumento.substring(0, 10) : ''}
+                </div>
+              </div>
+              <div style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-orange)', whiteSpace: 'nowrap', marginLeft: '12px' }}>
+                {fmt(g.valorLiquido || g.valor)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Categorias */}
+      {tab === 'categorias' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {catSorted.map(([cat, val]) => (
+            <div key={cat} style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', padding: '14px 16px', border: '1px solid var(--border-light)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 500 }}>{cat}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-orange)' }}>{fmt(val)}</span>
+              </div>
+              <div style={{ height: '6px', background: 'var(--bg-secondary)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: (val / maxCat * 100) + '%', background: 'linear-gradient(90deg, var(--accent-green), var(--accent-gold))', borderRadius: '3px', transition: 'width 0.5s' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Fornecedores */}
+      {tab === 'fornecedores' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {fornSorted.map(([f, val], i) => (
+            <div key={f} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '12px 16px', background: 'var(--bg-card)',
+              borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)',
+              borderLeft: i < 3 ? '3px solid var(--accent-orange)' : '3px solid var(--border-light)'
+            }}>
+              <div>
+                <span style={{ fontSize: '13px', fontWeight: 500 }}>{f}</span>
+                {i < 3 && <span style={{ fontSize: '10px', color: 'var(--accent-orange)', marginLeft: '8px' }}>TOP {i+1}</span>}
+              </div>
+              <span style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-orange)' }}>{fmt(val)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Emendas */}
+      {tab === 'emendas' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {emendas.length === 0 && <p style={{ color: 'var(--text-muted)', padding: '20px' }}>Nenhuma emenda encontrada para este politico.</p>}
+          {emendas.map(e => (
+            <div key={e.id} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '12px 16px', background: 'var(--bg-card)',
+              borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)'
+            }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 500 }}>{e.municipioNome || e.municipio || 'N/A'} - {e.uf || ''}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{e.objetoResumo || e.beneficiario || ''} | {e.status || ''}</div>
+              </div>
+              <span style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-gold)' }}>{fmt(e.valorEmpenhado || e.valor)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
