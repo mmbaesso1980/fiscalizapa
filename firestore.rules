@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Politicos - leitura publica
+    match /deputados/{docId} {
+      allow read: if true;
+      allow write: if false;
+      match /{sub=**} { allow read: if true; allow write: if false; }
+    }
+    match /deputados_federais/{docId} {
+      allow read: if true;
+      allow write: if false;
+      match /{sub=**} { allow read: if true; allow write: if false; }
+    }
+    match /senadores/{docId} {
+      allow read: if true;
+      allow write: if false;
+      match /{sub=**} { allow read: if true; allow write: if false; }
+    }
+    match /governadores/{docId} {
+      allow read: if true;
+      allow write: if false;
+      match /{sub=**} { allow read: if true; allow write: if false; }
+    }
+    match /deputados_distritais/{docId} {
+      allow read: if true;
+      allow write: if false;
+      match /{sub=**} { allow read: if true; allow write: if false; }
+    }
+    // Denuncias - leitura publica, escrita autenticada
+    match /denuncias/{docId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if false;
+    }
+    // Users
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Fornecedores - leitura publica
+    match /fornecedores/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
