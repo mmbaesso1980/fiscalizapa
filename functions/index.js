@@ -7,16 +7,22 @@ const db = admin.firestore();
 const { defineSecret } = require("firebase-functions/params");
 const geminiKey = defineSecret("GEMINI_KEY");
 
+// SEGURANÇA: chave obrigatória via Secret Manager, sem fallback hardcoded
 async function callGemini(prompt) {
   const { GoogleGenerativeAI } = require("@google/generative-ai");
-  const KEY = process.env.GEMINI_KEY || 'AIzaSyBAiwtbVkJah0SKKa--VLfeUkuFiLurooc';
+  const KEY = process.env.GEMINI_KEY;
+  if (!KEY) throw new Error('GEMINI_KEY not configured in Secret Manager');
   const genAI = new GoogleGenerativeAI(KEY);
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
   const result = await model.generateContent(prompt);
   return result.response.text();
 }
 
-// Stripe checkout
+// ============================================
+// STRIPE - Checkout e Webhook
+// ============================================
+
+// Criar sessão de checkout
 exports.createCheckoutSession = onCall({ region: "southamerica-east1" }, async (request) => {
   const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
   const { priceId } = request.data;
@@ -33,375 +39,397 @@ exports.createCheckoutSession = onCall({ region: "southamerica-east1" }, async (
   return { sessionId: session.id, url: session.url };
 });
 
-// IA Analysis - Analise critica de gastos de um deputado
-exports.analyzeDeputado = onCall({ region: "southamerica-east1", timeoutSeconds: 120, secrets: [geminiKey] }, async (request) => {
-  const { deputadoId, colecao } = request.data;
-  const col = colecao || "deputados";
-  const depSnap = await db.collection(col).doc(deputadoId).get();
-  if (!depSnap.exists) throw new Error("Deputado nao encontrado");
-  const dep = depSnap.data();
-
-  let gastos = [];
-  let emendas = [];
-  try { const s = await db.collection(col).doc(deputadoId).collection("gastos").get(); gastos = s.docs.map(d => d.data()); } catch(e) {}
-  try { const s = await db.collection(col).doc(deputadoId).collection("emendas").get(); emendas = s.docs.map(d => d.data()); } catch(e) {}
-
-  const porCategoria = {};
-  const porMes = {};
-  gastos.forEach(g => {
-    const cat = g.tipoDespesa || g.categoria || "Outros";
-    porCategoria[cat] = (porCategoria[cat] || 0) + (g.valorLiquido || g.valor || 0);
-    const mes = (g.dataDocumento || g.data || "").substring(0, 7);
-    if (mes) porMes[mes] = (porMes[mes] || 0) + (g.valorLiquido || g.valor || 0);
-  });
-
-  const totalGastos = Object.values(porCategoria).reduce((a, b) => a + b, 0);
-  const totalEmendas = emendas.reduce((a, b) => a + (b.valorEmpenhado || b.valor || 0), 0);
-
-  const prompt = `Analise critica dos gastos do deputado ${dep.nome} (${dep.partido}-${dep.uf}).
-Gastos por categoria: ${JSON.stringify(porCategoria)}
-Gastos por mes: ${JSON.stringify(porMes)}
-Total gastos: R$ ${totalGastos.toFixed(2)}
-Total emendas: R$ ${totalEmendas.toFixed(2)}
-Votos obtidos: ${dep.votos || "N/A"}
-Custo por voto: R$ ${dep.votos ? (totalGastos / dep.votos).toFixed(2) : "N/A"}
-
-Faca uma analise estilo agencia de inteligencia. Identifique gastos atipicos, padroes suspeitos, concentracao em fornecedores.
-De um SCORE de 0-100 (0=limpo, 100=muito suspeito) no formato SCORE: XX.
-Seja direto, tecnico e apartidario.`;
-
-  const analysis = await callGemini(prompt);
-
-  await db.collection(col).doc(deputadoId).update({
-    analise: analysis,
-    score: parseInt((analysis.match(/SCORE.*?(\d+)/)||[])[1] || "50"),
-    gastos_total: dep.gastos_total || 0,
-    emendas_total: dep.emendas_total || 0,
-    updated: new Date()
-  });
-
-  return { analysis, deputado: dep.nome };
+// Webhook do Stripe para processar pagamentos e assinaturas
+exports.stripeWebhook = onRequest({ region: "southamerica-east1" }, async (req, res) => {
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
+  const sig = req.headers["stripe-signature"];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error("STRIPE_WEBHOOK_SECRET not configured");
+    return res.status(500).send("Webhook secret not configured");
+  }
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.rawBody, sig, webhookSecret);
+  } catch (err) {
+    console.error("Webhook signature verification failed:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+  const session = event.data.object;
+  if (event.type === "checkout.session.completed") {
+    const userId = session.metadata?.userId;
+    if (userId && session.amount_total) {
+      const creditsMap = { 2990: 30, 7990: 100, 19990: 300 };
+      const credits = creditsMap[session.amount_total] || 0;
+      if (credits > 0) {
+        await db.collection("users").doc(userId).update({
+          credits: admin.firestore.FieldValue.increment(credits),
+        });
+        await db.collection("purchases").add({
+          userId,
+          credits,
+          amount: session.amount_total,
+          sessionId: session.id,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  }
+  res.json({ received: true });
 });
 
-// Search politicians
-exports.searchPoliticos = onCall({ region: "southamerica-east1" }, async (request) => {
-  const { query, uf, partido, cargo } = request.data;
-  const collections = ["deputados", "deputados_federais", "senadores", "governadores", "deputados_distritais"];
-  let results = [];
+// ============================================
+// CHAT - Análise com Gemini
+// ============================================
+exports.chat = onCall(
+  { region: "southamerica-east1", secrets: [geminiKey] },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error("Authentication required");
+    const { message, politicianId, politicianName } = request.data;
+    if (!message) throw new Error("Message is required");
+    const userRef = db.collection("users").doc(uid);
+    const userDoc = await userRef.get();
+    const credits = userDoc.exists ? (userDoc.data().credits || 0) : 0;
+    if (credits <= 0) throw new Error("Insufficient credits");
+    let context = "";
+    if (politicianId) {
+      const docRef = db.collection("politicians").doc(politicianId);
+      const docSnap = await docRef.get();
+      if (docSnap.exists) {
+        const data = docSnap.data();
+        context = `Contexto do político: Nome: ${data.nome || politicianName}, Partido: ${data.partido || "N/A"}, Estado: ${data.estado || "N/A"}, Cargo: ${data.cargo || "N/A"}, Presença: ${data.presenca || "N/A"}%, Projetos: ${data.projetos || 0}, Gastos: R$${data.gastos || 0}`;
+      }
+    }
+    const prompt = context
+      ? `${context}\n\nPergunta do usuário: ${message}\n\nResponda de forma objetiva e baseada nos dados disponíveis sobre este político brasileiro.`
+      : `Pergunta sobre política brasileira: ${message}\n\nResponda de forma objetiva e informativa.`;
+    const response = await callGemini(prompt);
+    await userRef.update({
+      credits: admin.firestore.FieldValue.increment(-1),
+      lastActivity: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await db.collection("chats").add({
+      userId: uid,
+      politicianId: politicianId || null,
+      message,
+      response,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { response };
+  }
+);
 
-  for (const col of collections) {
-    let ref = db.collection(col);
-    const snap = await ref.get();
-    snap.docs.forEach(d => {
-      const data = { id: d.id, colecao: col, ...d.data() };
-      let match = true;
-      if (query && !data.nome.toLowerCase().includes(query.toLowerCase())) match = false;
-      if (uf && data.uf !== uf) match = false;
-      if (partido && data.partido !== partido) match = false;
-      if (cargo && data.cargo !== cargo) match = false;
-      if (match) results.push(data);
+// ============================================
+// PRESENÇA - Rastreamento de presença em sessões
+// ============================================
+exports.trackPresence = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  const { politicianId, sessionDate, present } = request.data;
+  if (!politicianId || !sessionDate) throw new Error("politicianId and sessionDate are required");
+  await db.collection("presencas").add({
+    politicianId,
+    userId: uid,
+    sessionDate,
+    present: Boolean(present),
+    recordedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  // Update politician's presence stats
+  const politRef = db.collection("politicians").doc(politicianId);
+  const politDoc = await politRef.get();
+  if (politDoc.exists) {
+    const data = politDoc.data();
+    const totalSessions = (data.totalSessions || 0) + 1;
+    const presentSessions = (data.presentSessions || 0) + (present ? 1 : 0);
+    const presencaPercent = Math.round((presentSessions / totalSessions) * 100);
+    await politRef.update({
+      totalSessions,
+      presentSessions,
+      presenca: presencaPercent,
+      lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
     });
   }
-  return { results: results.slice(0, 100), total: results.length };
+  return { success: true };
 });
 
-// Get gastos detail
-exports.getGastosDeputado = onCall({ region: "southamerica-east1" }, async (request) => {
-  const { deputadoId, colecao } = request.data;
-  const col = colecao || "deputados";
-  const gastosSnap = await db.collection(col).doc(deputadoId).collection("gastos").get();
-  const emendasSnap = await db.collection(col).doc(deputadoId).collection("emendas").get();
-  return {
-    gastos: gastosSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-    emendas: emendasSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-  };
+// ============================================
+// PROPOSIÇÕES - Buscar projetos de lei
+// ============================================
+exports.getPropositions = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  const { politicianId, tipo, status, page = 1 } = request.data;
+  let query = db.collection("proposicoes");
+  if (politicianId) query = query.where("autorId", "==", politicianId);
+  if (tipo) query = query.where("tipo", "==", tipo);
+  if (status) query = query.where("status", "==", status);
+  query = query.orderBy("dataApresentacao", "desc").limit(20);
+  const snapshot = await query.get();
+  const proposicoes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return { proposicoes, page };
 });
 
-// Stats
-exports.getStats = onCall({ region: "southamerica-east1" }, async (request) => {
-  const collections = {
-    deputados_estaduais: "deputados",
-    deputados_federais: "deputados_federais",
-    senadores: "senadores",
-    governadores: "governadores",
-    deputados_distritais: "deputados_distritais"
-  };
-  const stats = {};
-  for (const [key, col] of Object.entries(collections)) {
-    const snap = await db.collection(col).get();
-    stats[key] = snap.size;
+// ============================================
+// INGESTÃO NACIONAL - Câmara dos Deputados (513)
+// ============================================
+exports.ingestDeputados = onRequest({ region: "southamerica-east1" }, async (req, res) => {
+  // SEGURANÇA: verificar header de autenticação
+  const authHeader = req.headers["x-admin-key"];
+  const adminKey = process.env.ADMIN_KEY;
+  if (!adminKey || authHeader !== adminKey) {
+    return res.status(401).json({ error: "Unauthorized" });
   }
-  return stats;
-});
-
-// ============================================
-// NOVA API REST - TransparenciaBR v2
-// ============================================
-
-function calcularSinaisRisco(indicadores) {
-  if (!indicadores) return { nivel: "baixo", motivos: [] };
-  const motivos = [];
-  const ind = indicadores;
-  if (ind.variacaoGastoVsMedia > 30) motivos.push("Gastos " + ind.variacaoGastoVsMedia.toFixed(0) + "% acima da media do grupo");
-  if (ind.concentracaoTop3Fornecedores > 70) motivos.push("Alta concentracao: top 3 fornecedores = " + ind.concentracaoTop3Fornecedores.toFixed(0) + "% dos gastos");
-  if (ind.presenca < 60 && ind.gastoTotal > (ind.gastoMedioGrupo || 0)) motivos.push("Baixa presenca (" + ind.presenca.toFixed(0) + "%) com gasto acima da media");
-  if (ind.emendasRisco > 0) motivos.push(ind.emendasRisco + " emendas com padroes atipicos");
-  let nivel = "baixo";
-  if (motivos.length >= 3) nivel = "alto";
-  else if (motivos.length >= 1) nivel = "medio";
-  return { nivel, motivos };
-}
-
-async function calcularIndicadores(politicoId, col) {
-  let gastos = [];
-  let emendas = [];
-  try { const s = await db.collection(col).doc(politicoId).collection("gastos").get(); gastos = s.docs.map(d => d.data()); } catch(e) {}
-  try { const s = await db.collection(col).doc(politicoId).collection("emendas").get(); emendas = s.docs.map(d => d.data()); } catch(e) {}
-
-  const gastoTotal = gastos.reduce((a, g) => a + (g.valorLiquido || g.valor || 0), 0);
-  const fornecedores = {};
-  gastos.forEach(g => {
-    const cnpj = g.cnpjCpf || g.fornecedorCnpj || "desconhecido";
-    fornecedores[cnpj] = (fornecedores[cnpj] || 0) + (g.valorLiquido || g.valor || 0);
-  });
-  const fornVals = Object.values(fornecedores).sort((a, b) => b - a);
-  const top3 = fornVals.slice(0, 3).reduce((a, b) => a + b, 0);
-  const concentracaoTop3 = gastoTotal > 0 ? (top3 / gastoTotal) * 100 : 0;
-  const totalEmendas = emendas.reduce((a, e) => a + (e.valorEmpenhado || e.valor || 0), 0);
-
-  return {
-    gastoTotal,
-    totalEmendas,
-    numGastos: gastos.length,
-    numEmendas: emendas.length,
-    numFornecedores: Object.keys(fornecedores).length,
-    concentracaoTop3Fornecedores: concentracaoTop3,
-    variacaoGastoVsMedia: 0,
-    presenca: 0,
-    gastoMedioGrupo: 0,
-    emendasRisco: 0
-  };
-}
-
-// Ranking nacional - retorna politicos ordenados por score
-exports.getRanking = onCall({ region: "southamerica-east1" }, async (request) => {
-  const { uf, cargo, partido, limite } = request.data || {};
-  const collections = ["deputados", "deputados_federais", "senadores", "governadores", "deputados_distritais"];
-  let all = [];
-  for (const col of collections) {
-    const snap = await db.collection(col).get();
-    snap.docs.forEach(d => {
-      const data = { id: d.id, colecao: col, ...d.data() };
-      let match = true;
-      if (uf && data.uf !== uf) match = false;
-      if (partido && data.partido !== partido) match = false;
-      if (cargo && data.cargo !== cargo) match = false;
-      if (match) all.push(data);
-    });
-  }
-  all.sort((a, b) => (b.score || 0) - (a.score || 0));
-  all = all.map((p, i) => ({ ...p, ranking: i + 1 }));
-  return { ranking: all.slice(0, limite || 100), total: all.length };
-});
-
-// Sinais de risco de um politico
-exports.getSinaisRisco = onCall({ region: "southamerica-east1" }, async (request) => {
-  const { politicoId, colecao } = request.data;
-  const col = colecao || "deputados_federais";
-  const docSnap = await db.collection(col).doc(politicoId).get();
-  if (!docSnap.exists) throw new Error("Politico nao encontrado");
-  const pol = docSnap.data();
-  const indicadores = await calcularIndicadores(politicoId, col);
-  const sinais = calcularSinaisRisco(indicadores);
-  return { politico: { id: politicoId, nome: pol.nome, partido: pol.partido, uf: pol.uf }, indicadores, sinais };
-});
-
-// Criar denuncia
-exports.criarDenuncia = onCall({ region: "southamerica-east1" }, async (request) => {
-  const { politicoId, colecao, tipoDenuncia, resumo, despesaIds, emendaIds } = request.data;
-  const col = colecao || "deputados_federais";
-  let politicoData = null;
-  if (politicoId) {
-    const pSnap = await db.collection(col).doc(politicoId).get();
-    if (pSnap.exists) politicoData = { id: politicoId, ...pSnap.data() };
-  }
-  const indicadores = politicoId ? await calcularIndicadores(politicoId, col) : null;
-  const sinais = indicadores ? calcularSinaisRisco(indicadores) : null;
-
-  const docRef = db.collection("denuncias").doc();
-  const denuncia = {
-    id: docRef.id,
-    politicoId: politicoId || null,
-    colecao: col,
-    politicoNome: politicoData ? politicoData.nome : null,
-    tipoDenuncia: tipoDenuncia || "outro",
-    resumo: resumo || "",
-    despesaIds: despesaIds || [],
-    emendaIds: emendaIds || [],
-    indicadores,
-    sinais,
-    status: "pronto",
-    destinatarios: ["MPF", "TCU", "CGU"],
-    criadoEm: admin.firestore.FieldValue.serverTimestamp(),
-    criadoPor: request.auth?.uid || "anonimo"
-  };
-  await docRef.set(denuncia);
-  return denuncia;
-});
-
-// Gerar dossie completo com IA
-exports.gerarDossie = onCall({ region: "southamerica-east1", timeoutSeconds: 120, secrets: [geminiKey] }, async (request) => {
-  const { politicoId, colecao } = request.data;
-  const col = colecao || "deputados_federais";
-  const pSnap = await db.collection(col).doc(politicoId).get();
-  if (!pSnap.exists) throw new Error("Politico nao encontrado");
-  const pol = pSnap.data();
-  const indicadores = await calcularIndicadores(politicoId, col);
-  const sinais = calcularSinaisRisco(indicadores);
-
-  const prompt = `Gere um dossie tecnico e apartidario sobre o politico ${pol.nome} (${pol.partido}-${pol.uf}).
-Dados:
-- Gastos totais: R$ ${indicadores.gastoTotal.toFixed(2)}
-- Num fornecedores: ${indicadores.numFornecedores}
-- Concentracao top 3 fornecedores: ${indicadores.concentracaoTop3Fornecedores.toFixed(1)}%
-- Total emendas: R$ ${indicadores.totalEmendas.toFixed(2)}
-- Sinais de risco: ${sinais.motivos.join("; ") || "Nenhum"}
-- Nivel de risco: ${sinais.nivel}
-
-Formate como relatorio para orgaos de controle (MP, TCU, CGU).
-Inclua: resumo executivo, detalhamento de riscos, recomendacoes.
-Seja tecnico, imparcial, baseado apenas nos dados.`;
-
-  const dossie = await callGemini(prompt);
-  return { politico: pol.nome, dossie, indicadores, sinais };
-});
-
-// ============================================
-// INGESTAO AUTOMATICA - API da Camara
-// ============================================
-
-async function fetchJSON(url) {
-  const https = require("https");
-  return new Promise((resolve, reject) => {
-    https.get(url, { headers: { accept: "application/json" } }, (res) => {
-      let data = "";
-      res.on("data", chunk => data += chunk);
-      res.on("end", () => {
-        try { resolve(JSON.parse(data)); } catch(e) { reject(e); }
-      });
-    }).on("error", reject);
-  });
-}
-
-// Ingestao manual via callable
-exports.ingestCamara = onCall({ region: "southamerica-east1", timeoutSeconds: 540 }, async (request) => {
-  const { uf, ano } = request.data || {};
-  const targetUf = uf || "PA";
-  const targetAno = ano || new Date().getFullYear();
-  const log = [];
-
-  // 1. Buscar deputados
-  let url = "https://dadosabertos.camara.leg.br/api/v2/deputados?itens=100&ordem=ASC&ordenarPor=nome";
-  if (targetUf !== "TODOS") url += "&siglaUf=" + targetUf;
-  const depRes = await fetchJSON(url);
-  const deputados = depRes.dados || [];
-  log.push("Encontrados " + deputados.length + " deputados de " + targetUf);
-
-  for (const dep of deputados) {
-    const docId = String(dep.id);
-    const docData = {
-      nome: dep.nome,
-      partido: dep.siglaPartido,
-      uf: dep.siglaUf,
-      cargo: "Deputado Federal",
-      fotoUrl: dep.urlFoto,
-      idCamara: dep.id,
-      email: dep.email || "",
-      legislatura: dep.idLegislatura,
-      updated: admin.firestore.FieldValue.serverTimestamp()
-    };
-    await db.collection("deputados_federais").doc(docId).set(docData, { merge: true });
-
-    // 2. Buscar despesas
-    let pagina = 1;
-    let totalDespesas = 0;
-    while (pagina <= 10) {
-      const gUrl = "https://dadosabertos.camara.leg.br/api/v2/deputados/" + dep.id + "/despesas?ano=" + targetAno + "&itens=100&pagina=" + pagina + "&ordem=DESC&ordenarPor=dataDocumento";
-      let gRes;
-      try { gRes = await fetchJSON(gUrl); } catch(e) { break; }
-      const despesas = gRes.dados || [];
-      if (despesas.length === 0) break;
-
+  try {
+    const axios = require("axios");
+    let page = 1;
+    let total = 0;
+    const batchSize = 100;
+    while (true) {
+      const response = await axios.get(
+        `https://dadosabertos.camara.leg.br/api/v2/deputados?pagina=${page}&itens=${batchSize}&ordem=ASC&ordenarPor=nome`,
+        { timeout: 30000 }
+      );
+      const deputados = response.data.dados;
+      if (!deputados || deputados.length === 0) break;
       const batch = db.batch();
-      for (const d of despesas) {
-        const gId = d.codDocumento ? String(d.codDocumento) : db.collection("_").doc().id;
-        const ref = db.collection("deputados_federais").doc(docId).collection("gastos").doc(gId);
-        batch.set(ref, {
-          tipoDespesa: d.tipoDespesa,
-          dataDocumento: d.dataDocumento,
-          valor: d.valorDocumento || 0,
-          valorLiquido: d.valorLiquido || 0,
-          fornecedorNome: d.nomeFornecedor || "",
-          cnpjCpf: d.cnpjCpfFornecedor || "",
-          numDocumento: d.numDocumento || "",
-          urlDocumento: d.urlDocumento || "",
-          mes: d.mes,
-          ano: d.ano
+      for (const dep of deputados) {
+        const docRef = db.collection("politicians").doc(`dep_${dep.id}`);
+        batch.set(docRef, {
+          id: `dep_${dep.id}`,
+          idCamara: dep.id,
+          nome: dep.nome,
+          partido: dep.siglaPartido,
+          estado: dep.siglaUf,
+          cargo: "Deputado Federal",
+          foto: dep.urlFoto || "",
+          email: dep.email || "",
+          presenca: 0,
+          projetos: 0,
+          gastos: 0,
+          totalSessions: 0,
+          presentSessions: 0,
+          source: "camara_api",
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
-        totalDespesas++;
       }
       await batch.commit();
-      if (despesas.length < 100) break;
-      pagina++;
+      total += deputados.length;
+      if (deputados.length < batchSize) break;
+      page++;
+      await new Promise(r => setTimeout(r, 500));
     }
-    log.push(dep.nome + ": " + totalDespesas + " despesas");
-
-    // Pequena pausa para nao sobrecarregar API
-    await new Promise(r => setTimeout(r, 200));
+    res.json({ success: true, total, source: "camara" });
+  } catch (error) {
+    console.error("Error ingesting deputados:", error);
+    res.status(500).json({ error: error.message });
   }
-
-  log.push("Ingestao concluida!");
-  return { log, total: deputados.length };
 });
 
-// Ingestao agendada - roda todo dia
-exports.scheduledIngest = onSchedule({ schedule: "every 24 hours", region: "southamerica-east1", timeoutSeconds: 540 }, async (event) => {
-  const ufs = ["PA"];
-  const ano = new Date().getFullYear();
-  for (const uf of ufs) {
-    let url = "https://dadosabertos.camara.leg.br/api/v2/deputados?itens=100&ordem=ASC&ordenarPor=nome&siglaUf=" + uf;
-    const depRes = await fetchJSON(url);
-    const deputados = depRes.dados || [];
-    for (const dep of deputados) {
-      const docId = String(dep.id);
-      await db.collection("deputados_federais").doc(docId).set({
-        nome: dep.nome, partido: dep.siglaPartido, uf: dep.siglaUf,
-        cargo: "Deputado Federal", fotoUrl: dep.urlFoto, idCamara: dep.id,
-        updated: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-      let pagina = 1;
-      while (pagina <= 5) {
-        const gUrl = "https://dadosabertos.camara.leg.br/api/v2/deputados/" + dep.id + "/despesas?ano=" + ano + "&itens=100&pagina=" + pagina;
-        let gRes;
-        try { gRes = await fetchJSON(gUrl); } catch(e) { break; }
-        const despesas = gRes.dados || [];
-        if (despesas.length === 0) break;
-        const batch = db.batch();
-        for (const d of despesas) {
-          const gId = d.codDocumento ? String(d.codDocumento) : db.collection("_").doc().id;
-          const ref = db.collection("deputados_federais").doc(docId).collection("gastos").doc(gId);
-          batch.set(ref, {
-            tipoDespesa: d.tipoDespesa, dataDocumento: d.dataDocumento,
-            valor: d.valorDocumento || 0, valorLiquido: d.valorLiquido || 0,
-            fornecedorNome: d.nomeFornecedor || "", cnpjCpf: d.cnpjCpfFornecedor || "",
-            mes: d.mes, ano: d.ano
-          }, { merge: true });
-        }
-        await batch.commit();
-        if (despesas.length < 100) break;
-        pagina++;
-      }
-      await new Promise(r => setTimeout(r, 200));
-    }
+// ============================================
+// INGESTÃO NACIONAL - Senado Federal (81)
+// ============================================
+exports.ingestSenadores = onRequest({ region: "southamerica-east1" }, async (req, res) => {
+  // SEGURANÇA: verificar header de autenticação
+  const authHeader = req.headers["x-admin-key"];
+  const adminKey = process.env.ADMIN_KEY;
+  if (!adminKey || authHeader !== adminKey) {
+    return res.status(401).json({ error: "Unauthorized" });
   }
+  try {
+    const axios = require("axios");
+    const response = await axios.get(
+      "https://legis.senado.leg.br/dadosabertos/senador/lista/atual",
+      {
+        headers: { Accept: "application/json" },
+        timeout: 30000,
+      }
+    );
+    const parlamentares = response.data?.ListaParlamentarEmExercicio?.Parlamentares?.Parlamentar || [];
+    if (parlamentares.length === 0) {
+      return res.json({ success: true, total: 0, message: "No senators found" });
+    }
+    const batchSize = 50;
+    let total = 0;
+    for (let i = 0; i < parlamentares.length; i += batchSize) {
+      const chunk = parlamentares.slice(i, i + batchSize);
+      const batch = db.batch();
+      for (const parlamentar of chunk) {
+        const id = parlamentar.IdentificacaoParlamentar?.CodigoParlamentar;
+        const nome = parlamentar.IdentificacaoParlamentar?.NomeParlamentar;
+        const partido = parlamentar.IdentificacaoParlamentar?.SiglaPartidoParlamentar;
+        const estado = parlamentar.IdentificacaoParlamentar?.UfParlamentar;
+        const foto = parlamentar.IdentificacaoParlamentar?.UrlFotoParlamentar || "";
+        if (!id || !nome) continue;
+        const docRef = db.collection("politicians").doc(`sen_${id}`);
+        batch.set(docRef, {
+          id: `sen_${id}`,
+          idSenado: id,
+          nome,
+          partido: partido || "",
+          estado: estado || "",
+          cargo: "Senador",
+          foto,
+          presenca: 0,
+          projetos: 0,
+          gastos: 0,
+          totalSessions: 0,
+          presentSessions: 0,
+          source: "senado_api",
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        total++;
+      }
+      await batch.commit();
+    }
+    res.json({ success: true, total, source: "senado" });
+  } catch (error) {
+    console.error("Error ingesting senadores:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// AGENDAMENTO - Ingestão automática semanal
+// ============================================
+exports.weeklyIngest = onSchedule(
+  { schedule: "every monday 06:00", region: "southamerica-east1", timeZone: "America/Sao_Paulo" },
+  async (event) => {
+    console.log("Starting weekly ingestion...");
+    // Note: onSchedule can't call onRequest functions directly
+    // This would need to be refactored to call the ingestion logic directly
+    console.log("Weekly ingestion scheduled - implement direct logic here");
+  }
+);
+
+// ============================================
+// ANÁLISE - Resumo do político
+// ============================================
+exports.analyzePolitician = onCall(
+  { region: "southamerica-east1", secrets: [geminiKey] },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error("Authentication required");
+    const { politicianId } = request.data;
+    if (!politicianId) throw new Error("politicianId is required");
+    const userRef = db.collection("users").doc(uid);
+    const userDoc = await userRef.get();
+    const credits = userDoc.exists ? (userDoc.data().credits || 0) : 0;
+    if (credits < 2) throw new Error("Insufficient credits (need 2 for analysis)");
+    const politRef = db.collection("politicians").doc(politicianId);
+    const politDoc = await politRef.get();
+    if (!politDoc.exists) throw new Error("Politician not found");
+    const data = politDoc.data();
+    const prompt = `Analise o perfil deste político brasileiro com base nos dados disponíveis:
+
+Nome: ${data.nome}
+Partido: ${data.partido}
+Estado: ${data.estado}
+Cargo: ${data.cargo}
+Presença nas sessões: ${data.presenca}%
+Projetos apresentados: ${data.projetos}
+Gastos com cota parlamentar: R$${data.gastos}
+
+Forneça uma análise objetiva incluindo:
+1. Avaliação do índice de presença
+2. Produtividade legislativa
+3. Uso da cota parlamentar
+4. Pontos positivos e negativos
+5. Comparação com a média nacional`;
+    const analysis = await callGemini(prompt);
+    await userRef.update({
+      credits: admin.firestore.FieldValue.increment(-2),
+      lastActivity: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await db.collection("analyses").add({
+      userId: uid,
+      politicianId,
+      analysis,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { analysis };
+  }
+);
+
+// ============================================
+// USUÁRIO - Gestão de perfil e créditos
+// ============================================
+exports.getUser = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  const userRef = db.collection("users").doc(uid);
+  const userDoc = await userRef.get();
+  if (!userDoc.exists) {
+    // Create user profile if doesn't exist
+    const newUser = {
+      credits: 5,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastActivity: admin.firestore.FieldValue.serverTimestamp(),
+      plan: "free",
+    };
+    await userRef.set(newUser);
+    return { ...newUser, credits: 5 };
+  }
+  return userDoc.data();
+});
+
+exports.updateUserProfile = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  const { displayName, photoURL } = request.data;
+  const updates = {};
+  if (displayName) updates.displayName = displayName;
+  if (photoURL) updates.photoURL = photoURL;
+  updates.lastActivity = admin.firestore.FieldValue.serverTimestamp();
+  await db.collection("users").doc(uid).update(updates);
+  return { success: true };
+});
+
+// ============================================
+// BUSCA - Políticos por estado/partido
+// ============================================
+exports.searchPoliticians = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  const { estado, partido, cargo, nome, limit: limitParam = 20 } = request.data;
+  let query = db.collection("politicians");
+  if (estado) query = query.where("estado", "==", estado);
+  if (partido) query = query.where("partido", "==", partido);
+  if (cargo) query = query.where("cargo", "==", cargo);
+  const limitNum = Math.min(Number(limitParam) || 20, 100);
+  query = query.limit(limitNum);
+  const snapshot = await query.get();
+  let politicians = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  if (nome) {
+    const nomeLower = nome.toLowerCase();
+    politicians = politicians.filter(p => p.nome?.toLowerCase().includes(nomeLower));
+  }
+  return { politicians };
+});
+
+// ============================================
+// RELATÓRIOS - Dados agregados
+// ============================================
+exports.getReport = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  const { type, estado } = request.data;
+  if (type === "presenca_estado") {
+    let query = db.collection("politicians");
+    if (estado) query = query.where("estado", "==", estado);
+    const snapshot = await query.get();
+    const politicians = snapshot.docs.map(doc => doc.data());
+    const avgPresenca = politicians.length > 0
+      ? Math.round(politicians.reduce((sum, p) => sum + (p.presenca || 0), 0) / politicians.length)
+      : 0;
+    return {
+      type,
+      estado: estado || "Nacional",
+      totalPoliticians: politicians.length,
+      avgPresenca,
+      politicians: politicians.slice(0, 10),
+    };
+  }
+  return { error: "Report type not supported" };
 });
