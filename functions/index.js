@@ -7,6 +7,43 @@ const db = admin.firestore();
 const { defineSecret } = require("firebase-functions/params");
 const geminiKey = defineSecret("GEMINI_KEY");
 
+// ============================================
+// SEGURANÇA: Rate Limiting em memória
+// ============================================
+const rateLimits = new Map();
+function checkRateLimit(uid, maxRequests = 30, windowMs = 60000) {
+  const now = Date.now();
+  const key = uid || 'anonymous';
+  const entry = rateLimits.get(key);
+  if (entry && now - entry.start < windowMs) {
+    if (entry.count >= maxRequests) {
+      throw new Error('Rate limit exceeded. Try again later.');
+    }
+    entry.count++;
+  } else {
+    rateLimits.set(key, { start: now, count: 1 });
+  }
+  // Cleanup old entries every 1000 requests
+  if (rateLimits.size > 1000) {
+    for (const [k, v] of rateLimits) {
+      if (now - v.start > windowMs) rateLimits.delete(k);
+    }
+  }
+}
+
+// ============================================
+// SEGURANÇA: Sanitização de inputs
+// ============================================
+function sanitizeString(str, maxLength = 500) {
+  if (typeof str !== 'string') return '';
+  return str.slice(0, maxLength).replace(/<[^>]*>/g, '').trim();
+}
+
+function validateId(id) {
+  if (typeof id !== 'string') return false;
+  return /^[a-zA-Z0-9_-]{1,100}$/.test(id);
+}
+
 // SEGURANÇA: chave obrigatória via Secret Manager, sem fallback hardcoded
 async function callGemini(prompt) {
   const { GoogleGenerativeAI } = require("@google/generative-ai");
@@ -87,7 +124,10 @@ exports.chat = onCall(
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new Error("Authentication required");
-    const { message, politicianId, politicianName } = request.data;
+    checkRateLimit(uid);
+    const message = sanitizeString(request.data.message, 1000);
+    const politicianId = request.data.politicianId ? sanitizeString(request.data.politicianId, 100) : null;
+    const politicianName = request.data.politicianName ? sanitizeString(request.data.politicianName, 200) : null;
     if (!message) throw new Error("Message is required");
     const userRef = db.collection("users").doc(uid);
     const userDoc = await userRef.get();
@@ -127,6 +167,7 @@ exports.chat = onCall(
 exports.trackPresence = onCall({ region: "southamerica-east1" }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new Error("Authentication required");
+  checkRateLimit(uid);
   const { politicianId, sessionDate, present } = request.data;
   if (!politicianId || !sessionDate) throw new Error("politicianId and sessionDate are required");
   await db.collection("presencas").add({
@@ -160,6 +201,7 @@ exports.trackPresence = onCall({ region: "southamerica-east1" }, async (request)
 exports.getPropositions = onCall({ region: "southamerica-east1" }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new Error("Authentication required");
+  checkRateLimit(uid);
   const { politicianId, tipo, status, page = 1 } = request.data;
   let query = db.collection("proposicoes");
   if (politicianId) query = query.where("autorId", "==", politicianId);
@@ -311,8 +353,10 @@ exports.analyzePolitician = onCall(
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new Error("Authentication required");
+    checkRateLimit(uid);
     const { politicianId } = request.data;
     if (!politicianId) throw new Error("politicianId is required");
+    if (!validateId(politicianId)) throw new Error("Invalid politicianId");
     const userRef = db.collection("users").doc(uid);
     const userDoc = await userRef.get();
     const credits = userDoc.exists ? (userDoc.data().credits || 0) : 0;
@@ -377,7 +421,9 @@ exports.getUser = onCall({ region: "southamerica-east1" }, async (request) => {
 exports.updateUserProfile = onCall({ region: "southamerica-east1" }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new Error("Authentication required");
-  const { displayName, photoURL } = request.data;
+  checkRateLimit(uid);
+  const displayName = sanitizeString(request.data.displayName, 100);
+  const photoURL = sanitizeString(request.data.photoURL, 500);
   const updates = {};
   if (displayName) updates.displayName = displayName;
   if (photoURL) updates.photoURL = photoURL;
@@ -392,7 +438,12 @@ exports.updateUserProfile = onCall({ region: "southamerica-east1" }, async (requ
 exports.searchPoliticians = onCall({ region: "southamerica-east1" }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new Error("Authentication required");
-  const { estado, partido, cargo, nome, limit: limitParam = 20 } = request.data;
+  checkRateLimit(uid);
+  const estado = sanitizeString(request.data.estado, 2);
+  const partido = sanitizeString(request.data.partido, 20);
+  const cargo = sanitizeString(request.data.cargo, 50);
+  const nome = sanitizeString(request.data.nome, 200);
+  const limitParam = request.data.limit || 20;
   let query = db.collection("politicians");
   if (estado) query = query.where("estado", "==", estado);
   if (partido) query = query.where("partido", "==", partido);
@@ -414,6 +465,7 @@ exports.searchPoliticians = onCall({ region: "southamerica-east1" }, async (requ
 exports.getReport = onCall({ region: "southamerica-east1" }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new Error("Authentication required");
+  checkRateLimit(uid);
   const { type, estado } = request.data;
   if (type === "presenca_estado") {
     let query = db.collection("politicians");

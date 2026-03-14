@@ -42,5 +42,39 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+    // Purchases - apenas leitura pelo próprio usuário
+    match /purchases/{docId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+    // Chats - apenas leitura pelo próprio usuário
+    match /chats/{docId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+    // Analyses - apenas leitura pelo próprio usuário
+    match /analyses/{docId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+    // Presencas - leitura pública, escrita via Cloud Function
+    match /presencas/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Proposicoes - leitura pública
+    match /proposicoes/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Politicians (collection usada pela ingestão)
+    match /politicians/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // REGRA DEFAULT: negar tudo que não foi explicitamente permitido
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
