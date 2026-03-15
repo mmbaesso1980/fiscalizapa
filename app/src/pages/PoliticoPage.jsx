@@ -69,7 +69,7 @@ export default function PoliticoPage({ user }) {
     setAnalyzing(true);
     try {
       const functions = getFunctions(undefined, "southamerica-east1");
-      const analyze = httpsCallable(functions, "analyzeDeputado");
+      const analyze = httpsCallable(functions, "analyzePolitician");
       const result = await analyze({ deputadoId: id, colecao: colecao || "deputados_federais" });
       setAnalysis(result.data.analysis);
     } catch (e) { setAnalysis("Erro na analise: " + e.message); }

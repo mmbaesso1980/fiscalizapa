@@ -354,14 +354,19 @@ exports.analyzePolitician = onCall(
     const uid = request.auth?.uid;
     if (!uid) throw new Error("Authentication required");
     checkRateLimit(uid);
-    const { politicianId } = request.data;
+    // Aceita tanto politicianId quanto deputadoId (frontend envia deputadoId + colecao)
+    const politicianId = sanitizeString(request.data.politicianId || request.data.deputadoId || '', 100);
+    const colecao = sanitizeString(request.data.colecao || 'deputados_federais', 50);
     if (!politicianId) throw new Error("politicianId is required");
     if (!validateId(politicianId)) throw new Error("Invalid politicianId");
+    const allowedCollections = ['deputados_federais', 'deputados', 'senadores', 'governadores', 'deputados_distritais', 'politicians'];
+    if (!allowedCollections.includes(colecao)) throw new Error("Invalid collection");
     const userRef = db.collection("users").doc(uid);
     const userDoc = await userRef.get();
     const credits = userDoc.exists ? (userDoc.data().credits || 0) : 0;
     if (credits < 2) throw new Error("Insufficient credits (need 2 for analysis)");
-    const politRef = db.collection("politicians").doc(politicianId);
+    // Buscar na coleção correta
+    const politRef = db.collection(colecao).doc(politicianId);
     const politDoc = await politRef.get();
     if (!politDoc.exists) throw new Error("Politician not found");
     const data = politDoc.data();
@@ -369,11 +374,12 @@ exports.analyzePolitician = onCall(
 
 Nome: ${data.nome}
 Partido: ${data.partido}
-Estado: ${data.estado}
+Estado: ${data.uf || data.estado}
 Cargo: ${data.cargo}
-Presença nas sessões: ${data.presenca}%
-Projetos apresentados: ${data.projetos}
-Gastos com cota parlamentar: R$${data.gastos}
+Presença nas sessões: ${data.presenca || 0}%
+Total de gastos: R$${data.totalGasto || data.gastos || 0}
+Número de despesas: ${data.numGastos || 0}
+Score de risco: ${data.score || 'N/A'}
 
 Forneça uma análise objetiva incluindo:
 1. Avaliação do índice de presença

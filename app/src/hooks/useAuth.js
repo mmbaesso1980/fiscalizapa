@@ -12,9 +12,9 @@ export function useAuth() {
       setUser(u);
       if (u) {
         try {
-          const initProfile = httpsCallable(functions, "initUserProfile");
-          await initProfile();
-        } catch (e) { console.error("initProfile error", e); }
+          const getUser = httpsCallable(functions, "getUser");
+          await getUser();
+        } catch (e) { console.error("getUser error", e); }
       }
       setLoading(false);
     });
