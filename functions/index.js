@@ -574,6 +574,16 @@ exports.ingestDespesas = onRequest(
           await new Promise(r => setTimeout(r, 300));
         }
         // Atualizar doc do deputado
+
+                // Mark deputies with 0 expenses so they don't appear as "missing"
+        if (totalDesp === 0) {
+          await db.collection("deputados_federais").doc(String(dep.id))
+            .collection("gastos").doc("_no_expenses").set({
+              marker: true,
+              message: "Sem despesas registradas na API da Camara",
+              checkedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        }
         await db.collection("deputados_federais").doc(String(dep.id)).set({
           totalGasto: totalValor,
           numGastos: totalDesp,
