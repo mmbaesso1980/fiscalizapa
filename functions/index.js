@@ -50,7 +50,7 @@ async function callGemini(prompt) {
   const KEY = process.env.GEMINI_KEY;
   if (!KEY) throw new Error('GEMINI_KEY not configured in Secret Manager');
   const genAI = new GoogleGenerativeAI(KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   const result = await model.generateContent(prompt);
   return result.response.text();
 }
