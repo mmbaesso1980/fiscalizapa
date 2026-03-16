@@ -604,3 +604,63 @@ exports.ingestDespesas = onRequest(
     }
   }
 );
+
+// ============================================
+// RANKING DE GASTOS - CEAP
+// ============================================
+exports.calcularRankings = onRequest(
+  { timeoutSeconds: 120, memory: "512MiB", region: "southamerica-east1" },
+  async (req, res) => {
+    try {
+      const snapshot = await db.collection("deputados_federais").get();
+      const deputados = [];
+
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const totalGasto = data.totalGasto || 0;
+        const nome = data.nome || "";
+        const partido = data.partido || "";
+        const uf = data.uf || "";
+        const score = data.score || 0;
+        deputados.push({ id: docSnap.id, nome, partido, uf, totalGasto, score });
+      });
+
+      // Ordenar: menor gasto = rank 1 (mais economico)
+      deputados.sort((a, b) => a.totalGasto - b.totalGasto);
+
+      // Firestore batch limit = 500, split if needed
+      const batchSize = 490;
+      for (let i = 0; i < deputados.length; i += batchSize) {
+        const batch = db.batch();
+        const chunk = deputados.slice(i, i + batchSize);
+        chunk.forEach((dep, idx) => {
+          const pos = i + idx + 1;
+          const ref = db.collection("deputados_federais").doc(dep.id);
+          batch.set(ref, {
+            ranking: {
+              posicao_economia: pos,
+              total_deputados: deputados.length,
+              percentil: Math.round(((deputados.length - pos) / deputados.length) * 100),
+              atualizado_em: new Date().toISOString(),
+            }
+          }, { merge: true });
+        });
+        await batch.commit();
+      }
+
+      res.json({
+        success: true,
+        total: deputados.length,
+        top10_economicos: deputados.slice(0, 10).map((d, i) => ({
+          rank: i + 1, nome: d.nome, partido: d.partido, uf: d.uf, gastos: d.totalGasto,
+        })),
+        top10_gastadores: deputados.slice(-10).reverse().map((d, i) => ({
+          rank: deputados.length - i, nome: d.nome, partido: d.partido, uf: d.uf, gastos: d.totalGasto,
+        })),
+      });
+    } catch (error) {
+      console.error("calcularRankings error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);

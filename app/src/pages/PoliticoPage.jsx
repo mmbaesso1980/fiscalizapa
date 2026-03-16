@@ -132,6 +132,39 @@ export default function PoliticoPage({ user }) {
         ))}
       </div>
 
+
+      {/* Ranking de Economia */}
+      {pol.ranking && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '16px',
+          background: 'linear-gradient(135deg, var(--bg-card), var(--bg-surface))',
+          border: '1px solid var(--accent-green)',
+          borderRadius: 'var(--radius-md)',
+          padding: '16px 24px', marginBottom: '24px'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'Space Grotesk' }}>
+              #{pol.ranking.posicao_economia}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>de {pol.ranking.total_deputados}</div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+              Ranking de Economia Parlamentar
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              Top {100 - pol.ranking.percentil}% mais economico na Camara dos Deputados (CEAP)
+            </div>
+          </div>
+          <div style={{
+            padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
+            background: pol.ranking.percentil > 70 ? 'rgba(76,202,163,0.15)' : pol.ranking.percentil > 40 ? 'rgba(255,193,7,0.15)' : 'rgba(233,69,96,0.15)',
+            color: pol.ranking.percentil > 70 ? 'var(--accent-green)' : pol.ranking.percentil > 40 ? 'var(--accent-gold)' : 'var(--accent-red)'
+          }}>
+            {pol.ranking.percentil > 70 ? 'Economico' : pol.ranking.percentil > 40 ? 'Medio' : 'Gastador'}
+          </div>
+        </div>
+      )}
       {/* Botao IA */}
       <div style={{ marginBottom: '24px' }}>
         <button onClick={runAI} disabled={analyzing} style={{
