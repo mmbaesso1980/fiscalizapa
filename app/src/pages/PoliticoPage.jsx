@@ -15,6 +15,17 @@ function riskBadge(score) {
   return { label: "Alto risco", cls: "risk-badge-high" };
 }
 
+
+function simpleMarkdown(text) {
+  if (!text) return '';
+  return text
+    .replace(/### (.*)/g, '<h3>$1</h3>')
+    .replace(/## (.*)/g, '<h2>$1</h2>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^\* (.*)/gm, '<li>$1</li>')
+    .replace(/---/g, '<hr/>')
+    .replace(/\n/g, '<br/>');
+}
 export default function PoliticoPage({ user }) {
   const { colecao, id } = useParams();
   const [pol, setPol] = useState(null);
@@ -187,7 +198,7 @@ export default function PoliticoPage({ user }) {
           <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--accent-gold)', marginBottom: '12px' }}>
             Analise da IA FiscalizaBR
           </h3>
-          <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{analysis}</div>
+          <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: simpleMarkdown(analysis) }} />
         </div>
       )}
       {/* Tabs */}
