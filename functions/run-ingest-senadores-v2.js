@@ -24,7 +24,7 @@ const args = process.argv.slice(2);
 const START_YEAR = parseInt(args[0]) || 2024;
 const END_YEAR = parseInt(args[1]) || 2025;
 
-console.log(`=== Ingestao Senadores v2 ===");
+console.log(`=== Ingestao Senadores v2 ===`);
 console.log(`Anos: ${START_YEAR} a ${END_YEAR}`);
 console.log(`Projeto: fiscallizapa`);
 console.log(`---`);
@@ -244,7 +244,7 @@ async function main() {
   }
 
   const elapsed = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
-  console.log(`\n=== Ingestao Senadores Completa ===");
+  console.log(`\n=== Ingestao Senadores Completa ===`);
   console.log(`Sucesso: ${successCount} | Erros: ${errorCount}`);
   console.log(`Tempo total: ${elapsed} minutos`);
   process.exit(0);

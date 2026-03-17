@@ -47,7 +47,7 @@ export default function PoliticoPage({ user }) {
       }
       const gSnap = await getDocs(collection(db, col, id, "gastos"));
       const gList = gSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      gList.sort((a, b) => (b.valorLiquido || b.valor || 0) - (a.valorLiquido || a.valor || 0));
+      gList.sort((a, b) => (b.valorLiquido || b.valorDocumento || b.valor || 0) - (a.valorLiquido || a.valorDocumento || a.valor || 0));
       setGastos(gList);
       const eSnap = await getDocs(collection(db, col, id, "emendas"));
       setEmendas(eSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -56,21 +56,21 @@ export default function PoliticoPage({ user }) {
     load();
   }, [colecao, id]);
 
-  const totalGastos = gastos.reduce((a, g) => a + (g.valorLiquido || g.valor || 0), 0);
+  const totalGastos = gastos.reduce((a, g) => a + (g.valorLiquido || g.valorDocumento || g.valor || 0), 0);
   const totalEmendas = emendas.reduce((a, e) => a + (e.valorEmpenhado || e.valor || 0), 0);
 
   const porCategoria = {};
   gastos.forEach(g => {
-    const cat = g.tipoDespesa || g.categoria || "Outros";
-    porCategoria[cat] = (porCategoria[cat] || 0) + (g.valorLiquido || g.valor || 0);
+    const cat = g.tipoDespesa || g.tipo || g.categoria || "Outros";
+    porCategoria[cat] = (porCategoria[cat] || 0) + (g.valorLiquido || g.valorDocumento || g.valor || 0);
   });
   const catSorted = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
   const maxCat = catSorted.length > 0 ? catSorted[0][1] : 1;
 
   const porFornecedor = {};
   gastos.forEach(g => {
-    const f = g.fornecedorNome || g.cnpjCpf || "Desconhecido";
-    porFornecedor[f] = (porFornecedor[f] || 0) + (g.valorLiquido || g.valor || 0);
+    const f = g.fornecedorNome || g.nomeFornecedor || g.fornecedor || g.cnpjCpf || g.cnpjCpfFornecedor || g.cnpj || "Desconhecido";
+    porFornecedor[f] = (porFornecedor[f] || 0) + (g.valorLiquido || g.valorDocumento || g.valor || 0);
   });
   const fornSorted = Object.entries(porFornecedor).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const top3Total = fornSorted.slice(0, 3).reduce((a, b) => a + b[1], 0);
@@ -100,14 +100,14 @@ export default function PoliticoPage({ user }) {
         padding: '28px', border: '1px solid var(--border-light)',
         marginBottom: '24px', display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap'
       }}>
-        <img src={pol.fotoUrl || pol.foto || ''} alt="" style={{
+        <img src={pol.fotoUrl || pol.foto || pol.urlFoto || ''} alt="" style={{
           width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover',
           border: '3px solid var(--border-light)', background: 'var(--bg-secondary)'
         }} />
         <div style={{ flex: 1, minWidth: '200px' }}>
           <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '4px' }}>{pol.nome}</h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-            {pol.partido} - {pol.uf} &middot; {pol.cargo || 'Deputado Federal'}
+            {pol.partido || pol.siglaPartido} - {pol.uf || pol.estado || pol.siglaUf} &middot; {pol.cargo || 'Deputado Federal'}
           </p>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {pol.score != null && (
@@ -226,14 +226,14 @@ export default function PoliticoPage({ user }) {
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {g.tipoDespesa || g.categoria || 'Despesa'}
+                  {g.tipoDespesa || g.tipo || g.categoria || 'Despesa'}
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  {g.fornecedorNome || g.cnpjCpf || ''} {g.dataDocumento ? '| ' + g.dataDocumento.substring(0, 10) : ''}
+                  {g.fornecedorNome || g.nomeFornecedor || g.fornecedor || g.cnpjCpf || g.cnpjCpfFornecedor || g.cnpj || ''} {g.dataDocumento ? '| ' + g.dataDocumento.substring(0, 10) : ''}
                 </div>
               </div>
               <div style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-orange)', whiteSpace: 'nowrap', marginLeft: '12px' }}>
-                {fmt(g.valorLiquido || g.valor)}
+                {fmt(g.valorLiquido || g.valorDocumento || g.valor)}
               </div>
             </div>
           ))}

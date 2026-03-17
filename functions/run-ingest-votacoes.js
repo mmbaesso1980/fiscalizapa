@@ -146,7 +146,7 @@ async function main() {
   }
 
   const elapsed = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
-  console.log(`\n=== Ingestao Votacoes Completa ===");
+  console.log(`\n=== Ingestao Votacoes Completa ===`);
   console.log(`Sucesso: ${successCount} | Erros: ${errorCount}`);
   console.log(`Tempo total: ${elapsed} minutos`);
   process.exit(0);

@@ -97,7 +97,7 @@ exports.stripeWebhook = onRequest({ region: "southamerica-east1" }, async (req, 
   if (event.type === "checkout.session.completed") {
     const userId = session.metadata?.userId;
     if (userId && session.amount_total) {
-      const creditsMap = { 2990: 30, 7990: 100, 19990: 300 };
+      const creditsMap = { 2900: 10, 3990: 999999, 4900: 25 };
       const credits = creditsMap[session.amount_total] || 0;
       if (credits > 0) {
         await db.collection("users").doc(userId).update({
@@ -243,9 +243,9 @@ exports.ingestDeputados = onRequest({ region: "southamerica-east1" }, async (req
           idCamara: dep.id,
           nome: dep.nome,
           partido: dep.siglaPartido,
-          estado: dep.siglaUf,
+          uf: dep.siglaUf,
           cargo: "Deputado Federal",
-          foto: dep.urlFoto || "",
+          fotoUrl: dep.urlFoto || "",
           email: dep.email || "",
           presenca: 0,
           projetos: 0,
@@ -310,9 +310,9 @@ exports.ingestSenadores = onRequest({ region: "southamerica-east1" }, async (req
           idSenado: id,
           nome,
           partido: partido || "",
-          estado: estado || "",
+          uf: estado || "",
           cargo: "Senador",
-          foto,
+          fotoUrl: foto,
           presenca: 0,
           projetos: 0,
           gastos: 0,
@@ -339,9 +339,19 @@ exports.weeklyIngest = onSchedule(
   { schedule: "every monday 06:00", region: "southamerica-east1", timeZone: "America/Sao_Paulo" },
   async (event) => {
     console.log("Starting weekly ingestion...");
-    // Note: onSchedule can't call onRequest functions directly
-    // This would need to be refactored to call the ingestion logic directly
-    console.log("Weekly ingestion scheduled - implement direct logic here");
+    const { runWeeklyIngest } = require("./weekly-ingest-logic");
+    try {
+      const results = await runWeeklyIngest();
+      console.log("Weekly ingestion completed:", results);
+    } catch (err) {
+      console.error("Weekly ingestion failed:", err);
+      await db.collection("system_logs").add({
+        type: "weekly_ingest",
+        error: err.message,
+        executedAt: admin.firestore.FieldValue.serverTimestamp(),
+        success: false,
+      });
+    }
   }
 );
 
@@ -549,11 +559,10 @@ exports.ingestDespesas = onRequest(
                     .collection("gastos").doc(docId),
                   {
                     ano: d.ano, mes: d.mes,
-                    tipo: d.tipoDespesa || '',
-                    descricao: d.tipoDespesa || '',
-                    fornecedor: d.nomeFornecedor || '',
-                    cnpj: d.cnpjCpfFornecedor || '',
-                    valor: d.valorDocumento || 0,
+                    tipoDespesa: d.tipoDespesa || '',
+                    fornecedorNome: d.nomeFornecedor || '',
+                    cnpjCpf: d.cnpjCpfFornecedor || '',
+                    valorDocumento: d.valorDocumento || 0,
                     valorLiquido: d.valorLiquido || 0,
                     urlDocumento: d.urlDocumento || '',
                     dataDocumento: d.dataDocumento || '',
@@ -585,8 +594,8 @@ exports.ingestDespesas = onRequest(
             });
         }
         await db.collection("deputados_federais").doc(String(dep.id)).set({
-          totalGasto: totalValor,
-          numGastos: totalDesp,
+          totalGastos: totalValor,
+          totalDespesas: totalDesp,
           lastIngest: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
         results.push({ id: dep.id, nome: dep.nome, despesas: totalDesp, valor: totalValor });
@@ -617,12 +626,12 @@ exports.calcularRankings = onRequest(
 
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        const totalGasto = data.totalGasto || 0;
+        const totalGastos = data.totalGastos || data.totalGasto || 0;
         const nome = data.nome || "";
         const partido = data.partido || "";
         const uf = data.uf || "";
         const score = data.score || 0;
-        deputados.push({ id: docSnap.id, nome, partido, uf, totalGasto, score });
+        deputados.push({ id: docSnap.id, nome, partido, uf, totalGasto: totalGastos, score });
       });
 
       // Ordenar: menor gasto = rank 1 (mais economico)
@@ -664,3 +673,322 @@ exports.calcularRankings = onRequest(
     }
   }
 );
+
+// ============================================
+// AUDIT BOT - Fretamento de Aeronaves
+// Analisa despesas de fretamento e gera alertas
+// ============================================
+
+const ICAO_DB = {
+  'SBEG': { cidade: 'Manaus', estado: 'AM' },
+  'SBBE': { cidade: 'Belém', estado: 'PA' },
+  'SBBR': { cidade: 'Brasília', estado: 'DF' },
+  'SBKP': { cidade: 'Campinas', estado: 'SP' },
+  'SBGR': { cidade: 'Guarulhos', estado: 'SP' },
+  'SBRJ': { cidade: 'Rio de Janeiro (SDU)', estado: 'RJ' },
+  'SBGL': { cidade: 'Rio de Janeiro (GIG)', estado: 'RJ' },
+  'SBSP': { cidade: 'São Paulo (CGH)', estado: 'SP' },
+  'SBCF': { cidade: 'Confins/BH', estado: 'MG' },
+  'SBPA': { cidade: 'Porto Alegre', estado: 'RS' },
+  'SBCT': { cidade: 'Curitiba', estado: 'PR' },
+  'SBRF': { cidade: 'Recife', estado: 'PE' },
+  'SBSV': { cidade: 'Salvador', estado: 'BA' },
+  'SBFL': { cidade: 'Florianópolis', estado: 'SC' },
+  'SBFZ': { cidade: 'Fortaleza', estado: 'CE' },
+  'SBNT': { cidade: 'Natal', estado: 'RN' },
+  'SBGO': { cidade: 'Goiânia', estado: 'GO' },
+  'SBBV': { cidade: 'Boa Vista', estado: 'RR' },
+  'SBMQ': { cidade: 'Macapá', estado: 'AP' },
+  'SBPV': { cidade: 'Porto Velho', estado: 'RO' },
+  'SBRB': { cidade: 'Rio Branco', estado: 'AC' },
+  'SBSL': { cidade: 'São Luís', estado: 'MA' },
+  'SBTE': { cidade: 'Teresina', estado: 'PI' },
+  'SBPL': { cidade: 'Petrolina', estado: 'PE' },
+  'SBMO': { cidade: 'Maceió', estado: 'AL' },
+  'SBAR': { cidade: 'Aracaju', estado: 'SE' },
+  'SBCG': { cidade: 'Campo Grande', estado: 'MS' },
+  'SBCY': { cidade: 'Cuiabá', estado: 'MT' },
+  'SBMN': { cidade: 'Manaus (Ponta Pelada)', estado: 'AM' },
+  'SBSN': { cidade: 'Santarém', estado: 'PA' },
+  'SBMA': { cidade: 'Marabá', estado: 'PA' },
+  'SBHT': { cidade: 'Altamira', estado: 'PA' },
+  'SNMZ': { cidade: 'Monte Alegre', estado: 'PA' },
+};
+
+// Routes that have regular commercial flights (interstate, main hubs)
+const COMMERCIAL_ROUTES = [
+  ['SP', 'RJ'], ['SP', 'MG'], ['SP', 'DF'], ['SP', 'RS'], ['SP', 'PR'],
+  ['SP', 'BA'], ['SP', 'PE'], ['SP', 'CE'], ['RJ', 'MG'], ['RJ', 'DF'],
+  ['RJ', 'BA'], ['RJ', 'RS'], ['DF', 'MG'], ['DF', 'BA'], ['DF', 'RS'],
+  ['DF', 'PE'], ['DF', 'CE'], ['DF', 'PA'], ['DF', 'AM'], ['DF', 'GO'],
+  ['DF', 'PR'], ['DF', 'SC'], ['DF', 'RJ'],
+];
+
+function hasCommercialFlight(state1, state2) {
+  if (!state1 || !state2) return false;
+  return COMMERCIAL_ROUTES.some(([a, b]) =>
+    (a === state1 && b === state2) || (a === state2 && b === state1)
+  );
+}
+
+function extractICAOCodes(text) {
+  if (!text) return [];
+  const pattern = /\b(SB[A-Z]{2}|SN[A-Z]{2})\b/g;
+  return [...new Set((text.match(pattern) || []))];
+}
+
+function isWeekend(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  const day = d.getDay();
+  return day === 0 || day === 6;
+}
+
+exports.auditFretamento = onRequest(
+  { region: "southamerica-east1", timeoutSeconds: 540, memory: "1GiB" },
+  async (req, res) => {
+    const authHeader = req.headers["x-admin-key"];
+    const adminKey = process.env.ADMIN_KEY;
+    if (!adminKey || authHeader !== adminKey) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      const depSnapshot = await db.collection("deputados_federais").get();
+      const stats = { totalDeputados: 0, totalAlertas: 0, deputadosComAlerta: 0 };
+
+      for (const depDoc of depSnapshot.docs) {
+        const depData = depDoc.data();
+        const depId = depDoc.id;
+        const depUf = depData.uf || '';
+        stats.totalDeputados++;
+
+        // Fetch all gastos for this deputy
+        const gastosSnap = await db.collection("deputados_federais")
+          .doc(depId).collection("gastos").get();
+
+        // Filter for aircraft charter expenses
+        const fretamentos = [];
+        const allGastos = [];
+        for (const gDoc of gastosSnap.docs) {
+          const g = gDoc.data();
+          if (gDoc.id === '_no_expenses') continue;
+          allGastos.push({ id: gDoc.id, ...g });
+          const tipo = (g.tipoDespesa || g.tipo || '').toUpperCase();
+          if (tipo.includes('AERONAVE') || tipo.includes('FRETAMENTO') || tipo.includes('CHARTER')) {
+            fretamentos.push({ id: gDoc.id, ...g });
+          }
+        }
+
+        if (fretamentos.length === 0) continue;
+
+        const alertas = [];
+
+        // Supplier totals for concentration check
+        const supplierTotals = {};
+        let totalFretamentoValor = 0;
+        for (const f of fretamentos) {
+          const supplier = f.fornecedorNome || f.nomeFornecedor || f.fornecedor || 'Desconhecido';
+          const valor = f.valorLiquido || f.valorDocumento || f.valor || 0;
+          supplierTotals[supplier] = (supplierTotals[supplier] || 0) + valor;
+          totalFretamentoValor += valor;
+        }
+
+        for (const f of fretamentos) {
+          const valor = f.valorLiquido || f.valorDocumento || f.valor || 0;
+          const supplier = f.fornecedorNome || f.nomeFornecedor || f.fornecedor || '';
+          const cnpj = f.cnpjCpf || f.cnpjCpfFornecedor || f.cnpj || '';
+          const descricao_campo = f.tipoDespesa || f.tipo || '';
+          const observacao = f.detalhamento || f.numDocumento || '';
+
+          // RULE 1: High value (>R$20,000)
+          if (valor > 20000) {
+            alertas.push({
+              tipo: 'VALOR_ALTO',
+              gravidade: valor > 50000 ? 'ALTA' : 'MEDIA',
+              despesaId: f.id,
+              data: f.dataDocumento || '',
+              valor,
+              fornecedor: supplier,
+              cnpj,
+              descricao: `Fretamento de aeronave com valor de ${fmt_brl(valor)} (acima de R$20.000)`,
+              detalhes: { limiar: 20000, excesso: valor - 20000 },
+              urlDocumento: f.urlDocumento || '',
+              criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+
+          // RULE 2: ICAO route discrepancy
+          const textToSearch = `${descricao_campo} ${observacao} ${supplier}`;
+          const icaoCodes = extractICAOCodes(textToSearch);
+          if (icaoCodes.length >= 2) {
+            const states = icaoCodes
+              .map(code => ICAO_DB[code]?.estado)
+              .filter(Boolean);
+            const uniqueStates = [...new Set(states)];
+            // Check if route doesn't involve deputy's home state or DF
+            const involvesHomeOrDF = uniqueStates.some(s => s === depUf || s === 'DF');
+            if (!involvesHomeOrDF && uniqueStates.length >= 2) {
+              alertas.push({
+                tipo: 'ROTA_DISCREPANTE',
+                gravidade: 'ALTA',
+                despesaId: f.id,
+                data: f.dataDocumento || '',
+                valor,
+                fornecedor: supplier,
+                cnpj,
+                descricao: `Rota de fretamento (${icaoCodes.join(' → ')}) nao envolve o estado do deputado (${depUf}) nem Brasilia (DF)`,
+                detalhes: {
+                  icaoCodes,
+                  estadosRota: uniqueStates,
+                  estadoDeputado: depUf,
+                },
+                urlDocumento: f.urlDocumento || '',
+                criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+          }
+
+          // RULE 3: Anti-economic interstate flights (commercial route available)
+          if (icaoCodes.length >= 2) {
+            const states = icaoCodes
+              .map(code => ICAO_DB[code]?.estado)
+              .filter(Boolean);
+            const uniqueStates = [...new Set(states)];
+            if (uniqueStates.length >= 2) {
+              for (let i = 0; i < uniqueStates.length; i++) {
+                for (let j = i + 1; j < uniqueStates.length; j++) {
+                  if (hasCommercialFlight(uniqueStates[i], uniqueStates[j])) {
+                    alertas.push({
+                      tipo: 'VOO_ANTIECONOMICO',
+                      gravidade: 'MEDIA',
+                      despesaId: f.id,
+                      data: f.dataDocumento || '',
+                      valor,
+                      fornecedor: supplier,
+                      cnpj,
+                      descricao: `Fretamento na rota ${uniqueStates[i]}-${uniqueStates[j]} que possui voos comerciais regulares`,
+                      detalhes: {
+                        icaoCodes,
+                        rotaComercial: [uniqueStates[i], uniqueStates[j]],
+                      },
+                      urlDocumento: f.urlDocumento || '',
+                      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                    break;
+                  }
+                }
+              }
+            }
+          }
+
+          // RULE 5: Weekend flights
+          if (isWeekend(f.dataDocumento)) {
+            alertas.push({
+              tipo: 'VOO_FIM_SEMANA',
+              gravidade: 'BAIXA',
+              despesaId: f.id,
+              data: f.dataDocumento || '',
+              valor,
+              fornecedor: supplier,
+              cnpj,
+              descricao: `Fretamento de aeronave em fim de semana (${f.dataDocumento}) - possivel uso pessoal`,
+              detalhes: {
+                diaSemana: new Date(f.dataDocumento).toLocaleDateString('pt-BR', { weekday: 'long' }),
+              },
+              urlDocumento: f.urlDocumento || '',
+              criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        }
+
+        // RULE 4: Supplier concentration (>80% from single supplier)
+        if (totalFretamentoValor > 0) {
+          for (const [supplier, total] of Object.entries(supplierTotals)) {
+            const pct = (total / totalFretamentoValor) * 100;
+            if (pct > 80) {
+              alertas.push({
+                tipo: 'CONCENTRACAO_FORNECEDOR',
+                gravidade: 'ALTA',
+                despesaId: '',
+                data: '',
+                valor: total,
+                fornecedor: supplier,
+                cnpj: '',
+                descricao: `Fornecedor "${supplier}" concentra ${pct.toFixed(0)}% de todos os fretamentos (${fmt_brl(total)} de ${fmt_brl(totalFretamentoValor)})`,
+                detalhes: {
+                  percentual: pct,
+                  totalFornecedor: total,
+                  totalFretamentos: totalFretamentoValor,
+                  numFretamentos: fretamentos.length,
+                },
+                urlDocumento: '',
+                criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+          }
+        }
+
+        // Write alerts to Firestore
+        if (alertas.length > 0) {
+          stats.deputadosComAlerta++;
+          stats.totalAlertas += alertas.length;
+
+          // Delete old alerts first
+          const oldAlertas = await db.collection("deputados_federais")
+            .doc(depId).collection("alertas_fretamento").get();
+          if (!oldAlertas.empty) {
+            const delBatch = db.batch();
+            let delCount = 0;
+            for (const old of oldAlertas.docs) {
+              delBatch.delete(old.ref);
+              delCount++;
+              if (delCount >= 490) {
+                await delBatch.commit();
+                delCount = 0;
+              }
+            }
+            if (delCount > 0) await delBatch.commit();
+          }
+
+          // Write new alerts in batches
+          const BATCH_LIMIT = 490;
+          for (let i = 0; i < alertas.length; i += BATCH_LIMIT) {
+            const chunk = alertas.slice(i, i + BATCH_LIMIT);
+            const batch = db.batch();
+            for (const alerta of chunk) {
+              const ref = db.collection("deputados_federais")
+                .doc(depId).collection("alertas_fretamento").doc();
+              batch.set(ref, alerta);
+            }
+            await batch.commit();
+          }
+
+          // Update deputy doc with summary
+          const totalValorAlertas = alertas.reduce((s, a) => s + (a.valor || 0), 0);
+          await db.collection("deputados_federais").doc(depId).set({
+            alertasFretamento: {
+              total: alertas.length,
+              totalValor: totalValorAlertas,
+              ultimaAuditoria: admin.firestore.FieldValue.serverTimestamp(),
+            },
+          }, { merge: true });
+        }
+      }
+
+      res.json({
+        success: true,
+        ...stats,
+        message: `Auditoria concluida: ${stats.totalAlertas} alertas em ${stats.deputadosComAlerta} deputados`,
+      });
+    } catch (error) {
+      console.error("auditFretamento error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+function fmt_brl(v) {
+  return 'R$' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+}
