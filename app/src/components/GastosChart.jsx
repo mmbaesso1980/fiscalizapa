@@ -1,16 +1,8 @@
-import { useState, useEffect } from "react";
-import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
-import { db } from "../lib/firebase";
-
-/**
- * GastosChart - Graficos interativos de gastos parlamentares
- * Usa CSS puro (sem dependencia de chart library)
- * Issue #6
- */
+import { useState, useMemo } from "react";
 
 const COLORS = [
-  "#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6",
-  "#8b5cf6", "#ec4899", "#14b8a6", "#f59e0b", "#6366f1"
+  "#3d6b5e", "#c9a84c", "#c4724e", "#5a9e8f", "#b54a4a",
+  "#e8d48b", "#8a8a9e", "#6b8f71", "#d4a574", "#7a6b5e"
 ];
 
 function formatCurrency(value) {
@@ -21,28 +13,35 @@ function formatCurrency(value) {
   }).format(value);
 }
 
-// Bar Chart Component
-function BarChart({ data, labelKey, valueKey, title, color = "#3b82f6" }) {
+function BarChart({ data, labelKey, valueKey, title }) {
   if (!data || data.length === 0) return null;
   const maxVal = Math.max(...data.map(d => d[valueKey] || 0));
 
   return (
-    <div className="bg-white rounded-xl shadow p-4 mb-6">
-      <h3 className="text-lg font-bold mb-4">{title}</h3>
-      <div className="space-y-2">
+    <div style={{
+      background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
+      padding: '20px', border: '1px solid var(--border-light)', marginBottom: '16px'
+    }}>
+      <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '16px' }}>{title}</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {data.map((item, i) => {
           const val = item[valueKey] || 0;
           const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
           return (
-            <div key={i} className="flex items-center gap-2">
-              <span className="text-xs w-32 truncate text-right">{item[labelKey]}</span>
-              <div className="flex-1 bg-gray-100 rounded-full h-6 relative">
-                <div
-                  className="h-6 rounded-full transition-all duration-500"
-                  style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }}
-                />
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', width: '140px', textAlign: 'right', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {item[labelKey]}
+              </span>
+              <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: '12px', height: '22px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', borderRadius: '12px',
+                  width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length],
+                  transition: 'width 0.5s ease'
+                }} />
               </div>
-              <span className="text-xs font-mono w-28 text-right">{formatCurrency(val)}</span>
+              <span style={{ fontSize: '11px', fontFamily: 'Space Grotesk', fontWeight: 600, width: '100px', textAlign: 'right', color: 'var(--text-primary)', flexShrink: 0 }}>
+                {formatCurrency(val)}
+              </span>
             </div>
           );
         })}
@@ -51,7 +50,6 @@ function BarChart({ data, labelKey, valueKey, title, color = "#3b82f6" }) {
   );
 }
 
-// Donut/Pie Chart (CSS-only)
 function DonutChart({ data, labelKey, valueKey, title }) {
   if (!data || data.length === 0) return null;
   const total = data.reduce((s, d) => s + (d[valueKey] || 0), 0);
@@ -68,26 +66,31 @@ function DonutChart({ data, labelKey, valueKey, title }) {
     .join(", ");
 
   return (
-    <div className="bg-white rounded-xl shadow p-4 mb-6">
-      <h3 className="text-lg font-bold mb-4">{title}</h3>
-      <div className="flex items-center gap-6">
-        <div
-          className="w-40 h-40 rounded-full flex-shrink-0"
-          style={{
-            background: `conic-gradient(${gradient})`,
-            position: "relative",
-          }}
-        >
-          <div className="absolute inset-6 bg-white rounded-full flex items-center justify-center">
-            <span className="text-xs font-bold text-center">{formatCurrency(total)}</span>
+    <div style={{
+      background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
+      padding: '20px', border: '1px solid var(--border-light)', marginBottom: '16px'
+    }}>
+      <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '16px' }}>{title}</h3>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+        <div style={{
+          width: '160px', height: '160px', borderRadius: '50%', flexShrink: 0,
+          background: `conic-gradient(${gradient})`, position: 'relative'
+        }}>
+          <div style={{
+            position: 'absolute', inset: '24px', background: 'var(--bg-card)',
+            borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--text-primary)', textAlign: 'center' }}>
+              {formatCurrency(total)}
+            </span>
           </div>
         </div>
-        <div className="space-y-1">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {segments.map((s, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs">
-              <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: s.color }} />
-              <span className="truncate">{s[labelKey]}</span>
-              <span className="font-mono">{s.pct.toFixed(1)}%</span>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+              <span style={{ width: '12px', height: '12px', borderRadius: '3px', flexShrink: 0, backgroundColor: s.color }} />
+              <span style={{ color: 'var(--text-secondary)', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s[labelKey]}</span>
+              <span style={{ fontFamily: 'Space Grotesk', fontWeight: 600, color: 'var(--text-primary)' }}>{s.pct.toFixed(1)}%</span>
             </div>
           ))}
         </div>
@@ -96,109 +99,86 @@ function DonutChart({ data, labelKey, valueKey, title }) {
   );
 }
 
-// Main GastosChart component
-export default function GastosChart({ politicoId, tipo = "deputados_federais" }) {
-  const [despesas, setDespesas] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("categoria"); // categoria | mensal | top
+export default function GastosChart({ gastos = [] }) {
+  const [view, setView] = useState("categoria");
 
-  useEffect(() => {
-    if (!politicoId) return;
-    loadDespesas();
-  }, [politicoId]);
+  const { categoriaData, mensalData, fornecedorData, totalGeral } = useMemo(() => {
+    const byCategoria = {};
+    gastos.forEach(d => {
+      const cat = d.tipoDespesa || d.tipo || d.descricao || d.categoria || "Outros";
+      byCategoria[cat] = (byCategoria[cat] || 0) + (d.valorLiquido || d.valor || d.valorDocumento || 0);
+    });
+    const categoriaData = Object.entries(byCategoria)
+      .map(([nome, total]) => ({ nome, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
 
-  async function loadDespesas() {
-    setLoading(true);
-    try {
-      const ref = collection(db, "politicos", politicoId, "despesas");
-      const snap = await getDocs(ref);
-      const items = snap.docs.map(d => d.data());
-      setDespesas(items);
-    } catch (err) {
-      console.error("Erro ao carregar despesas:", err);
-    }
-    setLoading(false);
-  }
+    const byMes = {};
+    gastos.forEach(d => {
+      const mes = d.mes ? `${d.ano || ""}-${String(d.mes).padStart(2, "0")}` : "N/A";
+      byMes[mes] = (byMes[mes] || 0) + (d.valorLiquido || d.valor || d.valorDocumento || 0);
+    });
+    const mensalData = Object.entries(byMes)
+      .map(([mes, total]) => ({ mes, total }))
+      .sort((a, b) => a.mes.localeCompare(b.mes))
+      .slice(-12);
 
-  if (loading) {
+    const byFornecedor = {};
+    gastos.forEach(d => {
+      const f = d.fornecedorNome || d.nomeFornecedor || d.fornecedor || "N/I";
+      byFornecedor[f] = (byFornecedor[f] || 0) + (d.valorLiquido || d.valor || d.valorDocumento || 0);
+    });
+    const fornecedorData = Object.entries(byFornecedor)
+      .map(([nome, total]) => ({ nome, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+
+    const totalGeral = gastos.reduce((s, d) => s + (d.valorLiquido || d.valor || d.valorDocumento || 0), 0);
+
+    return { categoriaData, mensalData, fornecedorData, totalGeral };
+  }, [gastos]);
+
+  if (gastos.length === 0) {
     return (
-      <div className="animate-pulse bg-gray-100 rounded-xl h-48 flex items-center justify-center">
-        <span className="text-gray-400">Carregando graficos...</span>
-      </div>
-    );
-  }
-
-  if (despesas.length === 0) {
-    return (
-      <div className="bg-gray-50 rounded-xl p-6 text-center text-gray-500">
+      <div style={{
+        background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)',
+        padding: '40px', textAlign: 'center', color: 'var(--text-muted)'
+      }}>
         Nenhuma despesa encontrada para este politico.
       </div>
     );
   }
 
-  // Agrupar por categoria
-  const byCategoria = {};
-  despesas.forEach(d => {
-    const cat = d.tipoDespesa || d.categoria || "Outros";
-    byCategoria[cat] = (byCategoria[cat] || 0) + (d.valor || d.valorDocumento || 0);
-  });
-  const categoriaData = Object.entries(byCategoria)
-    .map(([nome, total]) => ({ nome, total }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 10);
-
-  // Agrupar por mes
-  const byMes = {};
-  despesas.forEach(d => {
-    const mes = d.mes ? `${d.ano || ""}-${String(d.mes).padStart(2, "0")}` : "N/A";
-    byMes[mes] = (byMes[mes] || 0) + (d.valor || d.valorDocumento || 0);
-  });
-  const mensalData = Object.entries(byMes)
-    .map(([mes, total]) => ({ mes, total }))
-    .sort((a, b) => a.mes.localeCompare(b.mes))
-    .slice(-12);
-
-  // Top fornecedores
-  const byFornecedor = {};
-  despesas.forEach(d => {
-    const f = d.fornecedor || d.nomeFornecedor || "N/I";
-    byFornecedor[f] = (byFornecedor[f] || 0) + (d.valor || d.valorDocumento || 0);
-  });
-  const fornecedorData = Object.entries(byFornecedor)
-    .map(([nome, total]) => ({ nome, total }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 10);
-
-  const totalGeral = despesas.reduce((s, d) => s + (d.valor || d.valorDocumento || 0), 0);
+  const viewButtons = [
+    { key: "categoria", label: "Categoria" },
+    { key: "mensal", label: "Mensal" },
+    { key: "fornecedor", label: "Fornecedor" },
+  ];
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
         <div>
-          <h2 className="text-xl font-bold">Analise de Gastos</h2>
-          <p className="text-sm text-gray-500">
-            Total: {formatCurrency(totalGeral)} em {despesas.length} despesas
+          <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>Analise de Gastos</h2>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+            Total: {formatCurrency(totalGeral)} em {gastos.length} despesas
           </p>
         </div>
-        <div className="flex gap-1">
-          {["categoria", "mensal", "fornecedor"].map(v => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition ${
-                view === v
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              {v.charAt(0).toUpperCase() + v.slice(1)}
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {viewButtons.map(v => (
+            <button key={v.key} onClick={() => setView(v.key)} style={{
+              padding: '6px 14px', borderRadius: '16px', fontSize: '12px', fontWeight: 500,
+              border: view === v.key ? '1px solid var(--accent-green)' : '1px solid var(--border-light)',
+              background: view === v.key ? 'var(--accent-green)' : 'var(--bg-card)',
+              color: view === v.key ? '#fff' : 'var(--text-secondary)',
+              cursor: 'pointer', transition: 'all 0.2s'
+            }}>
+              {v.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Charts */}
       {view === "categoria" && (
         <>
           <DonutChart data={categoriaData} labelKey="nome" valueKey="total" title="Gastos por Categoria" />

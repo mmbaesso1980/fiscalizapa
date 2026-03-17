@@ -1,42 +1,30 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 
-const GOAL_PRESENCA = 75; // Meta mínima de presença (%)
+const GOAL_PRESENCA = 75;
 
 const CircularProgress = ({ value, size = 120, strokeWidth = 10 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (value / 100) * circumference;
-  const color = value >= 75 ? '#22c55e' : value >= 50 ? '#f59e0b' : '#ef4444';
+  const color = value >= 75 ? 'var(--accent-green)' : value >= 50 ? 'var(--accent-gold)' : 'var(--accent-red)';
 
   return (
-    <svg width={size} height={size} className="transform -rotate-90">
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
       <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke="#1e3a5f"
-        strokeWidth={strokeWidth}
+        cx={size / 2} cy={size / 2} r={radius}
+        fill="none" stroke="var(--bg-secondary)" strokeWidth={strokeWidth}
       />
       <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
+        cx={size / 2} cy={size / 2} r={radius}
+        fill="none" stroke={color} strokeWidth={strokeWidth}
+        strokeDasharray={circumference} strokeDashoffset={offset}
         strokeLinecap="round"
         style={{ transition: 'stroke-dashoffset 0.5s ease' }}
       />
       <text
-        x={size / 2}
-        y={size / 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        className="transform rotate-90"
-        style={{ transform: `rotate(90deg)`, transformOrigin: `${size/2}px ${size/2}px`, fontSize: '18px', fontWeight: 'bold', fill: color }}
+        x={size / 2} y={size / 2}
+        textAnchor="middle" dominantBaseline="middle"
+        style={{ transform: `rotate(90deg)`, transformOrigin: `${size/2}px ${size/2}px`, fontSize: '18px', fontWeight: 'bold', fill: color, fontFamily: 'Space Grotesk' }}
       >
         {value}%
       </text>
@@ -44,88 +32,74 @@ const CircularProgress = ({ value, size = 120, strokeWidth = 10 }) => {
   );
 };
 
-const PresencaSection = ({ politician }) => {
-  const presencaData = useMemo(() => {
-    if (!politician) return null;
-    const presenca = politician.presenca || 0;
-    const totalSessions = politician.totalSessions || 0;
-    const presentSessions = politician.presentSessions || 0;
-    const absentSessions = totalSessions - presentSessions;
-    const status = presenca >= 75 ? 'Acima da média' : presenca >= 50 ? 'Abaixo da média' : 'Crítico';
-    const statusColor = presenca >= 75 ? 'text-green-400' : presenca >= 50 ? 'text-yellow-400' : 'text-red-400';
+const PresencaSection = ({ presenca = 0, totalSessoes = 0, sessoesPresente = 0 }) => {
+  const data = useMemo(() => {
+    const absentSessions = totalSessoes - sessoesPresente;
+    const status = presenca >= 75 ? 'Acima da media' : presenca >= 50 ? 'Abaixo da media' : 'Critico';
+    const statusColor = presenca >= 75 ? 'var(--accent-green)' : presenca >= 50 ? 'var(--accent-gold)' : 'var(--accent-red)';
     const comparison = presenca - GOAL_PRESENCA;
-    return {
-      presenca,
-      totalSessions,
-      presentSessions,
-      absentSessions,
-      status,
-      statusColor,
-      comparison,
-    };
-  }, [politician]);
+    return { presenca, totalSessoes, sessoesPresente, absentSessions, status, statusColor, comparison };
+  }, [presenca, totalSessoes, sessoesPresente]);
 
-  if (!presencaData) {
+  if (!totalSessoes && !presenca) {
     return (
-      <div className="bg-blue-950/50 rounded-xl p-6 border border-blue-800">
-        <p className="text-blue-400">Selecione um político para ver dados de presença</p>
+      <div style={{
+        background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)',
+        padding: '40px', textAlign: 'center', color: 'var(--text-muted)'
+      }}>
+        Dados de presenca em processamento.
       </div>
     );
   }
 
+  const statCards = [
+    { label: 'Total de Sessoes', value: data.totalSessoes, color: 'var(--text-primary)', bg: 'var(--bg-secondary)' },
+    { label: 'Sessoes Presentes', value: data.sessoesPresente, color: 'var(--accent-green)', bg: 'rgba(61,107,94,0.08)' },
+    { label: 'Sessoes Ausentes', value: data.absentSessions, color: 'var(--accent-red)', bg: 'rgba(181,74,74,0.08)' },
+    { label: `vs Meta (${GOAL_PRESENCA}%)`, value: `${data.comparison >= 0 ? '+' : ''}${data.comparison}%`, color: data.comparison >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', bg: 'var(--bg-secondary)' },
+  ];
+
+  const barColor = data.presenca >= 75 ? 'var(--accent-green)' : data.presenca >= 50 ? 'var(--accent-gold)' : 'var(--accent-red)';
+
   return (
-    <div className="bg-blue-950/50 rounded-xl p-6 border border-blue-800">
-      <h3 className="text-xl font-bold text-white mb-6">Presença nas Sessões</h3>
-      <div className="flex flex-col md:flex-row items-center gap-8">
-        {/* Circular Progress */}
-        <div className="flex flex-col items-center">
-          <CircularProgress value={presencaData.presenca} size={140} strokeWidth={12} />
-          <p className={`mt-2 font-semibold ${presencaData.statusColor}`}>
-            {presencaData.status}
+    <div style={{
+      background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
+      padding: '24px', border: '1px solid var(--border-light)'
+    }}>
+      <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '20px' }}>
+        Presenca nas Sessoes
+      </h3>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '32px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <CircularProgress value={data.presenca} size={140} strokeWidth={12} />
+          <p style={{ marginTop: '8px', fontWeight: 600, fontSize: '14px', color: data.statusColor }}>
+            {data.status}
           </p>
         </div>
-        {/* Stats */}
-        <div className="flex-1 grid grid-cols-2 gap-4">
-          <div className="bg-blue-900/40 rounded-lg p-4">
-            <p className="text-blue-300 text-sm">Total de Sessões</p>
-            <p className="text-2xl font-bold text-white">{presencaData.totalSessions}</p>
-          </div>
-          <div className="bg-green-900/20 rounded-lg p-4">
-            <p className="text-green-300 text-sm">Sessões Presentes</p>
-            <p className="text-2xl font-bold text-green-400">{presencaData.presentSessions}</p>
-          </div>
-          <div className="bg-red-900/20 rounded-lg p-4">
-            <p className="text-red-300 text-sm">Sessões Ausentes</p>
-            <p className="text-2xl font-bold text-red-400">{presencaData.absentSessions}</p>
-          </div>
-          <div className="bg-blue-900/40 rounded-lg p-4">
-            <p className="text-blue-300 text-sm">vs Meta ({GOAL_PRESENCA}%)</p>
-            <p className={`text-2xl font-bold ${
-              presencaData.comparison >= 0 ? 'text-green-400' : 'text-red-400'
-            }`}>
-              {presencaData.comparison >= 0 ? '+' : ''}{presencaData.comparison}%
-            </p>
-          </div>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', minWidth: '260px' }}>
+          {statCards.map((card, i) => (
+            <div key={i} style={{
+              background: card.bg, borderRadius: 'var(--radius-sm)', padding: '14px'
+            }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>{card.label}</p>
+              <p style={{ fontSize: '22px', fontWeight: 700, fontFamily: 'Space Grotesk', color: card.color }}>{card.value}</p>
+            </div>
+          ))}
         </div>
       </div>
-      {/* Progress bar */}
-      <div className="mt-6">
-        <div className="flex justify-between text-sm text-blue-300 mb-1">
-          <span>Índice de Presença</span>
-          <span>{presencaData.presenca}%</span>
+      <div style={{ marginTop: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+          <span>Indice de Presenca</span>
+          <span style={{ fontWeight: 600 }}>{data.presenca}%</span>
         </div>
-        <div className="h-3 bg-blue-900/50 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-700 ${
-              presencaData.presenca >= 75 ? 'bg-green-500'
-              : presencaData.presenca >= 50 ? 'bg-yellow-500'
-              : 'bg-red-500'
-            }`}
-            style={{ width: `${presencaData.presenca}%` }}
-          />
+        <div style={{ height: '10px', background: 'var(--bg-secondary)', borderRadius: '5px', overflow: 'hidden' }}>
+          <div style={{
+            height: '100%', borderRadius: '5px', transition: 'width 0.7s ease',
+            width: `${data.presenca}%`, background: barColor
+          }} />
         </div>
-        <div className="mt-1 flex justify-end">
-          <span className="text-xs text-blue-400">Meta: {GOAL_PRESENCA}%</span>
+        <div style={{ marginTop: '4px', textAlign: 'right' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Meta: {GOAL_PRESENCA}%</span>
         </div>
       </div>
     </div>
