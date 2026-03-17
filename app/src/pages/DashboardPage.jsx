@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import MapaBrasil from "../components/MapaBrasil";
 
 const UFS = ["","AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"];
 
@@ -32,6 +33,7 @@ export default function DashboardPage({ user }) {
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
   const [uf, setUf] = useState("");
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -48,6 +50,14 @@ export default function DashboardPage({ user }) {
     if (uf && p.uf !== uf) return false;
     return true;
   });
+
+  const politicoCounts = useMemo(() => {
+    const counts = {};
+    politicos.forEach(p => {
+      if (p.uf) counts[p.uf] = (counts[p.uf] || 0) + 1;
+    });
+    return counts;
+  }, [politicos]);
 
   return (
     <div style={{ maxWidth: '960px', margin: '0 auto', padding: '32px 20px' }}>
@@ -73,17 +83,34 @@ export default function DashboardPage({ user }) {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
         <input
           placeholder="Buscar politico..."
           value={busca} onChange={e => setBusca(e.target.value)}
-          style={{ flex: 1, padding: '10px 14px', fontSize: '14px' }}
+          style={{ flex: 1, padding: '10px 14px', fontSize: '14px', minWidth: '180px' }}
         />
         <select value={uf} onChange={e => setUf(e.target.value)} style={{ padding: '10px 14px', fontSize: '14px', minWidth: '100px' }}>
           <option value="">Todos UFs</option>
           {UFS.filter(Boolean).map(u => <option key={u} value={u}>{u}</option>)}
         </select>
+        <button onClick={() => setShowMap(v => !v)} style={{
+          padding: '10px 16px', fontSize: '13px', fontWeight: 500,
+          border: showMap ? '1px solid var(--accent-green)' : '1px solid var(--border-light)',
+          borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+          background: showMap ? 'var(--accent-green)' : 'var(--bg-card)',
+          color: showMap ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s'
+        }}>
+          Mapa
+        </button>
       </div>
+
+      {showMap && (
+        <MapaBrasil
+          selectedEstado={uf}
+          onEstadoSelect={(estado) => setUf(estado || "")}
+          politicoCounts={politicoCounts}
+        />
+      )}
 
       {/* List */}
       {loading ? (

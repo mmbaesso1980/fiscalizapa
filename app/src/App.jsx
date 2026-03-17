@@ -1,12 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
 import Navbar from "./components/Navbar";
+import ErrorBoundary from "./components/ErrorBoundary";
 import HomePage from "./pages/HomePage";
 import CreditosPage from "./pages/CreditosPage";
 import DashboardPage from "./pages/DashboardPage";
 import PoliticoPage from "./pages/PoliticoPage";
 import MetodologiaPage from "./pages/MetodologiaPage";
-import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
   const { user, loading, login, logout, credits } = useAuth();
@@ -17,27 +17,29 @@ export default function App() {
   );
 
   return (
-    <BrowserRouter>
-      <Navbar user={user} login={login} logout={logout} credits={credits} />
-      <Routes>
-        {user ? (
-          <>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage user={user} />} />
-            <Route path="/creditos" element={<CreditosPage user={user} />} />
-            <Route path="/politico/:colecao/:id" element={<PoliticoPage user={user} />} />
-            <Route path="/deputado/:nome" element={<PoliticoPage user={user} />} />
-            <Route path="/metodologia" element={<MetodologiaPage />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </>
-        ) : (
-          <>
-            <Route path="/" element={<HomePage user={user} login={login} />} />
-            <Route path="/metodologia" element={<MetodologiaPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        )}
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Navbar user={user} login={login} logout={logout} credits={credits} />
+        <Routes>
+          {user ? (
+            <>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage user={user} />} />
+              <Route path="/creditos" element={<CreditosPage user={user} />} />
+              <Route path="/politico/:colecao/:id" element={<PoliticoPage user={user} />} />
+              <Route path="/deputado/:nome" element={<PoliticoPage user={user} />} />
+              <Route path="/metodologia" element={<MetodologiaPage />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </>
+          ) : (
+            <>
+              <Route path="/" element={<HomePage user={user} login={login} />} />
+              <Route path="/metodologia" element={<MetodologiaPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          )}
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

@@ -3,6 +3,10 @@ import { useParams } from "react-router-dom";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import GastosChart from "../components/GastosChart";
+import PresencaSection from "../components/PresencaSection";
+import AlertasFretamento from "../components/AlertasFretamento";
+import ProjetosSection from "../components/ProjetosSection";
 
 function fmt(v) {
   if (!v) return "R$ 0,00";
@@ -15,7 +19,6 @@ function riskBadge(score) {
   return { label: "Alto risco", cls: "risk-badge-high" };
 }
 
-
 function simpleMarkdown(text) {
   if (!text) return '';
   return text
@@ -26,6 +29,23 @@ function simpleMarkdown(text) {
     .replace(/---/g, '<hr/>')
     .replace(/\n/g, '<br/>');
 }
+
+function getVal(g) {
+  return g.valorLiquido || g.valor || g.valorDocumento || 0;
+}
+
+function getTipo(g) {
+  return g.tipoDespesa || g.tipo || g.descricao || g.categoria || "Outros";
+}
+
+function getFornecedor(g) {
+  return g.fornecedorNome || g.nomeFornecedor || g.fornecedor || "Desconhecido";
+}
+
+function getCnpj(g) {
+  return g.cnpjCpf || g.cnpjCpfFornecedor || g.cnpj || "";
+}
+
 export default function PoliticoPage({ user }) {
   const { colecao, id } = useParams();
   const [pol, setPol] = useState(null);
@@ -36,10 +56,11 @@ export default function PoliticoPage({ user }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const col = colecao || "deputados_federais";
+
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const col = colecao || "deputados_federais";
       const snap = await getDoc(doc(db, col, id));
       if (snap.exists()) {
         setPol({ id: snap.id, ...snap.data() });
@@ -47,30 +68,30 @@ export default function PoliticoPage({ user }) {
       }
       const gSnap = await getDocs(collection(db, col, id, "gastos"));
       const gList = gSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      gList.sort((a, b) => (b.valorLiquido || b.valorDocumento || b.valor || 0) - (a.valorLiquido || a.valorDocumento || a.valor || 0));
+      gList.sort((a, b) => getVal(b) - getVal(a));
       setGastos(gList);
       const eSnap = await getDocs(collection(db, col, id, "emendas"));
       setEmendas(eSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     }
     load();
-  }, [colecao, id]);
+  }, [col, id]);
 
-  const totalGastos = gastos.reduce((a, g) => a + (g.valorLiquido || g.valorDocumento || g.valor || 0), 0);
+  const totalGastos = gastos.reduce((a, g) => a + getVal(g), 0);
   const totalEmendas = emendas.reduce((a, e) => a + (e.valorEmpenhado || e.valor || 0), 0);
 
   const porCategoria = {};
   gastos.forEach(g => {
-    const cat = g.tipoDespesa || g.tipo || g.categoria || "Outros";
-    porCategoria[cat] = (porCategoria[cat] || 0) + (g.valorLiquido || g.valorDocumento || g.valor || 0);
+    const cat = getTipo(g);
+    porCategoria[cat] = (porCategoria[cat] || 0) + getVal(g);
   });
   const catSorted = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
   const maxCat = catSorted.length > 0 ? catSorted[0][1] : 1;
 
   const porFornecedor = {};
   gastos.forEach(g => {
-    const f = g.fornecedorNome || g.nomeFornecedor || g.fornecedor || g.cnpjCpf || g.cnpjCpfFornecedor || g.cnpj || "Desconhecido";
-    porFornecedor[f] = (porFornecedor[f] || 0) + (g.valorLiquido || g.valorDocumento || g.valor || 0);
+    const f = getFornecedor(g);
+    porFornecedor[f] = (porFornecedor[f] || 0) + getVal(g);
   });
   const fornSorted = Object.entries(porFornecedor).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const top3Total = fornSorted.slice(0, 3).reduce((a, b) => a + b[1], 0);
@@ -81,7 +102,7 @@ export default function PoliticoPage({ user }) {
     try {
       const functions = getFunctions(undefined, "southamerica-east1");
       const analyze = httpsCallable(functions, "analyzePolitician");
-      const result = await analyze({ deputadoId: id, colecao: colecao || "deputados_federais" });
+      const result = await analyze({ deputadoId: id, colecao: col });
       setAnalysis(result.data.analysis);
     } catch (e) { setAnalysis("Erro na analise: " + e.message); }
     setAnalyzing(false);
@@ -91,6 +112,17 @@ export default function PoliticoPage({ user }) {
   if (!pol) return <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Politico nao encontrado.</div>;
 
   const risk = riskBadge(pol.score);
+
+  const TABS = [
+    { k: 'gastos', l: 'Gastos (' + gastos.length + ')' },
+    { k: 'graficos', l: 'Graficos' },
+    { k: 'categorias', l: 'Por Categoria' },
+    { k: 'fornecedores', l: 'Fornecedores' },
+    { k: 'emendas', l: 'Emendas (' + emendas.length + ')' },
+    { k: 'presenca', l: 'Presenca' },
+    { k: 'alertas', l: 'Alertas de Fretamento' },
+    { k: 'projetos', l: 'Proposicoes' },
+  ];
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 20px' }}>
@@ -143,7 +175,6 @@ export default function PoliticoPage({ user }) {
         ))}
       </div>
 
-
       {/* Ranking de Economia */}
       {pol.ranking && (
         <div style={{
@@ -176,6 +207,7 @@ export default function PoliticoPage({ user }) {
           </div>
         </div>
       )}
+
       {/* Botao IA */}
       <div style={{ marginBottom: '24px' }}>
         <button onClick={runAI} disabled={analyzing} style={{
@@ -201,9 +233,10 @@ export default function PoliticoPage({ user }) {
           <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: simpleMarkdown(analysis) }} />
         </div>
       )}
+
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
-        {[{k:'gastos',l:'Gastos ('+gastos.length+')'},{k:'categorias',l:'Por Categoria'},{k:'fornecedores',l:'Fornecedores'},{k:'emendas',l:'Emendas ('+emendas.length+')'}].map(t => (
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', flexWrap: 'wrap' }}>
+        {TABS.map(t => (
           <button key={t.k} onClick={() => setTab(t.k)} style={{
             padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 500,
             border: tab === t.k ? '1px solid var(--accent-green)' : '1px solid transparent',
@@ -226,18 +259,23 @@ export default function PoliticoPage({ user }) {
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {g.tipoDespesa || g.tipo || g.categoria || 'Despesa'}
+                  {getTipo(g)}
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  {g.fornecedorNome || g.nomeFornecedor || g.fornecedor || g.cnpjCpf || g.cnpjCpfFornecedor || g.cnpj || ''} {g.dataDocumento ? '| ' + g.dataDocumento.substring(0, 10) : ''}
+                  {getFornecedor(g)} {getCnpj(g) ? '| ' + getCnpj(g) : ''} {g.dataDocumento ? '| ' + g.dataDocumento.substring(0, 10) : ''}
                 </div>
               </div>
               <div style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-orange)', whiteSpace: 'nowrap', marginLeft: '12px' }}>
-                {fmt(g.valorLiquido || g.valorDocumento || g.valor)}
+                {fmt(getVal(g))}
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {/* Graficos */}
+      {tab === 'graficos' && (
+        <GastosChart gastos={gastos} />
       )}
 
       {/* Categorias */}
@@ -295,6 +333,25 @@ export default function PoliticoPage({ user }) {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Presenca */}
+      {tab === 'presenca' && (
+        <PresencaSection
+          presenca={pol.presenca || 0}
+          totalSessoes={pol.totalSessions || 0}
+          sessoesPresente={pol.presentSessions || 0}
+        />
+      )}
+
+      {/* Alertas de Fretamento */}
+      {tab === 'alertas' && (
+        <AlertasFretamento colecao={col} politicoId={id} />
+      )}
+
+      {/* Proposicoes */}
+      {tab === 'projetos' && (
+        <ProjetosSection />
       )}
     </div>
   );
