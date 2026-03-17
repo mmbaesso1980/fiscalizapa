@@ -132,14 +132,14 @@ export default function PoliticoPage({ user }) {
         padding: '28px', border: '1px solid var(--border-light)',
         marginBottom: '24px', display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap'
       }}>
-        <img src={pol.fotoUrl || pol.foto || ''} alt="" style={{
+        <img src={pol.fotoUrl || pol.foto || pol.urlFoto || ''} alt="" style={{
           width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover',
           border: '3px solid var(--border-light)', background: 'var(--bg-secondary)'
         }} />
         <div style={{ flex: 1, minWidth: '200px' }}>
           <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '4px' }}>{pol.nome}</h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-            {pol.partido} - {pol.uf} &middot; {pol.cargo || 'Deputado Federal'}
+            {pol.partido || pol.siglaPartido} - {pol.uf || pol.estado || pol.siglaUf} &middot; {pol.cargo || 'Deputado Federal'}
           </p>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {pol.score != null && (
