@@ -28,7 +28,9 @@ jobs:
         working-directory: app
 
       - name: Install functions dependencies
-        run: npm install --legacy-peer-deps
+        run: |
+          rm -f package-lock.json
+          npm install --legacy-peer-deps
         working-directory: functions
 
       - name: Install Firebase CLI
