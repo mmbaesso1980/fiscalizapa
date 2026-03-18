@@ -310,7 +310,7 @@ export default function PoliticoPage({ user }) {
 
       {/* Presenca */}
       {tab === 'presenca' && (
-        <PresencaSection presenca={pol.presenca} totalSessoes={pol.totalSessoes} sessoesPresente={pol.sessoesPresente} sessoes={sessoes} />
+        <PresencaSection deputadoId={id} colecao={col} presenca={pol.presenca} totalSessoes={pol.totalSessoes} sessoesPresente={pol.sessoesPresente} sessoes={sessoes} />
       )}
 
             {tab === 'alertas' && (<AlertasFretamento colecao={col} politicoId={id} />)}
