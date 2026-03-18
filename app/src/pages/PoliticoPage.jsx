@@ -51,11 +51,12 @@ export default function PoliticoPage({ user }) {
   const [pol, setPol] = useState(null);
   const [gastos, setGastos] = useState([]);
   const [emendas, setEmendas] = useState([]);
+  const [sessoes, setSessoes] = useState([]);
+  const [verbasGabinete, setVerbasGabinete] = useState([]);
   const [tab, setTab] = useState("gastos");
   const [analysis, setAnalysis] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
-
   const col = colecao || "deputados_federais";
 
   useEffect(() => {
@@ -72,6 +73,16 @@ export default function PoliticoPage({ user }) {
       setGastos(gList);
       const eSnap = await getDocs(collection(db, col, id, "emendas"));
       setEmendas(eSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      // Carregar sessoes detalhadas
+      try {
+        const sSnap = await getDocs(collection(db, col, id, "sessoes"));
+        setSessoes(sSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch(e) { console.log('Sessoes nao disponiveis'); }
+      // Carregar verbas de gabinete
+      try {
+        const vSnap = await getDocs(collection(db, col, id, "verbas_gabinete"));
+        setVerbasGabinete(vSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch(e) { console.log('Verbas gabinete nao disponiveis'); }
       setLoading(false);
     }
     load();
@@ -79,20 +90,13 @@ export default function PoliticoPage({ user }) {
 
   const totalGastos = gastos.reduce((a, g) => a + getVal(g), 0);
   const totalEmendas = emendas.reduce((a, e) => a + (e.valorEmpenhado || e.valor || 0), 0);
-
+  const totalVerbasGab = verbasGabinete.reduce((a, v) => a + (v.valor || v.remuneracao || 0), 0);
   const porCategoria = {};
-  gastos.forEach(g => {
-    const cat = getTipo(g);
-    porCategoria[cat] = (porCategoria[cat] || 0) + getVal(g);
-  });
+  gastos.forEach(g => { const cat = getTipo(g); porCategoria[cat] = (porCategoria[cat] || 0) + getVal(g); });
   const catSorted = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]);
   const maxCat = catSorted.length > 0 ? catSorted[0][1] : 1;
-
   const porFornecedor = {};
-  gastos.forEach(g => {
-    const f = getFornecedor(g);
-    porFornecedor[f] = (porFornecedor[f] || 0) + getVal(g);
-  });
+  gastos.forEach(g => { const f = getFornecedor(g); porFornecedor[f] = (porFornecedor[f] || 0) + getVal(g); });
   const fornSorted = Object.entries(porFornecedor).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const top3Total = fornSorted.slice(0, 3).reduce((a, b) => a + b[1], 0);
   const concentracao = totalGastos > 0 ? ((top3Total / totalGastos) * 100).toFixed(0) : 0;
@@ -108,11 +112,9 @@ export default function PoliticoPage({ user }) {
     setAnalyzing(false);
   }
 
-  if (loading) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>Carregando dossie...</div>;
-  if (!pol) return <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Politico nao encontrado.</div>;
-
+  if (loading) return <div className="loading-container"><div className="loading-spinner" /><p>Carregando dossie...</p></div>;
+  if (!pol) return <div className="loading-container"><p>Politico nao encontrado.</p></div>;
   const risk = riskBadge(pol.score);
-
   const TABS = [
     { k: 'gastos', l: 'Gastos (' + gastos.length + ')' },
     { k: 'graficos', l: 'Graficos' },
@@ -125,39 +127,32 @@ export default function PoliticoPage({ user }) {
   ];
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 20px' }}>
+    <div className="page-container" style={{ maxWidth: 900, margin: '0 auto', padding: '20px' }}>
       {/* Header do politico */}
-      <div className="grain-texture" style={{
-        background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
-        padding: '28px', border: '1px solid var(--border-light)',
-        marginBottom: '24px', display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap'
-      }}>
-        <img src={pol.fotoUrl || pol.foto || pol.urlFoto || ''} alt="" style={{
-          width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover',
-          border: '3px solid var(--border-light)', background: 'var(--bg-secondary)'
-        }} />
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '4px' }}>{pol.nome}</h1>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-            {pol.partido || pol.siglaPartido} - {pol.uf || pol.estado || pol.siglaUf} &middot; {pol.cargo || 'Deputado Federal'}
+      <div className="politico-header" style={{ display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '24px', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: '24px', border: '1px solid var(--border-light)' }}>
+        <img src={pol.foto || pol.urlFoto || '/placeholder-avatar.png'} alt={pol.nome}
+          style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover' }}
+          onError={(e) => { e.target.src = '/placeholder-avatar.png'; }} />
+        <div>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{pol.nome}</h1>
+          <p style={{ color: 'var(--text-secondary)', margin: '4px 0' }}>
+            {pol.partido || pol.siglaPartido} - {pol.uf || pol.estado || pol.siglaUf} · {pol.cargo || 'Deputado Federal'}
           </p>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {pol.score != null && (
-              <span className={risk.cls} style={{ padding: '5px 14px', borderRadius: '14px', fontSize: '12px', fontWeight: 600 }}>
-                Score {pol.score} &middot; {risk.label}
-              </span>
-            )}
-            {Number(concentracao) > 70 && (
-              <span className="risk-badge-medium" style={{ padding: '5px 14px', borderRadius: '14px', fontSize: '12px', fontWeight: 600 }}>
-                Alta concentracao fornecedores
-              </span>
-            )}
-          </div>
+          {pol.score != null && (
+            <span className={risk.cls} style={{ display: 'inline-block', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 600 }}>
+              Score {pol.score} · {risk.label}
+            </span>
+          )}
+          {Number(concentracao) > 70 && (
+            <span style={{ display: 'inline-block', marginLeft: '8px', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 600, background: 'rgba(233,69,96,0.1)', color: 'var(--accent-red)' }}>
+              Alta concentracao fornecedores
+            </span>
+          )}
         </div>
       </div>
 
       {/* Cards de resumo */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
         {[
           { label: 'Gastos totais', value: fmt(totalGastos), color: 'var(--accent-orange)' },
           { label: 'Emendas', value: fmt(totalEmendas), color: 'var(--accent-gold)' },
@@ -165,130 +160,117 @@ export default function PoliticoPage({ user }) {
           { label: 'Fornecedores', value: Object.keys(porFornecedor).length, color: 'var(--text-primary)' },
           { label: 'Top 3 fornecedores', value: concentracao + '%', color: Number(concentracao) > 70 ? 'var(--accent-red)' : 'var(--accent-green)' }
         ].map((c, i) => (
-          <div key={i} style={{
-            background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
-            padding: '18px', border: '1px solid var(--border-light)', textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '22px', fontWeight: 700, fontFamily: 'Space Grotesk', color: c.color }}>{c.value}</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{c.label}</div>
+          <div key={i} style={{ flex: '1 1 140px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', padding: '16px', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+            <p style={{ fontSize: '22px', fontWeight: 700, fontFamily: 'Space Grotesk', color: c.color }}>{c.value}</p>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{c.label}</p>
           </div>
         ))}
       </div>
 
+      {/* Verbas de Gabinete - Resumo */}
+      {(totalVerbasGab > 0 || verbasGabinete.length > 0) && (
+        <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', padding: '16px', border: '1px solid var(--border-light)', marginBottom: '20px' }}>
+          <h4 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>Verbas de Gabinete</h4>
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            <div>
+              <p style={{ fontSize: '20px', fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-orange)' }}>{fmt(totalVerbasGab)}</p>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>TOTAL VERBAS GABINETE</p>
+            </div>
+            <div>
+              <p style={{ fontSize: '20px', fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--text-primary)' }}>{verbasGabinete.length}</p>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ASSESSORES/SERVIDORES</p>
+            </div>
+            <div>
+              <p style={{ fontSize: '20px', fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-gold)' }}>{fmt(totalGastos + totalVerbasGab)}</p>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>CUSTO TOTAL PARLAMENTAR</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Ranking de Economia */}
       {pol.ranking && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '16px',
-          background: 'linear-gradient(135deg, var(--bg-card), var(--bg-surface))',
-          border: '1px solid var(--accent-green)',
-          borderRadius: 'var(--radius-md)',
-          padding: '16px 24px', marginBottom: '24px'
-        }}>
+        <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: '20px', border: '1px solid var(--border-light)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'Space Grotesk' }}>
-              #{pol.ranking.posicao_economia}
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>de {pol.ranking.total_deputados}</div>
+            <p style={{ fontSize: '32px', fontWeight: 800, fontFamily: 'Space Grotesk', color: 'var(--accent-green)' }}>#{pol.ranking.posicao_economia}</p>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>de {pol.ranking.total_deputados}</p>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              Ranking de Economia Parlamentar
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-              Top {100 - pol.ranking.percentil}% mais economico na Camara dos Deputados (CEAP)
-            </div>
+            <p style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>Ranking de Economia Parlamentar</p>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Top {100 - pol.ranking.percentil}% mais economico na Camara dos Deputados (CEAP)</p>
           </div>
-          <div style={{
-            padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
-            background: pol.ranking.percentil > 70 ? 'rgba(76,202,163,0.15)' : pol.ranking.percentil > 40 ? 'rgba(255,193,7,0.15)' : 'rgba(233,69,96,0.15)',
-            color: pol.ranking.percentil > 70 ? 'var(--accent-green)' : pol.ranking.percentil > 40 ? 'var(--accent-gold)' : 'var(--accent-red)'
-          }}>
+          <span style={{ padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 600, background: pol.ranking.percentil > 70 ? 'rgba(76,202,163,0.15)' : pol.ranking.percentil > 40 ? 'rgba(255,193,7,0.15)' : 'rgba(233,69,96,0.15)', color: pol.ranking.percentil > 70 ? 'var(--accent-green)' : pol.ranking.percentil > 40 ? 'var(--accent-gold)' : 'var(--accent-red)' }}>
             {pol.ranking.percentil > 70 ? 'Economico' : pol.ranking.percentil > 40 ? 'Medio' : 'Gastador'}
-          </div>
+          </span>
         </div>
       )}
 
       {/* Botao IA */}
-      <div style={{ marginBottom: '24px' }}>
-        <button onClick={runAI} disabled={analyzing} style={{
-          padding: '12px 24px', borderRadius: '8px', fontSize: '14px', fontWeight: 600,
-          background: 'var(--accent-green)', color: '#fff', border: 'none',
-          cursor: analyzing ? 'wait' : 'pointer', opacity: analyzing ? 0.7 : 1,
-          transition: 'all 0.2s'
-        }}>
-          {analyzing ? 'Analisando com IA...' : 'Gerar analise com IA'}
-        </button>
-      </div>
+      <button onClick={runAI} disabled={analyzing} className="btn-primary" style={{ marginBottom: '20px', padding: '12px 24px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, border: 'none', cursor: analyzing ? 'wait' : 'pointer', background: 'var(--accent-green)', color: '#fff' }}>
+        {analyzing ? 'Analisando com IA...' : 'Gerar analise com IA'}
+      </button>
 
       {/* Analise IA */}
       {analysis && (
-        <div style={{
-          background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
-          padding: '24px', border: '1px solid var(--accent-gold)',
-          marginBottom: '24px', boxShadow: 'var(--shadow-glow)'
-        }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--accent-gold)', marginBottom: '12px' }}>
-            Analise da IA FiscalizaBR
-          </h3>
-          <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: simpleMarkdown(analysis) }} />
+        <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: '20px', border: '1px solid var(--border-light)', marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px' }}>Analise da IA FiscalizaBR</h3>
+          <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(analysis) }} />
         </div>
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '20px' }}>
         {TABS.map(t => (
-          <button key={t.k} onClick={() => setTab(t.k)} style={{
-            padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 500,
-            border: tab === t.k ? '1px solid var(--accent-green)' : '1px solid transparent',
-            background: tab === t.k ? 'var(--accent-green)' : 'transparent',
-            color: tab === t.k ? '#fff' : 'var(--text-secondary)',
-            cursor: 'pointer'
-          }}>{t.l}</button>
+          <button key={t.k} onClick={() => setTab(t.k)} style={{ padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 500, border: tab === t.k ? '1px solid var(--accent-green)' : '1px solid transparent', background: tab === t.k ? 'var(--accent-green)' : 'transparent', color: tab === t.k ? '#fff' : 'var(--text-secondary)', cursor: 'pointer' }}>{t.l}</button>
         ))}
       </div>
 
       {/* Gastos */}
       {tab === 'gastos' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div>
           {gastos.slice(0, 80).map(g => (
-            <div key={g.id} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '12px 16px', background: 'var(--bg-card)',
-              borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)',
-              fontSize: '13px'
-            }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {getTipo(g)}
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', marginBottom: '8px', border: '1px solid var(--border-light)' }}>
+              <div>
+                <p style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{getTipo(g)}</p>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                   {getFornecedor(g)} {getCnpj(g) ? '| ' + getCnpj(g) : ''} {g.dataDocumento ? '| ' + g.dataDocumento.substring(0, 10) : ''}
-                </div>
+                </p>
               </div>
-              <div style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-orange)', whiteSpace: 'nowrap', marginLeft: '12px' }}>
-                {fmt(getVal(g))}
-              </div>
+              <p style={{ fontWeight: 700, fontSize: '15px', fontFamily: 'Space Grotesk', color: 'var(--accent-green)', whiteSpace: 'nowrap' }}>{fmt(getVal(g))}</p>
             </div>
           ))}
+          {/* Lista de verbas de gabinete dentro de gastos */}
+          {verbasGabinete.length > 0 && (
+            <div style={{ marginTop: '20px' }}>
+              <h4 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '12px', borderTop: '2px solid var(--border-light)', paddingTop: '16px' }}>Verbas de Gabinete - Assessores</h4>
+              {verbasGabinete.map((v, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', background: 'rgba(255,193,7,0.04)', borderRadius: 'var(--radius-sm)', marginBottom: '6px', border: '1px solid var(--border-light)' }}>
+                  <div>
+                    <p style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary)' }}>{v.nome || v.servidor || 'Assessor'}</p>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{v.cargo || v.funcao || 'Gabinete'} {v.periodo ? '| ' + v.periodo : ''}</p>
+                  </div>
+                  <p style={{ fontWeight: 700, fontSize: '14px', fontFamily: 'Space Grotesk', color: 'var(--accent-gold)', whiteSpace: 'nowrap' }}>{fmt(v.valor || v.remuneracao)}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Graficos */}
-      {tab === 'graficos' && (
-        <GastosChart gastos={gastos} />
-      )}
+      {tab === 'graficos' && (<GastosChart gastos={gastos} />)}
 
       {/* Categorias */}
       {tab === 'categorias' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div>
           {catSorted.map(([cat, val]) => (
-            <div key={cat} style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', padding: '14px 16px', border: '1px solid var(--border-light)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 500 }}>{cat}</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-orange)' }}>{fmt(val)}</span>
+            <div key={cat} style={{ marginBottom: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
+                <span style={{ color: 'var(--text-primary)' }}>{cat}</span>
+                <span style={{ fontWeight: 600, fontFamily: 'Space Grotesk' }}>{fmt(val)}</span>
               </div>
-              <div style={{ height: '6px', background: 'var(--bg-secondary)', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: (val / maxCat * 100) + '%', background: 'linear-gradient(90deg, var(--accent-green), var(--accent-gold))', borderRadius: '3px', transition: 'width 0.5s' }} />
+              <div style={{ height: '8px', background: 'var(--bg-secondary)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: '4px', background: 'var(--accent-green)', width: `${(val / maxCat) * 100}%` }} />
               </div>
             </div>
           ))}
@@ -297,19 +279,14 @@ export default function PoliticoPage({ user }) {
 
       {/* Fornecedores */}
       {tab === 'fornecedores' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div>
           {fornSorted.map(([f, val], i) => (
-            <div key={f} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '12px 16px', background: 'var(--bg-card)',
-              borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)',
-              borderLeft: i < 3 ? '3px solid var(--accent-orange)' : '3px solid var(--border-light)'
-            }}>
-              <div>
-                <span style={{ fontSize: '13px', fontWeight: 500 }}>{f}</span>
-                {i < 3 && <span style={{ fontSize: '10px', color: 'var(--accent-orange)', marginLeft: '8px' }}>TOP {i+1}</span>}
+            <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', marginBottom: '8px', border: '1px solid var(--border-light)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{f}</span>
+                {i < 3 && <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 700, background: 'rgba(233,69,96,0.1)', color: 'var(--accent-red)' }}>TOP {i+1}</span>}
               </div>
-              <span style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-orange)' }}>{fmt(val)}</span>
+              <span style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-green)' }}>{fmt(val)}</span>
             </div>
           ))}
         </div>
@@ -317,17 +294,13 @@ export default function PoliticoPage({ user }) {
 
       {/* Emendas */}
       {tab === 'emendas' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {emendas.length === 0 && <p style={{ color: 'var(--text-muted)', padding: '20px' }}>Nenhuma emenda encontrada para este politico.</p>}
+        <div>
+          {emendas.length === 0 && <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Nenhuma emenda encontrada para este politico.</p>}
           {emendas.map(e => (
-            <div key={e.id} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '12px 16px', background: 'var(--bg-card)',
-              borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)'
-            }}>
+            <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', marginBottom: '8px', border: '1px solid var(--border-light)' }}>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 500 }}>{e.municipioNome || e.municipio || 'N/A'} - {e.uf || ''}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{e.objetoResumo || e.beneficiario || ''} | {e.status || ''}</div>
+                <p style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{e.municipioNome || e.municipio || 'N/A'} - {e.uf || ''}</p>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{e.objetoResumo || e.beneficiario || ''} | {e.status || ''}</p>
               </div>
               <span style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-gold)' }}>{fmt(e.valorEmpenhado || e.valor)}</span>
             </div>
@@ -337,22 +310,15 @@ export default function PoliticoPage({ user }) {
 
       {/* Presenca */}
       {tab === 'presenca' && (
-        <PresencaSection
-          presenca={pol.presenca || 0}
-          totalSessoes={pol.totalSessions || 0}
-          sessoesPresente={pol.presentSessions || 0}
-        />
+        <PresencaSection presenca={pol.presenca} totalSessoes={pol.totalSessoes} sessoesPresente={pol.sessoesPresente} sessoes={sessoes} />
       )}
 
       {/* Alertas de Fretamento */}
-      {tab === 'alertas' && (
-        <AlertasFretamento colecao={col} politicoId={id} />
-      )}
+      {tab === 'alertas' && (<AlertasFretamento gastos={gastos} />)}
 
       {/* Proposicoes */}
-      {tab === 'projetos' && (
-        <ProjetosSection />
-      )}
+      {tab === 'projetos' && (<ProjetosSection deputadoId={id} colecao={col} />)}
+
     </div>
   );
 }
