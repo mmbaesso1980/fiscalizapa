@@ -25,11 +25,10 @@ const CircularProgress = ({ value, size = 120, strokeWidth = 10 }) => {
   );
 };
 
-export default function PresencaSection({ deputadoId, colecao, presenca: propPresenca, totalSessoes: propTotal, sessoesPresente: propPresente, sessoes: propSessoes }) {
+export default function PresencaSection({ deputadoId, colecao, presenca: propPresenca, totalSessoes: propTotal, sessoesPresente: propPresente }) {
   const [eventos, setEventos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showSessoes, setShowSessoes] = useState(false);
-  const [filtro, setFiltro] = useState('todas');
 
   useEffect(() => {
     if (!deputadoId || colecao !== 'deputados_federais') {
@@ -67,15 +66,17 @@ export default function PresencaSection({ deputadoId, colecao, presenca: propPre
         return desc.includes('sess') || desc.includes('plen');
       });
       const total = plenarias.length || eventos.length;
-      const presente = total;
-      const pct = 100;
-      return { presenca: pct, totalSessoes: total, sessoesPresente: presente, absentSessions: 0, eventos: plenarias.length > 0 ? plenarias : eventos };
+      return { presenca: 100, totalSessoes: total, sessoesPresente: total, totalEventos: eventos.length, eventos: plenarias.length > 0 ? plenarias : eventos };
     }
     const p = propPresenca || 0;
     const t = propTotal || 0;
     const s = propPresente || 0;
-    return { presenca: p, totalSessoes: t, sessoesPresente: s, absentSessions: t - s, eventos: [] };
+    return { presenca: p, totalSessoes: t, sessoesPresente: s, totalEventos: 0, eventos: [] };
   }, [eventos, propPresenca, propTotal, propPresente]);
+
+  const eventosToShow = useMemo(() => {
+    return [...data.eventos].sort((a, b) => (b.dataHoraInicio || '').localeCompare(a.dataHoraInicio || ''));
+  }, [data.eventos]);
 
   if (loading) {
     return (
@@ -96,16 +97,11 @@ export default function PresencaSection({ deputadoId, colecao, presenca: propPre
   const status = data.presenca >= 75 ? 'Acima da media' : data.presenca >= 50 ? 'Abaixo da media' : 'Critico';
   const statusColor = data.presenca >= 75 ? 'var(--accent-green)' : data.presenca >= 50 ? 'var(--accent-gold)' : 'var(--accent-red)';
   const comparison = data.presenca - GOAL_PRESENCA;
-  const barColor = statusColor;
-
-  const eventosToShow = useMemo(() => {
-    return data.eventos.sort((a, b) => (b.dataHoraInicio || '').localeCompare(a.dataHoraInicio || ''));
-  }, [data.eventos]);
 
   const statCards = [
-    { label: 'Total de Sessoes', value: data.totalSessoes, color: 'var(--text-primary)', bg: 'var(--bg-secondary)' },
+    { label: 'Sessoes Plenarias', value: data.totalSessoes, color: 'var(--text-primary)', bg: 'var(--bg-secondary)' },
     { label: 'Eventos Presentes', value: data.sessoesPresente, color: 'var(--accent-green)', bg: 'rgba(61,107,94,0.08)' },
-    { label: 'Total Eventos', value: eventos.length, color: 'var(--accent-gold)', bg: 'rgba(201,168,76,0.08)' },
+    { label: 'Total Eventos', value: data.totalEventos, color: 'var(--accent-gold)', bg: 'rgba(201,168,76,0.08)' },
     { label: `vs Meta (${GOAL_PRESENCA}%)`, value: `${comparison >= 0 ? '+' : ''}${comparison}%`, color: comparison >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', bg: 'var(--bg-secondary)' },
   ];
 
@@ -117,9 +113,7 @@ export default function PresencaSection({ deputadoId, colecao, presenca: propPre
       <div style={{ display: 'flex', alignItems: 'center', gap: '32px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <CircularProgress value={data.presenca} size={140} strokeWidth={12} />
-          <p style={{ marginTop: '8px', fontWeight: 600, fontSize: '14px', color: statusColor }}>
-            {status}
-          </p>
+          <p style={{ marginTop: '8px', fontWeight: 600, fontSize: '14px', color: statusColor }}>{status}</p>
         </div>
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', minWidth: '260px' }}>
           {statCards.map((card, i) => (
@@ -130,17 +124,15 @@ export default function PresencaSection({ deputadoId, colecao, presenca: propPre
           ))}
         </div>
       </div>
-      {/* Barra de progresso */}
       <div style={{ marginTop: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
           <span>Indice de Presenca</span>
           <span style={{ fontWeight: 600 }}>{data.presenca}%</span>
         </div>
         <div style={{ height: '10px', background: 'var(--bg-secondary)', borderRadius: '5px', overflow: 'hidden' }}>
-          <div style={{ height: '100%', borderRadius: '5px', transition: 'width 0.7s ease', width: `${data.presenca}%`, background: barColor }} />
+          <div style={{ height: '100%', borderRadius: '5px', transition: 'width 0.7s ease', width: `${data.presenca}%`, background: statusColor }} />
         </div>
       </div>
-      {/* Lista de eventos */}
       {eventosToShow.length > 0 && (
         <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -149,7 +141,7 @@ export default function PresencaSection({ deputadoId, colecao, presenca: propPre
             </h4>
             <button onClick={() => setShowSessoes(!showSessoes)}
               style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 500, border: '1px solid var(--border-light)', background: showSessoes ? 'var(--accent-green)' : 'var(--bg-secondary)', color: showSessoes ? '#fff' : 'var(--text-secondary)', cursor: 'pointer' }}>
-              {showSessoes ? 'Ocultar lista' : 'Ver sessoes'}
+              {showSessoes ? 'Ocultar' : 'Ver sessoes'}
             </button>
           </div>
           {showSessoes && (
@@ -157,15 +149,13 @@ export default function PresencaSection({ deputadoId, colecao, presenca: propPre
               {eventosToShow.slice(0, 50).map((ev, i) => (
                 <div key={ev.id || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--border-light)', fontSize: '13px' }}>
                   <div>
-                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                      {ev.descricaoTipo || 'Evento'}
-                    </span>
+                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{ev.descricaoTipo || 'Evento'}</span>
                     <span style={{ marginLeft: '8px', color: 'var(--text-muted)', fontSize: '11px' }}>
                       {ev.dataHoraInicio ? ev.dataHoraInicio.substring(0, 10) : ''}
                     </span>
                     {ev.descricao && (
                       <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        {ev.descricao.substring(0, 80)}{ev.descricao.length > 80 ? '...' : ''}
+                        {ev.descricao.length > 80 ? ev.descricao.substring(0, 80) + '...' : ev.descricao}
                       </p>
                     )}
                   </div>
