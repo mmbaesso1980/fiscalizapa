@@ -313,9 +313,7 @@ export default function PoliticoPage({ user }) {
         <PresencaSection presenca={pol.presenca} totalSessoes={pol.totalSessoes} sessoesPresente={pol.sessoesPresente} sessoes={sessoes} />
       )}
 
-      {/* Alertas de Fretamento */}
-      {tab === 'alertas' && (<AlertasFretamento gastos={gastos} />)}
-
+            {tab === 'alertas' && (<AlertasFretamento colecao={col} politicoId={id} />)}
       {/* Proposicoes */}
       {tab === 'projetos' && (<ProjetosSection deputadoId={id} colecao={col} />)}
 
