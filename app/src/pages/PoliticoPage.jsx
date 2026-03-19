@@ -315,7 +315,7 @@ export default function PoliticoPage({ user }) {
         <PresencaSection deputadoId={id} colecao={col} presenca={pol.presenca} totalSessoes={pol.totalSessoes} sessoesPresente={pol.sessoesPresente} sessoes={sessoes} />
       )}
 
-            {tab === 'alertas' && (<AlertasFretamento colecao={col} politicoId={id} />)}
+            {tab === 'alertas' && (<AlertasFretamento colecao={col} politicoId={id} gastos={gastos} />)}
           {/* Gabinete */}
     {tab === 'gabinete' && (
       <VerbaGabineteSection idCamara={pol.idCamara || id} verbasGabinete={verbasGabinete} totalVerbasGab={totalVerbasGab} />
