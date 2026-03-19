@@ -8,6 +8,9 @@ import PresencaSection from "../components/PresencaSection";
 import AlertasFretamento from "../components/AlertasFretamento";
 import ProjetosSection from "../components/ProjetosSection";
 import VerbaGabineteSection from "../components/VerbaGabineteSection";
+import NepotismoCard from "../components/NepotismoCard";
+import EmendasAba from "../components/EmendasAba";
+import useFeatureFlags from "../hooks/useFeatureFlags";
 
 function fmt(v) {
   if (!v) return "R$ 0,00";
@@ -59,6 +62,7 @@ export default function PoliticoPage({ user }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
   const col = colecao || "deputados_federais";
+    const { flags } = useFeatureFlags();
 
   useEffect(() => {
     async function load() {
@@ -127,6 +131,8 @@ export default function PoliticoPage({ user }) {
     { k: 'gabinete', l: 'Gabinete' },  
             { k: 'projetos', l: 'Proposicoes' },
   ];
+    if (flags.nepotismo) TABS.push({ k: 'nepotismo', l: 'Nepotismo' });
+      if (flags.emendas) TABS.push({ k: 'emendasV2', l: 'Emendas V2' });
 
   return (
     <div className="page-container" style={{ maxWidth: 900, margin: '0 auto', padding: '20px' }}>
@@ -323,6 +329,14 @@ export default function PoliticoPage({ user }) {
       {/* Proposicoes */}
       {tab === 'projetos' && (<ProjetosSection deputadoId={id} colecao={col} />)}
 
+      {/* Nepotismo - Feature Flag */}
+            {tab === 'nepotismo' && flags.nepotismo && (
+                      <NepotismoCard deputadoId={id} colecao={col} />
+                            )}
+                                  {/* Emendas V2 - Feature Flag */}
+                                        {tab === 'emendasV2' && flags.emendas && (
+                                                  <EmendasAba deputadoId={id} colecao={col} nomeDeputado={pol.nome} />
+                                                        )}
     </div>
   );
 }
