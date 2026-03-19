@@ -380,7 +380,7 @@ exports.analyzePolitician = onCall(
     const politDoc = await politRef.get();
     if (!politDoc.exists) throw new Error("Politician not found");
     const data = politDoc.data();
-    const prompt = `Analise o perfil deste político brasileiro com base nos dados disponíveis:
+    const prompt = `Voce e um auditor fiscal especializado em controle de gastos publicos do TransparenciaBR. Gere um RELATORIO TECNICO DE FISCALIZACAO baseado EXCLUSIVAMENTE nos dados fornecidos. REGRAS: 1) Use linguagem tecnica e juridica. 2) Nunca faca acusacoes diretas - use os dados indicam, verifica-se padrao atipico, requer aprofundamento. 3) Cite artigos de lei (CF/88, Lei 8.429/92, Lei 8.666/93, Ato da Mesa 43/2009). 4) Classifique cada achado como ALERTA VERMELHO, ALERTA AMARELO ou CONFORME. 5) Inclua disclaimer legal ao final. Dados do politicoítico brasileiro com base nos dados disponíveis:
 
 Nome: ${data.nome}
 Partido: ${data.partido}
@@ -391,12 +391,12 @@ Total de gastos: R$${data.totalGasto || data.gastos || 0}
 Número de despesas: ${data.numGastos || 0}
 Score de risco: ${data.score || 'N/A'}
 
-Forneça uma análise objetiva incluindo:
-1. Avaliação do índice de presença
-2. Produtividade legislativa
-3. Uso da cota parlamentar
-4. Pontos positivos e negativos
-5. Comparação com a média nacional`;
+Forneça uma análise tecnico-juridica com as seguintes secoes:
+1. RESUMO EXECUTIVO: Sintese dos achados principais com classificacao de risco (ALERTA VERMELHO / AMARELO / CONFORME)ação do índice de presença
+2. ANALISE DA COTA PARLAMENTAR: Detalhamento dos gastos, concentracao de fornecedores, valores atipicos. Cite Art. 37 CF/88 (principio da impessoalidade) e Lei 8.666/93 quando aplicavel
+3. PRESENCA E ATIVIDADE PARLAMENTAR: Avaliacao da presenca em sessoes. Se abaixo de 70%, cite possivel descumprimento regimental
+4. INDICIOS DE IRREGULARIDADE: Liste cada achado suspeito com: a) descricao factual do achado b) fundamentacao legal aplicavel c) classificacao de gravidade. Use termos como: indicios, padrao atipico, requer aprofundamento, incompativel com
+5. RECOMENDACOES: Sugestoes de encaminhamento (CGU, MPF, TCU, Corregedoria da Camara) conforme gravidade dos achados. 6. DISCLAIMER: Este relatorio foi gerado automaticamente pelo TransparenciaBR com base em dados publicos da CEAP. Nao constitui acusacao formal e os achados requerem verificacao adicional por orgaos competentes. Fonte: dadosabertos.camara.leg.bração com a média nacional`;
     const analysis = await callGemini(prompt);
     await userRef.update({
       credits: admin.firestore.FieldValue.increment(-2),
