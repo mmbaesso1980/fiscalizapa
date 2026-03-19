@@ -229,7 +229,7 @@ export default function PoliticoPage({ user }) {
       {tab === 'gastos' && (
         <div>
           {gastos.slice(0, 80).map(g => (
-            <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', marginBottom: '8px', border: '1px solid var(--border-light)' }}>
+            <div key={g.id} onClick={() => { const url = g.urlDocumento || g.url; if (url) window.open(url, '_blank'); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', marginBottom: '8px', border: '1px solid var(--border-light)', cursor: (g.urlDocumento || g.url) ? 'pointer' : 'default', transition: 'border-color 0.2s' }} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-green)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-light)'}>
               <div>
                 <p style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{getTipo(g)}</p>
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
