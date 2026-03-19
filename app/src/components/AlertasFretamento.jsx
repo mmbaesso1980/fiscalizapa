@@ -181,7 +181,7 @@ export default function AlertasFretamento({ colecao, politicoId, gastos = [] }) 
   if (alertas.length === 0) {
     return (
       <div style={{ padding: '20px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center', color: 'var(--text-muted)' }}>
-                Nenhum gasto com fretamento de aeronaves encontrado para este politico. (Debug: {gastos.length} gastos recebidos)
+                Nenhum gasto com fretamento de aeronaves encontrado para este politico.
       </div>
     );
   }
