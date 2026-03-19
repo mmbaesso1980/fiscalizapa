@@ -55,7 +55,7 @@ function gerarAlertasClientSide(gastos) {
   const fretamentos = gastos.filter(g => {
     const tipo = (g.tipoDespesa || g.tipo || g.descricao || '').toLowerCase();
     const forn = (g.fornecedorNome || g.nomeFornecedor || '').toLowerCase();
-    return KEYWORDS_FRETAMENTO.some(kw => tipo.includes(kw) || forn.includes(kw));
+    return KEYWORDS_FRETAMENTO.some(kw => tipo.includes(kw) || forn.includes(kw) || JSON.stringify(g).toLowerCase().includes(kw));
   });
 
   // Agrupar por fornecedor
