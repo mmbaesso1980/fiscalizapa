@@ -236,7 +236,7 @@ export default function PoliticoPage({ user }) {
                   {getFornecedor(g)} {getCnpj(g) ? '| ' + getCnpj(g) : ''} {g.dataDocumento ? '| ' + g.dataDocumento.substring(0, 10) : ''}
                 </p>
               </div>
-              <p style={{ fontWeight: 700, fontSize: '15px', fontFamily: 'Space Grotesk', color: 'var(--accent-green)', whiteSpace: 'nowrap' }}>{fmt(getVal(g))}</p>
+              <p style={{ fontWeight: 700, fontSize: '15px', fontFamily: 'Space Grotesk', color: 'var(--accent-green)', whiteSpace: 'nowrap' }}>{fmt(getVal(g))}{(g.urlDocumento || g.url) && <span title="Ver nota fiscal" style={{marginLeft:'6px',fontSize:'12px'}}>📄</span>}</p>
             </div>
           ))}
           {/* Lista de verbas de gabinete dentro de gastos */}
