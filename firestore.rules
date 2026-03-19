@@ -72,6 +72,39 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+        // === NOVAS COLECOES (nepotismo/emendas) - leitura publica, escrita via Cloud Functions ===
+            match /config/{docId} {
+                    allow read: if true;
+                          allow write: if false;
+                              }
+                                  match /pessoas_parente/{docId} {
+                                          allow read: if true;
+                                                allow write: if false;
+                                                    }
+                                                        match /relacoes_pessoa_parlamentar/{docId} {
+                                                                allow read: if true;
+                                                                      allow write: if false;
+                                                                          }
+                                                                              match /emendas/{docId} {
+                                                                                      allow read: if true;
+                                                                                            allow write: if false;
+                                                                                                }
+                                                                                                    match /fornecedores_publicos/{docId} {
+                                                                                                            allow read: if true;
+                                                                                                                  allow write: if false;
+                                                                                                                      }
+                                                                                                                          match /relacoes_parlamentar_fornecedor/{docId} {
+                                                                                                                                  allow read: if true;
+                                                                                                                                        allow write: if false;
+                                                                                                                                            }
+                                                                                                                                                match /municipio_compras/{docId} {
+                                                                                                                                                        allow read: if true;
+                                                                                                                                                              allow write: if false;
+                                                                                                                                                                  }
+                                                                                                                                                                      match /relacoes_pessoa_fornecedor/{docId} {
+                                                                                                                                                                              allow read: if true;
+                                                                                                                                                                                    allow write: if false;
+                                                                                                                                                                                        }
     // REGRA DEFAULT: negar tudo que não foi explicitamente permitido
     match /{document=**} {
       allow read, write: if false;
