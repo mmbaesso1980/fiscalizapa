@@ -992,3 +992,135 @@ exports.auditFretamento = onRequest(
 function fmt_brl(v) {
   return 'R$' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 }
+
+// ============================================
+// INGESTAO VERBA DE GABINETE - Scraping Portal Camara
+// Importa dados mensais de verba de gabinete e pessoal
+// ============================================
+exports.ingestVerbaGabinete = onRequest(
+  { region: "southamerica-east1", timeoutSeconds: 540, memory: "1GiB" },
+  async (req, res) => {
+    const authHeader = req.headers["x-admin-key"];
+    const adminKey = process.env.ADMIN_KEY;
+    if (!adminKey || authHeader !== adminKey) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const axios = require("axios");
+    const cheerio = require("cheerio");
+    const BATCH_SIZE = parseInt(req.query.batch || "10");
+    const ANO = parseInt(req.query.ano || "2025");
+    try {
+      // 1. Buscar deputados do Firestore
+      const depSnapshot = await db.collection("deputados_federais").get();
+      const allDeps = [];
+      depSnapshot.forEach(doc => {
+        const d = doc.data();
+        if (d.idCamara || doc.id) allDeps.push({ firestoreId: doc.id, idCamara: d.idCamara || doc.id, nome: d.nome });
+      });
+      // 2. Filtrar quem ainda nao tem verba_gabinete
+      const missing = [];
+      for (const dep of allDeps) {
+        const vgSnap = await db.collection("deputados_federais")
+          .doc(dep.firestoreId).collection("verbas_gabinete").limit(1).get();
+        if (vgSnap.empty) missing.push(dep);
+      }
+      if (missing.length === 0) {
+        return res.json({ success: true, message: "All deputies already have verba gabinete data", total: allDeps.length });
+      }
+      const batch_deps = missing.slice(0, BATCH_SIZE);
+      const results = [];
+      for (const dep of batch_deps) {
+        try {
+          // Scrape verba-gabinete page
+          const vgUrl = `https://www.camara.leg.br/deputados/${dep.idCamara}/verba-gabinete?ano=${ANO}`;
+          const vgResp = await axios.get(vgUrl, { timeout: 15000, headers: { 'User-Agent': 'TransparenciaBR/1.0 (civic-tech)' } });
+          const $ = cheerio.load(vgResp.data);
+          const rows = [];
+          $('table tbody tr').each((i, tr) => {
+            const cells = $(tr).find('td');
+            if (cells.length >= 3) {
+              const mes = $(cells[0]).text().trim();
+              const disponivel = $(cells[1]).text().trim().replace(/\./g, '').replace(',', '.');
+              const gasto = $(cells[2]).text().trim().replace(/\./g, '').replace(',', '.');
+              rows.push({
+                mes: parseInt(mes) || 0,
+                ano: ANO,
+                valorDisponivel: parseFloat(disponivel) || 0,
+                valorGasto: parseFloat(gasto) || 0,
+                economia: (parseFloat(disponivel) || 0) - (parseFloat(gasto) || 0),
+                percentualUtilizado: (parseFloat(disponivel) > 0) ? ((parseFloat(gasto) / parseFloat(disponivel)) * 100).toFixed(1) : '0',
+              });
+            }
+          });
+          // Scrape pessoal-gabinete page
+          const pgUrl = `https://www.camara.leg.br/deputados/${dep.idCamara}/pessoal-gabinete?ano=${ANO}`;
+          const pgResp = await axios.get(pgUrl, { timeout: 15000, headers: { 'User-Agent': 'TransparenciaBR/1.0 (civic-tech)' } });
+          const $pg = cheerio.load(pgResp.data);
+          const pessoal = [];
+          $pg('table tbody tr').each((i, tr) => {
+            const cells = $pg(tr).find('td');
+            if (cells.length >= 4) {
+              pessoal.push({
+                nome: $pg(cells[0]).text().trim(),
+                grupoFuncional: $pg(cells[1]).text().trim(),
+                cargo: $pg(cells[2]).text().trim(),
+                periodo: $pg(cells[3]).text().trim(),
+              });
+            }
+          });
+          // Save to Firestore
+          const fbBatch = db.batch();
+          let totalGasto = 0;
+          let totalDisponivel = 0;
+          for (const row of rows) {
+            const docId = `${ANO}_${String(row.mes).padStart(2, '0')}`;
+            fbBatch.set(
+              db.collection("deputados_federais").doc(dep.firestoreId)
+                .collection("verbas_gabinete").doc(docId),
+              row
+            );
+            totalGasto += row.valorGasto;
+            totalDisponivel += row.valorDisponivel;
+          }
+          // Save pessoal
+          for (const p of pessoal) {
+            const pDocId = `${ANO}_${p.nome.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 40)}`;
+            fbBatch.set(
+              db.collection("deputados_federais").doc(dep.firestoreId)
+                .collection("pessoal_gabinete").doc(pDocId),
+              { ...p, ano: ANO }
+            );
+          }
+          await fbBatch.commit();
+          // Update deputy doc with summary
+          await db.collection("deputados_federais").doc(dep.firestoreId).set({
+            verbaGabinete: {
+              ano: ANO,
+              totalGasto,
+              totalDisponivel,
+              percentualUtilizado: totalDisponivel > 0 ? ((totalGasto / totalDisponivel) * 100).toFixed(1) : '0',
+              totalAssessores: pessoal.length,
+              meses: rows.length,
+              atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+            },
+          }, { merge: true });
+          results.push({ id: dep.idCamara, nome: dep.nome, meses: rows.length, pessoal: pessoal.length, totalGasto });
+        } catch (e) {
+          console.log(`Err verba gabinete dep ${dep.idCamara}: ${e.message}`);
+          results.push({ id: dep.idCamara, nome: dep.nome, error: e.message });
+        }
+        await new Promise(r => setTimeout(r, 500));
+      }
+      res.json({
+        success: true,
+        processed: results.length,
+        remaining: missing.length - results.length,
+        totalMissing: missing.length,
+        results,
+      });
+    } catch (error) {
+      console.error("ingestVerbaGabinete error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
