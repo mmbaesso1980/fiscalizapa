@@ -120,7 +120,7 @@ export default function VerbaGabineteSection({ colecao, politicoId, idCamara }) 
                   <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{p.nome}</p>
                   <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>{p.grupoFuncional} | {p.cargo} {p.periodo ? '| ' + p.periodo : ''}</p>
                 </div>
-                <span style={{ fontSize: '20px' }}>\uD83D\uDC64</span>
+                <span style={{ fontSize: '20px' }}>👤</span>
               </div>
             ))
           )}
@@ -129,8 +129,8 @@ export default function VerbaGabineteSection({ colecao, politicoId, idCamara }) 
 
       {/* Links oficiais */}
       <div style={{ marginTop: '16px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-        <a href={`https://www.camara.leg.br/deputados/${idCamara}/verba-gabinete`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'var(--accent-green)' }}>\uD83D\uDD17 Verba Gabinete (Camara)</a>
-        <a href={`https://www.camara.leg.br/deputados/${idCamara}/pessoal-gabinete`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'var(--accent-green)' }}>\uD83D\uDC65 Pessoal Gabinete (Camara)</a>
+        <a href={`https://www.camara.leg.br/deputados/${idCamara}/verba-gabinete`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'var(--accent-green)' }}>🔗 Verba Gabinete (Camara)</a>
+        <a href={`https://www.camara.leg.br/deputados/${idCamara}/pessoal-gabinete`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'var(--accent-green)' }}>👥 Pessoal Gabinete (Camara)</a>
       </div>
     </div>
   );
