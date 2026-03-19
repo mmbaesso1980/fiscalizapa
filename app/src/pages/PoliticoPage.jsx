@@ -125,7 +125,7 @@ export default function PoliticoPage({ user }) {
     { k: 'presenca', l: 'Presenca' },
     { k: 'alertas', l: 'Alertas de Fretamento' },
     { k: 'gabinete', l: 'Gabinete' },  
-        k: 'projetos', l: 'Proposicoes' },
+            { k: 'projetos', l: 'Proposicoes' },
   ];
 
   return (
