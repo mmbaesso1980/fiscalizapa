@@ -7,6 +7,7 @@ import GastosChart from "../components/GastosChart";
 import PresencaSection from "../components/PresencaSection";
 import AlertasFretamento from "../components/AlertasFretamento";
 import ProjetosSection from "../components/ProjetosSection";
+import VerbaGabineteSection from "../components/VerbaGabineteSection";
 
 function fmt(v) {
   if (!v) return "R$ 0,00";
@@ -123,7 +124,8 @@ export default function PoliticoPage({ user }) {
     { k: 'emendas', l: 'Emendas (' + emendas.length + ')' },
     { k: 'presenca', l: 'Presenca' },
     { k: 'alertas', l: 'Alertas de Fretamento' },
-    { k: 'projetos', l: 'Proposicoes' },
+    { k: 'gabinete', l: 'Gabinete' },  
+        k: 'projetos', l: 'Proposicoes' },
   ];
 
   return (
@@ -314,6 +316,10 @@ export default function PoliticoPage({ user }) {
       )}
 
             {tab === 'alertas' && (<AlertasFretamento colecao={col} politicoId={id} />)}
+          {/* Gabinete */}
+    {tab === 'gabinete' && (
+      <VerbaGabineteSection idCamara={pol.idCamara || id} verbasGabinete={verbasGabinete} totalVerbasGab={totalVerbasGab} />
+    )}
       {/* Proposicoes */}
       {tab === 'projetos' && (<ProjetosSection deputadoId={id} colecao={col} />)}
 
