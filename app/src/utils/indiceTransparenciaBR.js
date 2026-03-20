@@ -1,7 +1,7 @@
 /**
  * indiceTransparenciaBR.js
  * Indice de Transparencia Parlamentar - TransparenciaBR
- * 
+ *
  * Pilares:
  *   economia (40%) - gastos de cota parlamentar
  *   processos (25%) - processos judiciais/risco
@@ -30,10 +30,9 @@ const PESOS = {
  */
 function calcEconomiaScore(p) {
   const g = p.totalGastos || 0;
-  if (g === 0) return 80; // sem dados = score neutro-alto
-  // Cota parlamentar ~R$45k/mes. Gasto anual medio ~R$500k
-  // Score decresce linearmente: 0 gastos = 100, 1M+ = 0
-  return Math.max(0, Math.min(100, 100 - (g / 10000)));
+  if (g === 0) return 50; // sem dados = neutro
+  // Escala: g/5000 pontos perdidos. ~500k gastos = score 0
+  return Math.max(0, Math.min(100, 100 - (g / 5000) * 1));
 }
 
 /**
@@ -42,7 +41,7 @@ function calcEconomiaScore(p) {
  */
 function calcProcessosScore(p) {
   const r = p.score || p.riskScore || 0;
-  if (r === 0) return 85; // sem processos conhecidos
+  if (r === 0) return 70; // sem processos conhecidos
   return Math.max(0, Math.min(100, 100 - r * 1.8));
 }
 
@@ -61,9 +60,7 @@ function calcPresencaScore(p) {
 function calcProposicoesScore(p) {
   if (p.proposicoesScore) return Math.min(100, p.proposicoesScore);
   const d = p.totalDespesas || p.proposicoes || 0;
-  if (d > 50) return 70;
-  if (d > 20) return 50;
-  if (d > 10) return 35;
+  if (d > 20) return 40;
   if (d > 0) return 20;
   return 5;
 }
@@ -82,6 +79,13 @@ function calcDefesasScore(p) {
  * @returns {number} score bruto 0-100
  */
 export function calcularScoreBrutoTransparenciaBR(p) {
+  const g = p.totalGastos || 0;
+  const d = p.totalDespesas || 0;
+  const r = p.score || p.riskScore || 0;
+
+  // Se nao tem dados nenhum, retorna score baixo
+  if (g === 0 && d === 0 && r === 0) return 25;
+
   const eco = calcEconomiaScore(p);
   const proc = calcProcessosScore(p);
   const pres = calcPresencaScore(p);
