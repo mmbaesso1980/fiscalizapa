@@ -42,7 +42,7 @@ export default function PresencaSection({ deputadoId, colecao, presenca: propPre
       try {
         // 1. Buscar TODAS as sessoes plenarias da legislatura
         const hoje = new Date().toISOString().split('T')[0];
-        const totalUrl = `https://dadosabertos.camara.leg.br/api/v2/eventos?dataInicio=2025-02-01&dataFim=${hoje}&tipoCampo=plenario&itens=100&ordem=DESC&ordenarPor=dataHoraInicio`;
+        const totalUrl = `https://dadosabertos.camara.leg.br/api/v2/eventos?dataInicio=2025-02-01&dataFim=${hoje}&itens=100&ordem=DESC&ordenarPor=dataHoraInicio`;
         let allPlenarias = [];
         let page = 1;
         let hasMore = true;
