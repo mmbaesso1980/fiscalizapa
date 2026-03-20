@@ -106,7 +106,44 @@ export default function PoliticoPage({ user }) {
   const top3Total = fornSorted.slice(0, 3).reduce((a, b) => a + b[1], 0);
   const concentracao = totalGastos > 0 ? ((top3Total / totalGastos) * 100).toFixed(0) : 0;
 
-  async function runAI() {
+  function gerarRelatorioDenuncia() {     const achados = [];     if (Number(concentracao) > 50) achados.push('- CONCENTRACAO DE FORNECEDORES: Top 3 fornecedores concentram ' + concentracao + '% dos gastos totais. Possivel violacao do Art. 37, XXI da CF/88 (principio da impessoalidade e licitacao).');     if (catSorted.some(([cat]) => cat.toUpperCase().includes('FRETAMENTO') || cat.toUpperCase().includes('AERONAVE'))) achados.push('- FRETAMENTO DE AERONAVES: Gastos com locacao/fretamento de aeronaves detectados. Requer justificativa de economicidade conforme Ato da Mesa 43/2009 e Lei 8.666/93 Art. 26.');     if (totalGastos > 1000000) achados.push('- VOLUME ELEVADO: Gastos totais de ' + fmt(totalGastos) + ' na CEAP. Requer escrutinio nos termos do Art. 70-71 da CF/88.');     if (fornSorted.length > 0 && fornSorted[0][1] > 200000) achados.push('- FORNECEDOR COM RECEBIMENTO ELEVADO: ' + fornSorted[0][0] + ' recebeu ' + fmt(fornSorted[0][1]) + '. Verificar vinculo societario conforme Lei 8.429/92 Art. 9-11.');     const texto = `RELATORIO DE FISCALIZACAO PARLAMENTAR
+` +       `Gerado por: TransparenciaBR (transparenciabr.com.br)
+` +       `Data: ${new Date().toLocaleDateString('pt-BR')}
+
+` +       `PARLAMENTAR: ${pol.nome}
+` +       `PARTIDO/UF: ${pol.partido || pol.siglaPartido} - ${pol.uf || pol.estado || pol.siglaUf}
+` +       `CARGO: ${pol.cargo || 'Deputado Federal'}
+` +       `ID CAMARA: ${id}
+
+` +       `RESUMO FINANCEIRO:
+` +       `- Gastos totais (CEAP): ${fmt(totalGastos)}
+` +       `- Notas fiscais: ${gastos.length}
+` +       `- Fornecedores distintos: ${Object.keys(porFornecedor).length}
+` +       `- Concentracao top 3 fornecedores: ${concentracao}%
+
+` +       `ACHADOS E INDICIOS DE IRREGULARIDADE:
+` +       (achados.length > 0 ? achados.join('
+
+') : '- Nenhuma irregularidade automatica detectada.') +       `
+
+TOP 5 FORNECEDORES:
+` +       fornSorted.slice(0, 5).map((f, i) => `${i+1}. ${f[0]} - ${fmt(f[1])}`).join('
+') +       `
+
+FUNDAMENTACAO LEGAL:
+` +       `- CF/88, Art. 37 (Principios da Administracao Publica)
+` +       `- CF/88, Art. 70-71 (Fiscalizacao Contabil e Financeira)
+` +       `- Lei 8.429/92 (Improbidade Administrativa)
+` +       `- Lei 8.666/93 (Licitacoes e Contratos)
+` +       `- Ato da Mesa 43/2009 (CEAP)
+
+` +       `DISCLAIMER: Este relatorio foi gerado automaticamente pelo TransparenciaBR com base em dados publicos da CEAP (dadosabertos.camara.leg.br). Nao constitui acusacao formal. Os achados requerem verificacao adicional por orgaos competentes (CGU, MPF, TCU).
+
+` +       `CANAIS DE DENUNCIA:
+` +       `- CGU/FalaBR: https://falabr.cgu.gov.br
+` +       `- MPF: https://www.mpf.mp.br/servicos/sac
+` +       `- TCU: https://portal.tcu.gov.br/ouvidoria/
+` +       `- Perfil oficial: https://www.camara.leg.br/deputados/${id}`;     navigator.clipboard.writeText(texto).then(() => alert('Relatorio copiado para a area de transferencia! Cole no FalaBR ou envie por email ao MPF/TCU.')).catch(() => {       const w = window.open('', '_blank');       w.document.write('<pre style="font-family:monospace;white-space:pre-wrap;padding:20px">' + texto + '</pre>');     });   }    async function runAI() {
     setAnalyzing(true);
     try {
       const functions = getFunctions(undefined, "southamerica-east1");
@@ -218,7 +255,7 @@ export default function PoliticoPage({ user }) {
         {analyzing ? 'Analisando com IA...' : 'Gerar analise com IA'}
       </button>
 
-      {/* Denuncia */}       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>         <a href="https://falabr.cgu.gov.br" target="_blank" rel="noopener noreferrer" style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: 'none', cursor: 'pointer', background: 'var(--accent-red, #b54a4a)', color: '#fff', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>Denunciar a CGU</a>         <a href="https://www.mpf.mp.br/servicos/sac" target="_blank" rel="noopener noreferrer" style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--border-light)', cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)', textDecoration: 'none' }}>MPF</a>         <a href="https://portal.tcu.gov.br/ouvidoria/" target="_blank" rel="noopener noreferrer" style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--border-light)', cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)', textDecoration: 'none' }}>TCU</a>         <a href={`https://www.camara.leg.br/deputados/${id}`} target="_blank" rel="noopener noreferrer" style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--border-light)', cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)', textDecoration: 'none' }}>Perfil Oficial</a>       </div>        {/* Analise IA */}
+      {/* Denuncia */} <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}> <button onClick={gerarRelatorioDenuncia} style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: 'none', cursor: 'pointer', background: '#1a5276', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>Copiar Relatorio para Denuncia</button>       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>         <a href="https://falabr.cgu.gov.br" target="_blank" rel="noopener noreferrer" style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: 'none', cursor: 'pointer', background: 'var(--accent-red, #b54a4a)', color: '#fff', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>Gerar Relatorio para Denuncia</button> <a href="https://falabr.cgu.gov.br" target="_blank" rel="noopener noreferrer" style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: 'none', cursor: 'pointer', background: 'var(--accent-red, #b54a4a)', color: '#fff', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>Denunciar a CGU</a>         <a href="https://www.mpf.mp.br/servicos/sac" target="_blank" rel="noopener noreferrer" style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--border-light)', cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)', textDecoration: 'none' }}>MPF</a>         <a href="https://portal.tcu.gov.br/ouvidoria/" target="_blank" rel="noopener noreferrer" style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--border-light)', cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)', textDecoration: 'none' }}>TCU</a>         <a href={`https://www.camara.leg.br/deputados/${id}`} target="_blank" rel="noopener noreferrer" style={{ padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, border: '1px solid var(--border-light)', cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)', textDecoration: 'none' }}>Perfil Oficial</a>       </div>        {/* Analise IA */}
       {analysis && (
         <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: '20px', border: '1px solid var(--border-light)', marginBottom: '20px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px' }}>Analise da IA FiscalizaBR</h3>
