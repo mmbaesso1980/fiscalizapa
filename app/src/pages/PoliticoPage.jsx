@@ -106,11 +106,7 @@ export default function PoliticoPage({ user }) {
   const top3Total = fornSorted.slice(0, 3).reduce((a, b) => a + b[1], 0);
   const concentracao = totalGastos > 0 ? ((top3Total / totalGastos) * 100).toFixed(0) : 0;
 
-    function gerarRelatorioDenuncia() {
-    const achados = [];
-    if (Number(concentracao) > 50) achados.push('- CONCENTRACAO DE FORNECEDORES: Top 3 fornecedores concentram ' + concentracao + '% dos gastos totais. Possivel violacao do Art. 37, XXI da CF/88.');
-
-      // Score calculado dinamicamente baseado nos dados
+    // Score calculado dinamicamente baseado nos dados
   const calcScore = (() => {
     let s = 0;
     if (Number(concentracao) > 70) s += 30;
@@ -123,6 +119,10 @@ export default function PoliticoPage({ user }) {
     if (gastos.length > 300) s += 5;
     return Math.min(s, 100);
   })();
+
+    function gerarRelatorioDenuncia() {
+    const achados = [];
+    if (Number(concentracao) > 50) achados.push('- CONCENTRACAO DE FORNECEDORES: Top 3 fornecedores concentram ' + concentracao + '% dos gastos totais. Possivel violacao do Art. 37, XXI da CF/88.');
     if (catSorted.some(([cat]) => cat.toUpperCase().includes('FRETAMENTO') || cat.toUpperCase().includes('AERONAVE'))) achados.push('- FRETAMENTO DE AERONAVES: Gastos com fretamento detectados. Ato da Mesa 43/2009 e Lei 8.666/93 Art. 26.');
     if (totalGastos > 1000000) achados.push('- VOLUME ELEVADO: Gastos totais de ' + fmt(totalGastos) + ' na CEAP. Art. 70-71 da CF/88.');
     if (fornSorted.length > 0 && fornSorted[0][1] > 200000) achados.push('- FORNECEDOR ELEVADO: ' + fornSorted[0][0] + ' recebeu ' + fmt(fornSorted[0][1]) + '. Lei 8.429/92 Art. 9-11.');
