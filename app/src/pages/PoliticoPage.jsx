@@ -246,7 +246,7 @@ export default function PoliticoPage({ user }) {
       {analysis && (
         <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: '20px', border: '1px solid var(--border-light)', marginBottom: '20px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px' }}>Analise da IA FiscalizaBR</h3>
-          <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(analysis) }} />
+          <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(typeof analysis === 'string' ? analysis : JSON.stringify(analysis)) }} />
         </div>
       )}
 
