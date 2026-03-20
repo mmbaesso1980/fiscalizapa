@@ -22,12 +22,22 @@ const COLECOES = [
   { key: "deputados_distritais", label: "Distritais DF", ready: false }
 ];
 
+// Avatar placeholder inline SVG (no external file needed)
+const PLACEHOLDER_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%23ddd'/%3E%3Ccircle cx='40' cy='30' r='14' fill='%23bbb'/%3E%3Cellipse cx='40' cy='70' rx='24' ry='18' fill='%23bbb'/%3E%3C/svg%3E";
+
+// Build photo URL: prefer urlFoto, fallback to Camara API, then placeholder
+function fotoUrl(p) {
+  if (p.urlFoto) return p.urlFoto;
+  if (p.idCamara) return `https://www.camara.leg.br/internet/deputado/bandep/${p.idCamara}.jpg`;
+  return PLACEHOLDER_AVATAR;
+}
+
 function Card({ p, rank, col, top }) {
   const v = classificarScoreTransparenciaBR(p.idx);
   return (
     <Link to={`/politico/${col}/${p.id}`} className="ranking-card" style={{ display:'flex',alignItems:'center',gap:'12px',padding:'12px 16px',borderRadius:'var(--radius-sm)',background:'var(--bg-card)',border:'1px solid var(--border-light)',textDecoration:'none',color:'inherit' }}>
       <span style={{ fontWeight:700,color:top?'var(--accent-green)':'var(--accent-red)',minWidth:'36px',fontSize:'15px' }}>#{rank}</span>
-      <img src={p.urlFoto||'/placeholder-avatar.png'} alt={p.nome} style={{ width:'40px',height:'40px',borderRadius:'50%',objectFit:'cover' }} onError={e=>{e.target.src='/placeholder-avatar.png';}} />
+      <img src={fotoUrl(p)} alt={p.nome} style={{ width:'40px',height:'40px',borderRadius:'50%',objectFit:'cover' }} onError={e=>{e.target.onerror=null;e.target.src=PLACEHOLDER_AVATAR;}} />
       <div style={{ flex:1 }}>
         <div style={{ fontWeight:600,fontSize:'14px' }}>{p.nome}</div>
         <div style={{ fontSize:'12px',color:'var(--text-secondary)' }}>{p.partido} - {p.uf}</div>
@@ -167,7 +177,7 @@ export default function DashboardPage({ user }) {
                 return (
                   <Link key={p.id} to={`/politico/${colecao}/${p.id}`} style={{ display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',borderRadius:'var(--radius-sm)',background:'var(--bg-card)',border:'1px solid var(--border-light)',textDecoration:'none',color:'inherit' }}>
                     <span style={{ fontWeight:700,color:'var(--text-secondary)',minWidth:'36px',fontSize:'14px' }}>#{i+1}</span>
-                    <img src={p.urlFoto||'/placeholder-avatar.png'} alt={p.nome} style={{ width:'36px',height:'36px',borderRadius:'50%',objectFit:'cover' }} onError={e=>{e.target.src='/placeholder-avatar.png';}} />
+                    <img src={fotoUrl(p)} alt={p.nome} style={{ width:'36px',height:'36px',borderRadius:'50%',objectFit:'cover' }} onError={e=>{e.target.onerror=null;e.target.src=PLACEHOLDER_AVATAR;}} />
                     <div style={{ flex:1 }}>
                       <div style={{ fontWeight:600,fontSize:'14px' }}>{p.nome}</div>
                       <div style={{ fontSize:'11px',color:'var(--text-secondary)' }}>{p.partido} - {p.uf} | {p.cargo||'Deputado Federal'}</div>
