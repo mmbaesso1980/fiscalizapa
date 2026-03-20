@@ -8,6 +8,11 @@ const { defineSecret } = require("firebase-functions/params");
 const geminiKey = defineSecret("GEMINI_KEY");
 
 // ============================================
+// CREDITOS - Modulo de gestao de creditos
+// ============================================
+const creditService = require('./creditService');
+
+// ============================================
 // SEGURANÇA: Rate Limiting em memória
 // ============================================
 const rateLimits = new Map();
@@ -1357,5 +1362,103 @@ exports.recalcularIndiceTransparencia = onRequest(
       console.error('recalcularIndiceTransparencia error:', error);
       res.status(500).json({ error: error.message });
     }
+    
   }
 );
+
+
+// ============================================
+// CREDITOS API - Endpoints de wallet e historico
+// ============================================
+
+// Consultar saldo do usuario
+exports.getWalletCredits = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  checkRateLimit(uid);
+  const wallet = await creditService.getWallet(uid);
+  return wallet;
+});
+
+// Historico de transacoes de creditos
+exports.getCreditHistory = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  checkRateLimit(uid);
+  const limit = Math.min(Number(request.data.limit) || 20, 100);
+  const historico = await creditService.getHistorico(uid, limit);
+  return { historico };
+});
+
+// Comprar creditos - cria sessao Stripe com priceId do pacote
+exports.buyCredits = onCall({ region: "southamerica-east1" }, async (request) => {
+  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  checkRateLimit(uid);
+  
+  const { packageId } = request.data;
+  const pkg = creditService.CREDIT_PACKAGES[packageId];
+  if (!pkg) throw new Error("Pacote invalido. Pacotes: " + Object.keys(creditService.CREDIT_PACKAGES).join(', '));
+  
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card", "pix"],
+    line_items: [{
+      price_data: {
+        currency: "brl",
+        product_data: { name: `TransparenciaBR - ${pkg.name} (${pkg.credits} creditos)` },
+        unit_amount: pkg.amount,
+      },
+      quantity: 1,
+    }],
+    mode: "payment",
+    success_url: "https://transparenciabr.com.br/creditos?success=true",
+    cancel_url: "https://transparenciabr.com.br/creditos?canceled=true",
+    metadata: { userId: uid, packageId, credits: String(pkg.credits) },
+  });
+  return { sessionId: session.id, url: session.url };
+});
+
+// Webhook Stripe V2 - integrado com creditService
+exports.stripeWebhookV2 = onRequest({ region: "southamerica-east1" }, async (req, res) => {
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
+  const sig = req.headers["stripe-signature"];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error("STRIPE_WEBHOOK_SECRET not configured");
+    return res.status(500).send("Webhook secret not configured");
+  }
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.rawBody, sig, webhookSecret);
+  } catch (err) {
+    console.error("Webhook V2 signature verification failed:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+  const session = event.data.object;
+  if (event.type === "checkout.session.completed") {
+    const userId = session.metadata?.userId;
+    const packageId = session.metadata?.packageId;
+    const metaCredits = parseInt(session.metadata?.credits) || 0;
+    if (userId) {
+      // Resolver creditos: metadata > packageId > amount
+      const credits = metaCredits || creditService.resolveCredits(packageId, session.amount_total) || 0;
+      if (credits > 0) {
+        await creditService.creditarCompra(userId, credits, {
+          stripeSessionId: session.id,
+          packageId: packageId || null,
+          amount: session.amount_total,
+          paymentMethod: session.payment_method_types?.[0] || 'unknown',
+        });
+        // Manter compatibilidade com users collection
+        await db.collection("users").doc(userId).set({
+          credits: admin.firestore.FieldValue.increment(credits),
+          lastPurchase: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        console.log(`Credits V2: ${credits} creditos adicionados para ${userId}`);
+      }
+    }
+  }
+  res.json({ received: true });
+});
