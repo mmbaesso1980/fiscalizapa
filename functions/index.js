@@ -1124,3 +1124,238 @@ exports.ingestVerbaGabinete = onRequest(
     }
   }
 );
+
+// ============================================
+// NOTICIAS - Busca noticias sobre parlamentar
+// ============================================
+var DOMINIOS_CONFIAVEIS = [
+  'g1.globo.com', 'folha.uol.com.br', 'estadao.com.br',
+  'uol.com.br', 'poder360.com.br', 'congressoemfoco.uol.com.br',
+  'metropoles.com', 'bbc.com', 'reuters.com', 'gazetadopovo.com.br',
+  'valor.globo.com', 'infomoney.com.br', 'cnnbrasil.com.br',
+  'oglobo.globo.com', 'correiobraziliense.com.br', 'r7.com',
+  'diariodepernambuco.com.br', 'jornaldocommercio.com.br',
+  'cartacapital.com.br', 'band.uol.com.br',
+];
+
+var KW_POSITIVAS = [
+  'reduzir cota', 'cortar privilegios', 'economia de gastos',
+  'transparencia', 'fim de auxilio', 'cartao corporativo transparente',
+  'austeridade', 'prestacao de contas',
+];
+
+var KW_NEGATIVAS = [
+  'gastos recordes', 'escandalo', 'processo', 'investigado',
+  'denunciado', 'condenado', 'corrupcao', 'esquema', 'rachadinha',
+  'peculato', 'lavagem', 'fraude', 'improbidade',
+];
+
+function calcularRelevanciaNoticia(titulo, descricao) {
+  var texto = ((titulo || '') + ' ' + (descricao || '')).toLowerCase();
+  var score = 0;
+  KW_POSITIVAS.forEach(function(kw) { if (texto.indexOf(kw) >= 0) score += 10; });
+  KW_NEGATIVAS.forEach(function(kw) { if (texto.indexOf(kw) >= 0) score -= 5; });
+  return score;
+}
+
+function extrairDominio(url) {
+  try {
+    var u = new URL(url);
+    return u.hostname.replace('www.', '');
+  } catch(e) { return ''; }
+}
+
+exports.buscarNoticias = onRequest(
+  { region: "southamerica-east1" },
+  async (req, res) => {
+    if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
+    var nome = (req.query.nome || '').trim();
+    var idCamara = (req.query.idCamara || '').trim();
+    if (!nome) return res.status(400).json({ error: 'Parametro nome obrigatorio' });
+
+    try {
+      var axios = require('axios');
+      var query = nome + ' deputado';
+      // Usar Google Custom Search (configurar GOOGLE_CSE_KEY e GOOGLE_CSE_CX como env vars)
+      var apiKey = process.env.GOOGLE_CSE_KEY;
+      var cx = process.env.GOOGLE_CSE_CX;
+
+      var noticias = [];
+
+      if (apiKey && cx) {
+        var resp = await axios.get('https://www.googleapis.com/customsearch/v1', {
+          params: { key: apiKey, cx: cx, q: query, num: 10, dateRestrict: 'y1' },
+          timeout: 10000,
+        });
+        var items = (resp.data && resp.data.items) || [];
+        items.forEach(function(item) {
+          var dominio = extrairDominio(item.link || '');
+          var confiavel = DOMINIOS_CONFIAVEIS.some(function(d) { return dominio.indexOf(d) >= 0; });
+          if (confiavel) {
+            noticias.push({
+              titulo: item.title || '',
+              fonte: dominio,
+              data: item.snippet ? item.snippet.substring(0, 20) : '',
+              url: item.link || '',
+              relevancia: calcularRelevanciaNoticia(item.title, item.snippet),
+            });
+          }
+        });
+      } else {
+        // Fallback: buscar noticias do Firestore se existirem
+        var noticiasSnap = await db.collection('deputados_federais')
+          .doc(String(idCamara)).collection('noticias').orderBy('data', 'desc').limit(10).get();
+        noticiasSnap.forEach(function(doc) {
+          var d = doc.data();
+          noticias.push({
+            titulo: d.titulo || '',
+            fonte: d.fonte || '',
+            data: d.data || '',
+            url: d.url || '',
+            relevancia: 0,
+          });
+        });
+      }
+
+      // Ordenar por relevancia e limitar
+      noticias.sort(function(a, b) { return b.relevancia - a.relevancia; });
+      var resultado = noticias.slice(0, 10).map(function(n) {
+        return { titulo: n.titulo, fonte: n.fonte, data: n.data, url: n.url };
+      });
+
+      res.json(resultado);
+    } catch (error) {
+      console.error('buscarNoticias error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// ============================================
+// RANKINGS - Top 10 e Bottom 10 TransparenciaBR
+// ============================================
+exports.getRankingsTransparencia = onRequest(
+  { region: "southamerica-east1" },
+  async (req, res) => {
+    if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
+    try {
+      var doc = await db.collection('system_data').doc('rankings_transparencia').get();
+      if (!doc.exists) {
+        return res.json({ top10: [], bottom10: [], message: 'Rankings nao calculados ainda. Execute run-ingest-score-transparencia.js' });
+      }
+      var data = doc.data();
+      res.json({
+        top10: data.top10 || [],
+        bottom10: data.bottom10 || [],
+        atualizadoEm: data.atualizadoEm || null,
+      });
+    } catch (error) {
+      console.error('getRankingsTransparencia error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// ============================================
+// RECALCULAR INDICE - Cloud Function HTTP
+// Recalcula o Indice TransparenciaBR para todos os deputados
+// ============================================
+exports.recalcularIndiceTransparencia = onRequest(
+  { region: "southamerica-east1", timeoutSeconds: 540, memory: "1GiB" },
+  async (req, res) => {
+    var authHeader = req.headers['x-admin-key'];
+    var adminKey = process.env.ADMIN_KEY;
+    if (!adminKey || authHeader !== adminKey) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      var indice = require('./indiceTransparenciaBR');
+      var pilaresLib = require('./montarPilaresDeputado');
+      var TETO = 5616000;
+
+      var snapshot = await db.collection('deputados_federais').get();
+      var deputadosRaw = [];
+      snapshot.forEach(function(docSnap) {
+        var data = docSnap.data();
+        var idCamara = data.idCamara || parseInt(docSnap.id) || 0;
+        var totalGastosCeap = data.totalGastos || data.totalGasto || 0;
+        var vgGasto = (data.verbaGabinete && data.verbaGabinete.totalGasto) || 0;
+        deputadosRaw.push({
+          firestoreId: docSnap.id,
+          idCamara: idCamara,
+          nome: data.nome || '',
+          partido: data.partido || '',
+          uf: data.uf || '',
+          gastoTotal: totalGastosCeap + vgGasto,
+          tetoCota: TETO,
+          sessoesPresente: data.presentSessions || 0,
+          sessoesTotal: data.totalSessions || 0,
+          totalProcessos: data.totalProcessos || 0,
+          processosGraves: data.processosGraves || 0,
+        });
+      });
+
+      var processosMap = indice.calcularProcessosScores(
+        deputadosRaw.map(function(d) {
+          return { idCamara: d.idCamara, totalProcessos: d.totalProcessos, processosGraves: d.processosGraves };
+        })
+      );
+
+      var deputadosComScore = deputadosRaw.map(function(dep) {
+        var pScore = processosMap[dep.idCamara];
+        if (pScore === undefined) pScore = 100;
+        var p = pilaresLib.montarPilares({
+          gastoTotal: dep.gastoTotal, tetoCota: dep.tetoCota,
+          sessoesPresente: dep.sessoesPresente, sessoesTotal: dep.sessoesTotal,
+          proposicoes: [], discursos: [], processosScore: pScore,
+        });
+        return Object.assign({}, dep, {
+          pilares: p, processosScore: pScore,
+          scoreBrutoTransparenciaBR: indice.calcularScoreBrutoTransparenciaBR(p),
+        });
+      });
+
+      var normalizados = indice.normalizarScoresPorKim(deputadosComScore);
+      var rankings = indice.gerarRankings(normalizados);
+
+      // Salvar scores no Firestore
+      for (var i = 0; i < normalizados.length; i += 490) {
+        var chunk = normalizados.slice(i, i + 490);
+        var batch = db.batch();
+        chunk.forEach(function(dep) {
+          batch.set(db.collection('deputados_federais').doc(dep.firestoreId), {
+            pilares: dep.pilares,
+            scoreBrutoTransparenciaBR: dep.scoreBrutoTransparenciaBR,
+            scoreFinalTransparenciaBR: dep.scoreFinalTransparenciaBR || null,
+            classificacaoTransparenciaBR: dep.classificacaoTransparenciaBR || null,
+            indiceAtualizado: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        });
+        await batch.commit();
+      }
+
+      // Salvar rankings
+      await db.collection('system_data').doc('rankings_transparencia').set({
+        top10: rankings.top10.map(function(d) {
+          return { idCamara: d.idCamara, nome: d.nome, partido: d.partido, uf: d.uf,
+            scoreFinalTransparenciaBR: d.scoreFinalTransparenciaBR,
+            classificacaoTransparenciaBR: d.classificacaoTransparenciaBR };
+        }),
+        bottom10: rankings.bottom10.map(function(d) {
+          return { idCamara: d.idCamara, nome: d.nome, partido: d.partido, uf: d.uf,
+            scoreFinalTransparenciaBR: d.scoreFinalTransparenciaBR,
+            classificacaoTransparenciaBR: d.classificacaoTransparenciaBR };
+        }),
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      res.json({ success: true, total: normalizados.length,
+        top10: rankings.top10.map(function(d) { return d.nome + ': ' + d.scoreFinalTransparenciaBR; }),
+        bottom10: rankings.bottom10.map(function(d) { return d.nome + ': ' + d.scoreFinalTransparenciaBR; }),
+      });
+    } catch (error) {
+      console.error('recalcularIndiceTransparencia error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
