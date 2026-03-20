@@ -109,6 +109,20 @@ export default function PoliticoPage({ user }) {
     function gerarRelatorioDenuncia() {
     const achados = [];
     if (Number(concentracao) > 50) achados.push('- CONCENTRACAO DE FORNECEDORES: Top 3 fornecedores concentram ' + concentracao + '% dos gastos totais. Possivel violacao do Art. 37, XXI da CF/88.');
+
+      // Score calculado dinamicamente baseado nos dados
+  const calcScore = (() => {
+    let s = 0;
+    if (Number(concentracao) > 70) s += 30;
+    else if (Number(concentracao) > 50) s += 15;
+    if (totalGastos > 2000000) s += 30;
+    else if (totalGastos > 1000000) s += 20;
+    else if (totalGastos > 500000) s += 10;
+    if (fornSorted.length > 0 && fornSorted[0][1] > 200000) s += 20;
+    if (catSorted.some(([cat]) => cat.toUpperCase().includes('FRETAMENTO') || cat.toUpperCase().includes('AERONAVE'))) s += 20;
+    if (gastos.length > 300) s += 5;
+    return Math.min(s, 100);
+  })();
     if (catSorted.some(([cat]) => cat.toUpperCase().includes('FRETAMENTO') || cat.toUpperCase().includes('AERONAVE'))) achados.push('- FRETAMENTO DE AERONAVES: Gastos com fretamento detectados. Ato da Mesa 43/2009 e Lei 8.666/93 Art. 26.');
     if (totalGastos > 1000000) achados.push('- VOLUME ELEVADO: Gastos totais de ' + fmt(totalGastos) + ' na CEAP. Art. 70-71 da CF/88.');
     if (fornSorted.length > 0 && fornSorted[0][1] > 200000) achados.push('- FORNECEDOR ELEVADO: ' + fornSorted[0][0] + ' recebeu ' + fmt(fornSorted[0][1]) + '. Lei 8.429/92 Art. 9-11.');
@@ -129,7 +143,7 @@ export default function PoliticoPage({ user }) {
 
   if (loading) return <div className="loading-container"><div className="loading-spinner" /><p>Carregando dossie...</p></div>;
   if (!pol) return <div className="loading-container"><p>Politico nao encontrado.</p></div>;
-  const risk = riskBadge(pol.score);
+  const risk = riskBadge(calcScore);
   const TABS = [
     { k: 'gastos', l: 'Gastos (' + gastos.length + ')' },
     { k: 'graficos', l: 'Graficos' },
@@ -156,9 +170,9 @@ export default function PoliticoPage({ user }) {
           <p style={{ color: 'var(--text-secondary)', margin: '4px 0' }}>
             {pol.partido || pol.siglaPartido} - {pol.uf || pol.estado || pol.siglaUf} · {pol.cargo || 'Deputado Federal'}
           </p>
-          {pol.score != null && (
+          {calcScore != null && (
             <span className={risk.cls} style={{ display: 'inline-block', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 600 }}>
-              Score {pol.score} · {risk.label}
+              Score {calcScore} · {risk.label}
             </span>
           )}
           {Number(concentracao) > 70 && (
