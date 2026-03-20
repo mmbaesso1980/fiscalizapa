@@ -10,6 +10,11 @@
  *   defesas (5%) - defesas em plenario
  *
  * Normalizacao: Kim Kataguiri = 100 (referencia maxima)
+ *
+ * IMPORTANTE: Deputados sem dados de gastos (totalGastos=0)
+ * recebem score de economia BAIXO (penalizado), nao alto.
+ * Isso evita que parlamentares com dados incompletos
+ * aparecam no Top 10 indevidamente.
  */
 
 const KIM_ID = 204536;
@@ -26,11 +31,13 @@ const PESOS = {
 
 /**
  * Calcula o score bruto de economia (0-100)
- * Quanto menos gasta da cota, melhor o score
+ * Quanto menos gasta da cota, melhor o score.
+ * SEM DADOS = penalizado (score baixo), nao beneficiado.
  */
 function calcEconomiaScore(p) {
   const g = p.totalGastos || 0;
-  if (g === 0) return 50; // sem dados = neutro
+  // Sem dados de gastos = penalizado (nao sabemos se gasta pouco ou muito)
+  if (g === 0) return 30;
   // Escala: g/5000 pontos perdidos. ~500k gastos = score 0
   return Math.max(0, Math.min(100, 100 - (g / 5000) * 1));
 }
@@ -41,7 +48,7 @@ function calcEconomiaScore(p) {
  */
 function calcProcessosScore(p) {
   const r = p.score || p.riskScore || 0;
-  if (r === 0) return 70; // sem processos conhecidos
+  if (r === 0) return 60; // sem processos conhecidos = neutro
   return Math.max(0, Math.min(100, 100 - r * 1.8));
 }
 
@@ -51,7 +58,7 @@ function calcProcessosScore(p) {
 function calcPresencaScore(p) {
   if (p.presencaScore) return Math.min(100, p.presencaScore);
   if (p.presenca) return Math.min(100, p.presenca);
-  return 50; // sem dados = neutro
+  return 40; // sem dados = penalizado
 }
 
 /**
