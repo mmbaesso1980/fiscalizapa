@@ -1462,3 +1462,139 @@ exports.stripeWebhookV2 = onRequest({ region: "southamerica-east1" }, async (req
   }
   res.json({ received: true });
 });
+
+
+// ============================================
+// SESSAO - Registrar e validar sessao (anti-login simultaneo)
+// ============================================
+exports.registerUserSession = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  const { sessionId, deviceInfo } = request.data;
+  if (!sessionId) throw new Error("sessionId required");
+  await creditService.registerSession(uid, sessionId, deviceInfo || {});
+  return { success: true };
+});
+
+exports.validateUserSession = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  const { sessionId } = request.data;
+  if (!sessionId) throw new Error("sessionId required");
+  return await creditService.validateSession(uid, sessionId);
+});
+
+// ============================================
+// REFERRAL - Gerar link e processar indicacao
+// ============================================
+exports.getReferralCode = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  checkRateLimit(uid);
+  const codigo = await creditService.gerarCodigoReferral(uid);
+  const link = `https://transparenciabr.com.br/?ref=${codigo}`;
+  // Buscar stats
+  const refDoc = await db.collection('referrals').doc(uid).get();
+  const stats = refDoc.exists ? refDoc.data() : { totalIndicados: 0, totalCreditsGanhos: 0 };
+  return { codigo, link, stats };
+});
+
+exports.processReferralCode = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  const { codigoReferral } = request.data;
+  if (!codigoReferral) throw new Error("codigoReferral required");
+  await creditService.processarReferral(codigoReferral, uid);
+  return { success: true };
+});
+
+// ============================================
+// TRIAL DIARIO - Verificar status
+// ============================================
+exports.checkTrialDiario = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  checkRateLimit(uid);
+  return await creditService.checkTrialDiario(uid);
+});
+
+// ============================================
+// ADMIN - Setar status admin (protegido por ADMIN_KEY)
+// ============================================
+exports.setAdminStatus = onRequest({ region: "southamerica-east1" }, async (req, res) => {
+  const authHeader = req.headers["x-admin-key"];
+  const adminKey = process.env.ADMIN_KEY;
+  if (!adminKey || authHeader !== adminKey) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const { userId, isAdmin } = req.body;
+  if (!userId) return res.status(400).json({ error: "userId required" });
+  await db.collection("users").doc(userId).set({
+    isAdmin: isAdmin === true,
+    adminSetAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  res.json({ success: true, userId, isAdmin: isAdmin === true });
+});
+
+// ============================================
+// EVENTOS DE USO - Big Data Collection (BLOCO 4)
+// ============================================
+exports.logUserEvent = onCall({ region: "southamerica-east1" }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new Error("Authentication required");
+  const { eventType, eventData } = request.data;
+  if (!eventType) throw new Error("eventType required");
+  const allowedEvents = [
+    'PAGE_VIEW', 'PROFILE_VIEW', 'ANALYSIS_REQUEST', 'CHAT_MESSAGE',
+    'SEARCH', 'FILTER_CHANGE', 'SHARE', 'EXPORT', 'CLICK',
+    'CREDIT_PURCHASE', 'LOGIN', 'LOGOUT', 'REFERRAL_SHARE',
+  ];
+  if (!allowedEvents.includes(eventType)) throw new Error("eventType invalido");
+  await db.collection('user_events').add({
+    userId: uid,
+    eventType: sanitizeString(eventType, 50),
+    eventData: typeof eventData === 'object' ? eventData : {},
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    date: new Date().toISOString().slice(0, 10),
+  });
+  return { success: true };
+});
+
+// Agregacao diaria de eventos (para dashboard B2B)
+exports.aggregateEvents = onRequest(
+  { region: "southamerica-east1", timeoutSeconds: 120 },
+  async (req, res) => {
+    const authHeader = req.headers["x-admin-key"];
+    const adminKey = process.env.ADMIN_KEY;
+    if (!adminKey || authHeader !== adminKey) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const snap = await db.collection('user_events')
+      .where('date', '==', date).get();
+    const counts = {};
+    const uniqueUsers = new Set();
+    const topPoliticians = {};
+    snap.forEach(doc => {
+      const d = doc.data();
+      counts[d.eventType] = (counts[d.eventType] || 0) + 1;
+      uniqueUsers.add(d.userId);
+      if (d.eventType === 'PROFILE_VIEW' && d.eventData?.politicianId) {
+        topPoliticians[d.eventData.politicianId] = (topPoliticians[d.eventData.politicianId] || 0) + 1;
+      }
+    });
+    const topPols = Object.entries(topPoliticians)
+      .sort((a, b) => b[1] - a[1]).slice(0, 20)
+      .map(([id, views]) => ({ id, views }));
+    const aggregated = {
+      date,
+      totalEvents: snap.size,
+      uniqueUsers: uniqueUsers.size,
+      eventCounts: counts,
+      topPoliticians: topPols,
+      criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    await db.collection('daily_analytics').doc(date).set(aggregated);
+    res.json(aggregated);
+  }
+);
