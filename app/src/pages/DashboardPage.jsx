@@ -70,7 +70,7 @@ export default function DashboardPage({ user }) {
     if (!ok) { setLoading(false); setPols([]); return; }
     setLoading(true);
     getDocs(collection(db, colecao)).then(snap => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.nome);
       const n = normalizarScoresPorKim(list);
       n.sort((a, b) => (b.idx || 0) - (a.idx || 0));
       setPols(n);
