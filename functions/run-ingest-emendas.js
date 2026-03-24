@@ -1,244 +1,158 @@
 /**
  * run-ingest-emendas.js
- * Script standalone para ingestao de emendas parlamentares
- * Fonte: API Portal da Transparencia (api.portaldatransparencia.gov.br)
+ * Bloco 6 - Robo de Emendas Parlamentares v2
+ * Busca emendas do Portal da Transparencia (CGU) e salva no Firestore.
+ * ANALISE CRITICA: cidade, uso, execucao, IDH, tipo emenda.
  *
- * USO:
- *   cd functions
- *   node run-ingest-emendas.js
- *
- * REQUISITOS:
- *   - Variavel de ambiente PORTAL_API_KEY com chave da API
- *   - Ou arquivo .env na pasta functions com PORTAL_API_KEY=xxx
- *   - Cadastro em: https://portaldatransparencia.gov.br/api-de-dados/cadastrar-email
+ * Uso: cd functions && node run-ingest-emendas.js
+ * Requer: PORTAL_API_KEY no .env
  */
 
 const admin = require("firebase-admin");
-const https = require("https");
+const fetch = require("node-fetch");
 
-// Carregar .env se existir
-try { require("dotenv").config(); } catch(e) {}
-
-// Inicializar Firebase Admin
 if (!admin.apps.length) {
-  const serviceAccount = require("./serviceAccountKey.json");
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+  admin.initializeApp({ projectId: "fiscalizapa-e3fd4" });
 }
 const db = admin.firestore();
 
-const API_KEY = process.env.PORTAL_API_KEY;
-if (!API_KEY) {
-  console.error("ERRO: Defina PORTAL_API_KEY no .env ou variavel de ambiente.");
-  console.error("Cadastre-se em: https://portaldatransparencia.gov.br/api-de-dados/cadastrar-email");
-  process.exit(1);
+const API_KEY = process.env.PORTAL_API_KEY || "717a95e01b072090f41940282eab700a";
+const BASE = "https://api.portaldatransparencia.gov.br/api-de-dados";
+
+// IDH por UF (PNUD 2021)
+const IDH_UF = {
+  AC:0.663,AL:0.649,AM:0.674,AP:0.674,BA:0.667,CE:0.682,DF:0.824,
+  ES:0.740,GO:0.735,MA:0.639,MG:0.731,MS:0.729,MT:0.725,PA:0.646,
+  PB:0.658,PE:0.673,PI:0.646,PR:0.749,RJ:0.761,RN:0.684,RO:0.690,
+  RR:0.674,RS:0.769,SC:0.774,SE:0.665,SP:0.783,TO:0.699
+};
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function fetchPage(nome, ano, pagina) {
+  const url = `${BASE}/emendas?ano=${ano}&nomeAutor=${encodeURIComponent(nome)}&pagina=${pagina}`;
+  const res = await fetch(url, { headers: { "chave-api-dados": API_KEY } });
+  if (res.status === 429) { await sleep(10000); return fetchPage(nome, ano, pagina); }
+  if (!res.ok) return [];
+  return res.json();
 }
 
-const ANOS = [2023, 2024, 2025];
-const DELAY_MS = 600; // rate limit ~100 req/min
-const BASE_URL = "api.portaldatransparencia.gov.br";
-
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-/**
- * Faz GET na API do Portal da Transparencia
- */
-function apiGet(path) {
-  return new Promise((resolve, reject) => {
-    const opts = {
-      hostname: BASE_URL,
-      path: path,
-      method: "GET",
-      headers: { "chave-api-dados": API_KEY, "Accept": "application/json" }
-    };
-    const req = https.request(opts, (res) => {
-      let data = "";
-      res.on("data", chunk => data += chunk);
-      res.on("end", () => {
-        if (res.statusCode === 200) {
-          try { resolve(JSON.parse(data)); }
-          catch(e) { reject(new Error("JSON parse error: " + data.substring(0, 200))); }
-        } else if (res.statusCode === 429) {
-          reject(new Error("RATE_LIMIT"));
-        } else {
-          reject(new Error(`HTTP ${res.statusCode}: ${data.substring(0, 200)}`));
-        }
-      });
-    });
-    req.on("error", reject);
-    req.setTimeout(30000, () => { req.destroy(); reject(new Error("Timeout")); });
-    req.end();
-  });
-}
-
-/**
- * Busca todas as emendas de um autor (paginado)
- */
-async function fetchEmendasPorAutor(nomeAutor, ano) {
-  const all = [];
-  let pagina = 1;
+async function fetchAll(nome, ano) {
+  let all = [], p = 1;
   while (true) {
-    const path = `/api-de-dados/emendas?nomeAutor=${encodeURIComponent(nomeAutor)}&ano=${ano}&pagina=${pagina}`;
-    try {
-      const results = await apiGet(path);
-      if (!Array.isArray(results) || results.length === 0) break;
-      all.push(...results);
-      pagina++;
-      await sleep(DELAY_MS);
-    } catch (err) {
-      if (err.message === "RATE_LIMIT") {
-        console.log("  Rate limit, aguardando 10s...");
-        await sleep(10000);
-        continue;
-      }
-      console.error(`  Erro pagina ${pagina}: ${err.message}`);
-      break;
-    }
+    const page = await fetchPage(nome, ano, p);
+    if (!page || page.length === 0) break;
+    all = all.concat(page);
+    if (page.length < 15) break; // default page size
+    p++;
+    await sleep(700);
   }
   return all;
 }
 
-/**
- * Extrai municipio e UF da localidadeDoGasto
- * Formato tipico: "MUNICIPIO - UF" ou "Nacional"
- */
-function parseLocalidade(loc) {
-  if (!loc) return { municipioNome: null, uf: null };
-  const parts = loc.split(" - ");
-  if (parts.length >= 2) {
-    return { municipioNome: parts[0].trim(), uf: parts[parts.length - 1].trim() };
-  }
-  return { municipioNome: loc.trim(), uf: null };
-}
+function analisar(e) {
+  const alertas = [];
+  const emp = e.valorEmpenhado || 0;
+  const pag = e.valorPago || 0;
+  const liq = e.valorLiquidado || 0;
+  const taxa = emp > 0 ? (pag / emp * 100) : 0;
 
-/**
- * Converte string monetaria para numero
- */
-function parseValor(v) {
-  if (!v) return 0;
-  if (typeof v === "number") return v;
-  return parseFloat(String(v).replace(/\./g, "").replace(",", ".")) || 0;
+  if (emp > 0 && taxa < 30)
+    alertas.push(`BAIXA EXECUCAO: ${taxa.toFixed(0)}% pago. Recurso pode estar parado.`);
+  if (emp > 0 && pag === 0)
+    alertas.push(`SEM PAGAMENTO: Empenhado mas nada pago. Questionar destino.`);
+  if (emp > 5000000)
+    alertas.push(`VALOR ELEVADO: R$ ${(emp/1e6).toFixed(1)}M - escrutinio extra.`);
+
+  const uf = (e.localidadeDoGasto || '').substring(0, 2).toUpperCase();
+  const idh = IDH_UF[uf];
+  if (idh && idh < 0.67)
+    alertas.push(`REGIAO VULNERAVEL: IDH ${idh.toFixed(3)} (${uf}). Recurso atende necessidade?`);
+
+  const tipo = (e.tipoEmenda || '').toUpperCase();
+  if (tipo.includes('RELATOR'))
+    alertas.push(`EMENDA DE RELATOR (RP9): Menos transparente historicamente.`);
+  if (tipo.includes('ESPECIAL'))
+    alertas.push(`TRANSFERENCIA ESPECIAL: Sem convenio, fiscalizacao limitada.`);
+
+  // Verifica se funcao e show/entretenimento
+  const funcao = (e.nomeFuncao || e.codigoFuncao || '').toUpperCase();
+  if (funcao.includes('CULTURA') || funcao.includes('DESPORTO') || funcao.includes('LAZER'))
+    alertas.push(`DESTINO SHOW/LAZER: Emenda para ${funcao}. Essencial em regiao com IDH ${idh || '?'}?`);
+
+  return {
+    taxa: Math.round(taxa),
+    alertas,
+    criticidade: alertas.length >= 3 ? 'ALTA' : alertas.length >= 1 ? 'MEDIA' : 'BAIXA',
+    idhLocal: idh || null,
+    ufLocal: uf
+  };
 }
 
 async function main() {
-  console.log("=== INGESTAO DE EMENDAS PARLAMENTARES ===");
-  console.log(`Anos: ${ANOS.join(", ")}`);
-  console.log();
+  console.log("=== ROBO EMENDAS v2 - Bloco 6 ===");
+  const snap = await db.collection("politicos").get();
+  const deps = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.nome);
+  console.log(`${deps.length} deputados.`);
 
-  // 1. Buscar todos os deputados do Firestore
-  const colecoes = ["deputados_federais", "deputados_estaduais"];
-  const deputados = [];
+  const anos = [2023, 2024, 2025];
+  let total = 0, processed = 0;
 
-  for (const col of colecoes) {
-    const snap = await db.collection(col).get();
-    snap.docs.forEach(d => {
-      const data = d.data();
-      deputados.push({
-        id: d.id,
-        colecao: col,
-        nome: data.nome || data.nomeCompleto || data.ultimoStatus?.nome || "",
-        nomeCompleto: data.nomeCompleto || data.nome || ""
-      });
-    });
-    console.log(`Colecao ${col}: ${snap.size} deputados`);
-  }
-
-  console.log(`Total de deputados: ${deputados.length}`);
-  console.log();
-
-  let totalEmendas = 0;
-  let totalErros = 0;
-  let deputadosComEmendas = 0;
-
-  // 2. Para cada deputado, buscar emendas na API
-  for (let i = 0; i < deputados.length; i++) {
-    const dep = deputados[i];
-    const nomeQuery = dep.nome.toUpperCase();
-    if (!nomeQuery || nomeQuery.length < 3) {
-      console.log(`[${i+1}/${deputados.length}] ${dep.id} - nome vazio, pulando`);
-      continue;
-    }
-
-    console.log(`[${i+1}/${deputados.length}] ${nomeQuery} (${dep.colecao}/${dep.id})`);
-
-    let emendasDep = [];
-    for (const ano of ANOS) {
+  for (const dep of deps) {
+    let all = [];
+    for (const ano of anos) {
       try {
-        const result = await fetchEmendasPorAutor(nomeQuery, ano);
-        if (result.length > 0) {
-          console.log(`  ${ano}: ${result.length} emendas`);
-          emendasDep.push(...result);
-        }
-        await sleep(DELAY_MS);
-      } catch (err) {
-        console.error(`  ${ano} ERRO: ${err.message}`);
-        totalErros++;
-      }
+        const em = await fetchAll(dep.nome, ano);
+        all = all.concat(em.map(e => ({ ...e, anoConsulta: ano })));
+      } catch (err) { console.log(`  ERR ${dep.nome} ${ano}: ${err.message}`); }
     }
+    if (!all.length) continue;
+    processed++;
+    console.log(`  ${dep.nome}: ${all.length} emendas`);
 
-    if (emendasDep.length === 0) continue;
-    deputadosComEmendas++;
+    const ref = db.collection("politicos").doc(dep.id);
+    let sumEmp = 0, sumPag = 0, alertCount = 0;
 
-    // 3. Gravar no Firestore
-    const batch = db.batch();
-    let batchCount = 0;
-
-    for (const em of emendasDep) {
-      const { municipioNome, uf } = parseLocalidade(em.localidadeDoGasto);
-      const docId = `${dep.id}_${em.codigoEmenda}`;
-
-      const docRef = db.collection("emendas").doc(docId);
-      batch.set(docRef, {
-        parlamentarId: dep.id,
-        autorId: dep.id,
-        colecao: dep.colecao,
-        nomeAutor: em.nomeAutor || nomeQuery,
-        codigoEmenda: em.codigoEmenda || "",
-        numeroEmenda: em.numeroEmenda || "",
-        tipoEmenda: em.tipoEmenda || "",
-        ano: em.ano || 0,
-        funcao: em.funcao || "",
-        subfuncao: em.subfuncao || "",
-        localidadeDoGasto: em.localidadeDoGasto || "",
-        municipioNome: municipioNome,
-        uf: uf,
-        valorEmpenhado: parseValor(em.valorEmpenhado),
-        valorLiquidado: parseValor(em.valorLiquidado),
-        valorPago: parseValor(em.valorPago),
-        valorRestoInscrito: parseValor(em.valorRestoInscrito),
-        valorRestoCancelado: parseValor(em.valorRestoCancelado),
-        valorRestoPago: parseValor(em.valorRestoPago),
-        valor: parseValor(em.valorEmpenhado),
-        favorecido: em.localidadeDoGasto || "",
-        objetoResumo: `${em.funcao || ""} / ${em.subfuncao || ""}`.trim(),
-        status: em.tipoEmenda || "",
+    for (const e of all) {
+      const a = analisar(e);
+      const eid = e.codigoEmenda || `${e.ano || e.anoConsulta}-${Math.random().toString(36).substr(2,8)}`;
+      await ref.collection("emendas").doc(String(eid)).set({
+        codigo: e.codigoEmenda || '',
+        ano: e.ano || e.anoConsulta,
+        tipo: e.tipoEmenda || '',
+        autor: e.nomeAutor || dep.nome,
+        localidade: e.localidadeDoGasto || '',
+        uf: a.ufLocal,
+        municipio: e.codigoMunicipio || '',
+        funcao: e.nomeFuncao || e.codigoFuncao || '',
+        subfuncao: e.nomeSubfuncao || e.codigoSubfuncao || '',
+        valorEmpenhado: e.valorEmpenhado || 0,
+        valorLiquidado: e.valorLiquidado || 0,
+        valorPago: e.valorPago || 0,
+        taxaExecucao: a.taxa,
+        alertas: a.alertas,
+        criticidade: a.criticidade,
+        idhLocal: a.idhLocal,
         ingestedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
+      sumEmp += e.valorEmpenhado || 0;
+      sumPag += e.valorPago || 0;
+      alertCount += a.alertas.length;
+      total++;
+    }
 
-      batchCount++;
-      if (batchCount >= 450) {
-        await batch.commit();
-        console.log(`  Batch commit: ${batchCount} docs`);
-        batchCount = 0;
+    await ref.set({
+      emendasResumo: {
+        total: all.length, empenhado: sumEmp, pago: sumPag,
+        taxaExecucao: sumEmp > 0 ? Math.round(sumPag/sumEmp*100) : 0,
+        alertas: alertCount,
+        atualizado: new Date().toISOString()
       }
-    }
-
-    if (batchCount > 0) {
-      await batch.commit();
-      console.log(`  Gravadas ${emendasDep.length} emendas para ${nomeQuery}`);
-    }
-
-    totalEmendas += emendasDep.length;
+    }, { merge: true });
   }
 
-  console.log();
-  console.log("=== RESUMO ===");
-  console.log(`Deputados com emendas: ${deputadosComEmendas}`);
-  console.log(`Total emendas gravadas: ${totalEmendas}`);
-  console.log(`Erros: ${totalErros}`);
-  console.log("Concluido!");
+  console.log(`\nDone: ${total} emendas de ${processed} deputados.`);
+  process.exit(0);
 }
 
-main().catch(err => {
-  console.error("ERRO FATAL:", err);
-  process.exit(1);
-});
+main().catch(e => { console.error(e); process.exit(1); });
