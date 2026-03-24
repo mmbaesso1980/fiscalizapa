@@ -1598,3 +1598,55 @@ exports.aggregateEvents = onRequest(
     res.json(aggregated);
   }
 );
+
+    // ============================================
+// BLOCO 7 - ALERTAS SEMANAIS E INSTANTANEOS
+// ============================================
+const alertaService = require('./alertaService');
+
+exports.weeklyAlerts = onSchedule(
+  {
+    schedule: "every monday 07:00",
+    region: "southamerica-east1",
+    timeZone: "America/Sao_Paulo"
+  },
+  async (event) => {
+    console.log("Starting weekly alerts generation...");
+    try {
+      const results = await alertaService.gerarAlertasSemanal();
+      console.log("Weekly alerts completed:", results);
+      await db.collection("system_logs").add({
+        type: "weekly_alerts",
+        results,
+        executedAt: admin.firestore.FieldValue.serverTimestamp(),
+        success: true,
+      });
+    } catch (err) {
+      console.error("Weekly alerts failed:", err);
+      await db.collection("system_logs").add({
+        type: "weekly_alerts",
+        error: err.message,
+        executedAt: admin.firestore.FieldValue.serverTimestamp(),
+        success: false,
+      });
+    }
+  }
+);
+
+exports.checkInstantAlerts = onRequest(
+  { region: "southamerica-east1", timeoutSeconds: 300 },
+  async (req, res) => {
+    const authHeader = req.headers["x-admin-key"];
+    const adminKey = process.env.ADMIN_KEY;
+    if (!adminKey || authHeader !== adminKey) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    try {
+      const results = await alertaService.verificarNovosGastos();
+      res.json({ success: true, ...results });
+    } catch (error) {
+      console.error("checkInstantAlerts error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
