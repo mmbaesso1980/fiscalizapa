@@ -14,7 +14,7 @@ function classColor(cls) {
 export default function RankingPage() {
   const [deputados, setDeputados] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortKey, setSortKey] = useState('scoreFinalTransparenciaBR');
+  const [sortKey, setSortKey] = useState('scoreDisplay');
   const [sortDir, setSortDir] = useState('desc');
   const [filtroPartido, setFiltroPartido] = useState('');
   const [filtroUf, setFiltroUf] = useState('');
@@ -22,12 +22,13 @@ export default function RankingPage() {
   useEffect(() => {
     async function load() {
       try {
-        // deputados_federais has both basic info AND scores written by run-ingest-score-transparencia.js
         const snap = await getDocs(collection(db, "deputados_federais"));
         const list = [];
         snap.docs.forEach(d => {
           const data = d.data();
-          if (data.scoreFinalTransparenciaBR != null) {
+          // Use scoreFinal if available, otherwise fall back to scoreBruto
+          const scoreDisplay = data.scoreFinalTransparenciaBR ?? data.scoreBrutoTransparenciaBR ?? null;
+          if (scoreDisplay != null && data.nome) {
             list.push({
               id: d.id,
               nome: data.nome || 'Deputado ' + d.id,
@@ -35,14 +36,15 @@ export default function RankingPage() {
               uf: data.uf || data.estado || data.siglaUf || '',
               fotoUrl: data.fotoUrl || data.urlFoto || '',
               idCamara: data.idCamara || d.id,
-              scoreFinalTransparenciaBR: data.scoreFinalTransparenciaBR,
-              scoreBrutoTransparenciaBR: data.scoreBrutoTransparenciaBR,
-              classificacaoTransparenciaBR: data.classificacaoTransparenciaBR,
-              economiaScore: data.pilares ? data.pilares.economiaScore : null,
-              presencaScore: data.pilares ? data.pilares.presencaScore : null,
-              proposicoesScore: data.pilares ? data.pilares.proposicoesScore : null,
-              defesasPlenarioScore: data.pilares ? data.pilares.defesasPlenarioScore : null,
-              processosScore: data.processosScore,
+              scoreDisplay,
+              scoreFinalTransparenciaBR: data.scoreFinalTransparenciaBR ?? null,
+              scoreBrutoTransparenciaBR: data.scoreBrutoTransparenciaBR ?? null,
+              classificacaoTransparenciaBR: data.classificacaoTransparenciaBR ?? null,
+              economiaScore: data.pilares ? (data.pilares.economiaScore ?? null) : null,
+              presencaScore: data.pilares ? (data.pilares.presencaScore ?? null) : null,
+              proposicoesScore: data.pilares ? (data.pilares.proposicoesScore ?? null) : null,
+              defesasPlenarioScore: data.pilares ? (data.pilares.defesasPlenarioScore ?? null) : null,
+              processosScore: data.processosScore ?? null,
             });
           }
         });
@@ -85,7 +87,6 @@ export default function RankingPage() {
         Score consolidado de {filtered.length} parlamentares baseado em 5 pilares
       </p>
 
-      {/* Filtros */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
         <select value={filtroPartido} onChange={e => setFiltroPartido(e.target.value)}
           style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '13px' }}>
@@ -99,7 +100,6 @@ export default function RankingPage() {
         </select>
       </div>
 
-      {/* Tabela */}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
           <thead>
@@ -107,7 +107,7 @@ export default function RankingPage() {
               <th style={{ padding: '10px 8px', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>#</th>
               <th style={{ padding: '10px 8px', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Deputado</th>
               <th style={{ padding: '10px 8px', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Partido/UF</th>
-              <th onClick={() => toggleSort('scoreFinalTransparenciaBR')} style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', cursor: 'pointer' }}>Score{arrow('scoreFinalTransparenciaBR')}</th>
+              <th onClick={() => toggleSort('scoreDisplay')} style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', cursor: 'pointer' }}>Score{arrow('scoreDisplay')}</th>
               <th style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Classe</th>
               <th onClick={() => toggleSort('economiaScore')} style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', cursor: 'pointer' }}>Economia{arrow('economiaScore')}</th>
               <th onClick={() => toggleSort('presencaScore')} style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', cursor: 'pointer' }}>Presenca{arrow('presencaScore')}</th>
@@ -129,7 +129,7 @@ export default function RankingPage() {
                 </td>
                 <td style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '13px' }}>{d.partido} - {d.uf}</td>
                 <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: '700', color: classColor(d.classificacaoTransparenciaBR) }}>
-                  {d.scoreFinalTransparenciaBR != null ? d.scoreFinalTransparenciaBR.toFixed(1) : '-'}
+                  {d.scoreDisplay != null ? d.scoreDisplay.toFixed(1) : '-'}
                 </td>
                 <td style={{ padding: '12px 8px', textAlign: 'center' }}>
                   <span style={{ color: classColor(d.classificacaoTransparenciaBR), fontWeight: '600', fontSize: '12px' }}>
@@ -147,7 +147,7 @@ export default function RankingPage() {
 
       {filtered.length === 0 && (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-          Nenhum deputado com score calculado. Execute o script run-ingest-score-transparencia.js primeiro.
+          Nenhum deputado com score calculado encontrado. Verifique se o script run-ingest-score-transparencia.js foi executado.
         </div>
       )}
     </div>
