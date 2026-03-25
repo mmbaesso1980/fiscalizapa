@@ -9,7 +9,7 @@
  *   proposicoes (10%) - producao legislativa
  *   defesas (5%) - defesas em plenario
  *
- * Normalizacao: Kim Kataguiri = 100 (referencia maxima)
+ * Normalizacao: deputado referencia = 100 (referencia maxima)
  *
  * IMPORTANTE: Deputados sem dados de gastos (totalGastos=0)
  * recebem score de economia BAIXO (penalizado), nao alto.
@@ -109,7 +109,7 @@ export function calcularScoreBrutoTransparenciaBR(p) {
 }
 
 /**
- * Normaliza scores da lista usando Kim Kataguiri como referencia (=100)
+ * Normaliza scores da lista usando deputado referencia como referencia (=100)
  * @param {Array} deputados - lista de objetos de deputados
  * @returns {Array} lista com campo `idx` normalizado
  */
