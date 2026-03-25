@@ -32,47 +32,30 @@ export default function ComparadorPage() {
   useEffect(() => {
     async function load() {
       try {
-        // Read basic info from deputados_federais
-        const depSnap = await getDocs(collection(db, "deputados_federais"));
-        const depMap = {};
-        depSnap.docs.forEach(d => {
-          const data = d.data();
-          depMap[d.id] = {
-            id: d.id,
-            nome: data.nome || '',
-            partido: data.partido || data.siglaPartido || '',
-            uf: data.uf || data.estado || data.siglaUf || '',
-            fotoUrl: data.fotoUrl || data.urlFoto || '',
-            idCamara: data.idCamara || d.id,
-          };
-        });
-
-        // Read scores from politicos and merge
-        const polSnap = await getDocs(collection(db, "politicos"));
+        // deputados_federais has both basic info AND scores
+        const snap = await getDocs(collection(db, "deputados_federais"));
         const list = [];
-        polSnap.docs.forEach(d => {
-          const scores = d.data();
-          const basic = depMap[d.id] || {};
-          if (basic.nome) {
+        snap.docs.forEach(d => {
+          const data = d.data();
+          if (data.nome) {
             list.push({
               id: d.id,
-              nome: basic.nome,
-              partido: basic.partido,
-              uf: basic.uf,
-              fotoUrl: basic.fotoUrl,
-              idCamara: basic.idCamara,
-              scoreFinalTransparenciaBR: scores.scoreFinalTransparenciaBR,
-              scoreBrutoTransparenciaBR: scores.scoreBrutoTransparenciaBR,
-              classificacaoTransparenciaBR: scores.classificacaoTransparenciaBR,
-              economiaScore: scores.economiaScore,
-              presencaScore: scores.presencaScore,
-              proposicoesScore: scores.proposicoesScore,
-              defesasPlenarioScore: scores.defesasPlenarioScore,
-              processosScore: scores.processosScore,
+              nome: data.nome || '',
+              partido: data.partido || data.siglaPartido || '',
+              uf: data.uf || data.estado || data.siglaUf || '',
+              fotoUrl: data.fotoUrl || data.urlFoto || '',
+              idCamara: data.idCamara || d.id,
+              scoreFinalTransparenciaBR: data.scoreFinalTransparenciaBR ?? null,
+              scoreBrutoTransparenciaBR: data.scoreBrutoTransparenciaBR ?? null,
+              classificacaoTransparenciaBR: data.classificacaoTransparenciaBR ?? null,
+              economiaScore: data.pilares ? data.pilares.economiaScore : null,
+              presencaScore: data.pilares ? data.pilares.presencaScore : null,
+              proposicoesScore: data.pilares ? data.pilares.proposicoesScore : null,
+              defesasPlenarioScore: data.pilares ? data.pilares.defesasPlenarioScore : null,
+              processosScore: data.processosScore ?? null,
             });
           }
         });
-
         list.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
         setDeputados(list);
       } catch (err) {
@@ -87,31 +70,28 @@ export default function ComparadorPage() {
   const depB = deputados.find(d => d.id === idB);
 
   if (loading) return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 20px', textAlign: 'center' }}>
-      <div className="loading-spinner" />
-      <p style={{ color: 'var(--text-muted)' }}>Carregando deputados...</p>
-    </div>
+    <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Carregando deputados...</div>
   );
 
+  const selectStyle = { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' };
+
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px' }}>
-      <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>Comparador de Deputados</h1>
-      <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '20px' }}>Compare dois parlamentares lado a lado nos 5 pilares</p>
+    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 16px' }}>
+      <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-primary)' }}>Comparador de Deputados</h1>
+      <p style={{ color: 'var(--text-muted)', marginBottom: '28px', fontSize: '14px' }}>Compare dois parlamentares lado a lado nos 5 pilares</p>
 
       {/* Seletores */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <label style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Deputado A</label>
-          <select value={idA} onChange={e => setIdA(e.target.value)}
-            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '32px' }}>
+        <div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>Deputado A</div>
+          <select value={idA} onChange={e => setIdA(e.target.value)} style={selectStyle}>
             <option value="">Selecione...</option>
             {deputados.map(d => <option key={d.id} value={d.id}>{d.nome} ({d.partido}-{d.uf})</option>)}
           </select>
         </div>
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <label style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px', display: 'block' }}>Deputado B</label>
-          <select value={idB} onChange={e => setIdB(e.target.value)}
-            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}>
+        <div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>Deputado B</div>
+          <select value={idB} onChange={e => setIdB(e.target.value)} style={selectStyle}>
             <option value="">Selecione...</option>
             {deputados.map(d => <option key={d.id} value={d.id}>{d.nome} ({d.partido}-{d.uf})</option>)}
           </select>
@@ -120,48 +100,35 @@ export default function ComparadorPage() {
 
       {/* Comparacao */}
       {depA && depB && (
-        <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-light)', overflow: 'hidden' }}>
           {/* Header */}
-          <div style={{ display: 'flex', borderBottom: '2px solid var(--border-light)' }}>
-            <div style={{ flex: 1, padding: '20px', textAlign: 'center', borderRight: '1px solid var(--border-light)' }}>
-              <img src={depA.fotoUrl || '/placeholder-avatar.png'} alt={depA.nome}
-                style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 8px' }}
-                onError={e => { e.target.src = '/placeholder-avatar.png'; }} />
-              <p style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>{depA.nome}</p>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{depA.partido}-{depA.uf}</p>
-              <p style={{ fontSize: '28px', fontWeight: 800, fontFamily: 'Space Grotesk', color: classColor(depA.classificacaoTransparenciaBR), marginTop: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', background: 'var(--bg-secondary)' }}>
+            <div style={{ padding: '20px', fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Pilar</div>
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              {depA.fotoUrl && <img src={depA.fotoUrl} alt={depA.nome} onError={e => { e.target.src = '/placeholder-avatar.png'; }} style={{ width: '44px', height: '44px', borderRadius: '50%', marginBottom: '8px', display: 'block', margin: '0 auto 8px' }} />}
+              <div style={{ fontWeight: '600', fontSize: '14px', color: 'var(--text-primary)' }}>{depA.nome}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{depA.partido}-{depA.uf}</div>
+              <div style={{ marginTop: '6px', fontWeight: '700', fontSize: '20px', color: classColor(depA.classificacaoTransparenciaBR) }}>
                 {depA.scoreFinalTransparenciaBR != null ? depA.scoreFinalTransparenciaBR.toFixed(1) : '-'}
-              </p>
-              <span style={{ padding: '2px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, background: classColor(depA.classificacaoTransparenciaBR) + '22', color: classColor(depA.classificacaoTransparenciaBR) }}>
-                {depA.classificacaoTransparenciaBR || '-'}
-              </span>
+              </div>
+              <span style={{ color: classColor(depA.classificacaoTransparenciaBR), fontWeight: '600', fontSize: '12px' }}>{depA.classificacaoTransparenciaBR || '-'}</span>
             </div>
-            <div style={{ flex: 1, padding: '20px', textAlign: 'center' }}>
-              <img src={depB.fotoUrl || '/placeholder-avatar.png'} alt={depB.nome}
-                style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 8px' }}
-                onError={e => { e.target.src = '/placeholder-avatar.png'; }} />
-              <p style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>{depB.nome}</p>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{depB.partido}-{depB.uf}</p>
-              <p style={{ fontSize: '28px', fontWeight: 800, fontFamily: 'Space Grotesk', color: classColor(depB.classificacaoTransparenciaBR), marginTop: '8px' }}>
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              {depB.fotoUrl && <img src={depB.fotoUrl} alt={depB.nome} onError={e => { e.target.src = '/placeholder-avatar.png'; }} style={{ width: '44px', height: '44px', borderRadius: '50%', marginBottom: '8px', display: 'block', margin: '0 auto 8px' }} />}
+              <div style={{ fontWeight: '600', fontSize: '14px', color: 'var(--text-primary)' }}>{depB.nome}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{depB.partido}-{depB.uf}</div>
+              <div style={{ marginTop: '6px', fontWeight: '700', fontSize: '20px', color: classColor(depB.classificacaoTransparenciaBR) }}>
                 {depB.scoreFinalTransparenciaBR != null ? depB.scoreFinalTransparenciaBR.toFixed(1) : '-'}
-              </p>
-              <span style={{ padding: '2px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, background: classColor(depB.classificacaoTransparenciaBR) + '22', color: classColor(depB.classificacaoTransparenciaBR) }}>
-                {depB.classificacaoTransparenciaBR || '-'}
-              </span>
+              </div>
+              <span style={{ color: classColor(depB.classificacaoTransparenciaBR), fontWeight: '600', fontSize: '12px' }}>{depB.classificacaoTransparenciaBR || '-'}</span>
             </div>
           </div>
 
           {/* Tabela pilares */}
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Pilar</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{depA.nome.split(' ')[0]}</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{depB.nome.split(' ')[0]}</th>
-              </tr>
-            </thead>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
             <tbody>
-              <PilarRow label="Economia (CEAP)" valA={depA.economiaScore} valB={depB.economiaScore} />
+              <PilarRow label="Score Final" valA={depA.scoreFinalTransparenciaBR} valB={depB.scoreFinalTransparenciaBR} />
+              <PilarRow label="Economia" valA={depA.economiaScore} valB={depB.economiaScore} />
               <PilarRow label="Presenca" valA={depA.presencaScore} valB={depB.presencaScore} />
               <PilarRow label="Proposicoes" valA={depA.proposicoesScore} valB={depB.proposicoesScore} />
               <PilarRow label="Defesas Plenario" valA={depA.defesasPlenarioScore} valB={depB.defesasPlenarioScore} />
@@ -170,21 +137,17 @@ export default function ComparadorPage() {
           </table>
 
           {/* Links */}
-          <div style={{ display: 'flex', borderTop: '1px solid var(--border-light)' }}>
-            <div style={{ flex: 1, padding: '12px', textAlign: 'center', borderRight: '1px solid var(--border-light)' }}>
-              <Link to={`/politico/deputados_federais/${depA.idCamara || depA.id}`} style={{ color: 'var(--accent-green)', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>Ver dossie completo</Link>
-            </div>
-            <div style={{ flex: 1, padding: '12px', textAlign: 'center' }}>
-              <Link to={`/politico/deputados_federais/${depB.idCamara || depB.id}`} style={{ color: 'var(--accent-green)', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>Ver dossie completo</Link>
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '16px' }}>
+            <Link to={`/politico/${depA.idCamara}`} style={{ display: 'block', textAlign: 'center', padding: '10px', borderRadius: '8px', background: 'var(--accent-green)', color: '#fff', textDecoration: 'none', fontWeight: '600', fontSize: '13px' }}>Ver dossie completo</Link>
+            <Link to={`/politico/${depB.idCamara}`} style={{ display: 'block', textAlign: 'center', padding: '10px', borderRadius: '8px', background: 'var(--accent-green)', color: '#fff', textDecoration: 'none', fontWeight: '600', fontSize: '13px' }}>Ver dossie completo</Link>
           </div>
         </div>
       )}
 
       {(!depA || !depB) && (
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)', fontSize: '14px' }}>
           Selecione dois deputados acima para comparar seus indicadores.
-        </p>
+        </div>
       )}
     </div>
   );
