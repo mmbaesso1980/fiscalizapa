@@ -117,7 +117,7 @@ export default function DashboardPage({ user }) {
     <div className="container" style={{ maxWidth:'900px',margin:'0 auto',padding:'20px' }}>
       <h1 style={{ fontSize:'22px',fontWeight:700,marginBottom:'4px' }}>Painel de Fiscalização</h1>
       <p style={{ fontSize:'13px',color:'var(--text-secondary)',marginBottom:'16px' }}>
-        {ok?`${filt.length} políticos`:''} · Índice TransparenciaBR (Kim Kataguiri = 100)
+        {ok?`${filt.length} políticos`:''} · Índice TransparenciaBR
       </p>
 
       <div style={{ display:'flex',flexWrap:'wrap',gap:'8px',marginBottom:'20px' }}>
