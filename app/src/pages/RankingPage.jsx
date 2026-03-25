@@ -6,8 +6,8 @@ import { Link } from "react-router-dom";
 function classColor(cls) {
   if (!cls) return 'var(--text-muted)';
   const c = (cls || '').toUpperCase();
-  if (c === 'A' || c === 'B') return 'var(--accent-green)';
-  if (c === 'C') return 'var(--accent-gold)';
+  if (c === 'A' || c === 'B' || c === 'EXCELENTE' || c === 'BOM') return 'var(--accent-green)';
+  if (c === 'C' || c === 'REGULAR') return 'var(--accent-gold)';
   return 'var(--accent-red)';
 }
 
@@ -21,21 +21,63 @@ export default function RankingPage() {
 
   useEffect(() => {
     async function load() {
-      const snap = await getDocs(collection(db, "politicos"));
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setDeputados(list);
+      try {
+        // Read basic info from deputados_federais
+        const depSnap = await getDocs(collection(db, "deputados_federais"));
+        const depMap = {};
+        depSnap.docs.forEach(d => {
+          const data = d.data();
+          depMap[d.id] = {
+            id: d.id,
+            nome: data.nome || '',
+            partido: data.partido || data.siglaPartido || '',
+            uf: data.uf || data.estado || data.siglaUf || '',
+            fotoUrl: data.fotoUrl || data.urlFoto || '',
+            idCamara: data.idCamara || d.id,
+          };
+        });
+
+        // Read scores from politicos
+        const polSnap = await getDocs(collection(db, "politicos"));
+        const list = [];
+        polSnap.docs.forEach(d => {
+          const scores = d.data();
+          const basic = depMap[d.id] || {};
+          if (scores.scoreFinalTransparenciaBR != null) {
+            list.push({
+              id: d.id,
+              nome: basic.nome || 'Deputado ' + d.id,
+              partido: basic.partido || '',
+              uf: basic.uf || '',
+              fotoUrl: basic.fotoUrl || '',
+              idCamara: basic.idCamara || d.id,
+              scoreFinalTransparenciaBR: scores.scoreFinalTransparenciaBR,
+              scoreBrutoTransparenciaBR: scores.scoreBrutoTransparenciaBR,
+              classificacaoTransparenciaBR: scores.classificacaoTransparenciaBR,
+              economiaScore: scores.economiaScore,
+              presencaScore: scores.presencaScore,
+              proposicoesScore: scores.proposicoesScore,
+              defesasPlenarioScore: scores.defesasPlenarioScore,
+              processosScore: scores.processosScore,
+            });
+          }
+        });
+
+        setDeputados(list);
+      } catch (err) {
+        console.error('Erro ao carregar ranking:', err);
+      }
       setLoading(false);
     }
     load();
   }, []);
 
-  const partidos = [...new Set(deputados.map(d => d.partido || d.siglaPartido).filter(Boolean))].sort();
-  const ufs = [...new Set(deputados.map(d => d.uf || d.estado || d.siglaUf).filter(Boolean))].sort();
+  const partidos = [...new Set(deputados.map(d => d.partido).filter(Boolean))].sort();
+  const ufs = [...new Set(deputados.map(d => d.uf).filter(Boolean))].sort();
 
   const filtered = deputados
-    .filter(d => !filtroPartido || (d.partido || d.siglaPartido) === filtroPartido)
-    .filter(d => !filtroUf || (d.uf || d.estado || d.siglaUf) === filtroUf)
-    .filter(d => d.scoreFinalTransparenciaBR != null)
+    .filter(d => !filtroPartido || d.partido === filtroPartido)
+    .filter(d => !filtroUf || d.uf === filtroUf)
     .sort((a, b) => {
       const va = a[sortKey] ?? -999;
       const vb = b[sortKey] ?? -999;
@@ -47,7 +89,7 @@ export default function RankingPage() {
     else { setSortKey(key); setSortDir('desc'); }
   }
 
-  const arrow = (key) => sortKey === key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : '';
+  const arrow = (key) => sortKey === key ? (sortDir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
 
   if (loading) return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '40px 20px', textAlign: 'center' }}>
@@ -103,7 +145,7 @@ export default function RankingPage() {
                     {d.nome}
                   </Link>
                 </td>
-                <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{d.partido || d.siglaPartido} - {d.uf || d.estado || d.siglaUf}</td>
+                <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{d.partido} - {d.uf}</td>
                 <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 700, fontFamily: 'Space Grotesk', color: classColor(d.classificacaoTransparenciaBR) }}>
                   {d.scoreFinalTransparenciaBR != null ? d.scoreFinalTransparenciaBR.toFixed(1) : '-'}
                 </td>
@@ -120,6 +162,7 @@ export default function RankingPage() {
           </tbody>
         </table>
       </div>
+
       {filtered.length === 0 && (
         <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
           Nenhum deputado com score calculado. Execute o script run-calcular-indice.js primeiro.
