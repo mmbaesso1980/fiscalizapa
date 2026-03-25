@@ -22,47 +22,30 @@ export default function RankingPage() {
   useEffect(() => {
     async function load() {
       try {
-        // Read basic info from deputados_federais
-        const depSnap = await getDocs(collection(db, "deputados_federais"));
-        const depMap = {};
-        depSnap.docs.forEach(d => {
-          const data = d.data();
-          depMap[d.id] = {
-            id: d.id,
-            nome: data.nome || '',
-            partido: data.partido || data.siglaPartido || '',
-            uf: data.uf || data.estado || data.siglaUf || '',
-            fotoUrl: data.fotoUrl || data.urlFoto || '',
-            idCamara: data.idCamara || d.id,
-          };
-        });
-
-        // Read scores from politicos
-        const polSnap = await getDocs(collection(db, "politicos"));
+        // deputados_federais has both basic info AND scores written by run-ingest-score-transparencia.js
+        const snap = await getDocs(collection(db, "deputados_federais"));
         const list = [];
-        polSnap.docs.forEach(d => {
-          const scores = d.data();
-          const basic = depMap[d.id] || {};
-          if (scores.scoreFinalTransparenciaBR != null) {
+        snap.docs.forEach(d => {
+          const data = d.data();
+          if (data.scoreFinalTransparenciaBR != null) {
             list.push({
               id: d.id,
-              nome: basic.nome || 'Deputado ' + d.id,
-              partido: basic.partido || '',
-              uf: basic.uf || '',
-              fotoUrl: basic.fotoUrl || '',
-              idCamara: basic.idCamara || d.id,
-              scoreFinalTransparenciaBR: scores.scoreFinalTransparenciaBR,
-              scoreBrutoTransparenciaBR: scores.scoreBrutoTransparenciaBR,
-              classificacaoTransparenciaBR: scores.classificacaoTransparenciaBR,
-              economiaScore: scores.economiaScore,
-              presencaScore: scores.presencaScore,
-              proposicoesScore: scores.proposicoesScore,
-              defesasPlenarioScore: scores.defesasPlenarioScore,
-              processosScore: scores.processosScore,
+              nome: data.nome || 'Deputado ' + d.id,
+              partido: data.partido || data.siglaPartido || '',
+              uf: data.uf || data.estado || data.siglaUf || '',
+              fotoUrl: data.fotoUrl || data.urlFoto || '',
+              idCamara: data.idCamara || d.id,
+              scoreFinalTransparenciaBR: data.scoreFinalTransparenciaBR,
+              scoreBrutoTransparenciaBR: data.scoreBrutoTransparenciaBR,
+              classificacaoTransparenciaBR: data.classificacaoTransparenciaBR,
+              economiaScore: data.pilares ? data.pilares.economiaScore : null,
+              presencaScore: data.pilares ? data.pilares.presencaScore : null,
+              proposicoesScore: data.pilares ? data.pilares.proposicoesScore : null,
+              defesasPlenarioScore: data.pilares ? data.pilares.defesasPlenarioScore : null,
+              processosScore: data.processosScore,
             });
           }
         });
-
         setDeputados(list);
       } catch (err) {
         console.error('Erro ao carregar ranking:', err);
@@ -92,16 +75,13 @@ export default function RankingPage() {
   const arrow = (key) => sortKey === key ? (sortDir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
 
   if (loading) return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '40px 20px', textAlign: 'center' }}>
-      <div className="loading-spinner" />
-      <p style={{ color: 'var(--text-muted)' }}>Carregando ranking...</p>
-    </div>
+    <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Carregando ranking...</div>
   );
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '20px' }}>
-      <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>Ranking TransparenciaBR</h1>
-      <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '20px' }}>
+    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 16px' }}>
+      <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-primary)' }}>Ranking TransparenciaBR</h1>
+      <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '14px' }}>
         Score consolidado de {filtered.length} parlamentares baseado em 5 pilares
       </p>
 
@@ -121,10 +101,10 @@ export default function RankingPage() {
 
       {/* Tabela */}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
           <thead>
             <tr style={{ borderBottom: '2px solid var(--border-light)' }}>
-              <th style={{ padding: '10px 8px', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', cursor: 'default' }}>#</th>
+              <th style={{ padding: '10px 8px', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>#</th>
               <th style={{ padding: '10px 8px', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Deputado</th>
               <th style={{ padding: '10px 8px', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase' }}>Partido/UF</th>
               <th onClick={() => toggleSort('scoreFinalTransparenciaBR')} style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', cursor: 'pointer' }}>Score{arrow('scoreFinalTransparenciaBR')}</th>
@@ -136,27 +116,29 @@ export default function RankingPage() {
           </thead>
           <tbody>
             {filtered.map((d, i) => (
-              <tr key={d.id} style={{ borderBottom: '1px solid var(--border-light)', transition: 'background 0.2s' }}
+              <tr key={d.id}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(61,107,94,0.04)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <td style={{ padding: '10px 8px', fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'Space Grotesk' }}>{i + 1}</td>
-                <td style={{ padding: '10px 8px' }}>
-                  <Link to={`/politico/deputados_federais/${d.idCamara || d.id}`} style={{ color: 'var(--accent-green)', textDecoration: 'none', fontWeight: 600 }}>
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                style={{ borderBottom: '1px solid var(--border-light)', transition: 'background 0.15s' }}>
+                <td style={{ padding: '12px 8px', color: 'var(--text-muted)', fontWeight: '600' }}>{i + 1}</td>
+                <td style={{ padding: '12px 8px' }}>
+                  <Link to={`/politico/${d.idCamara}`} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>
+                    {d.fotoUrl && <img src={d.fotoUrl} alt={d.nome} style={{ width: '28px', height: '28px', borderRadius: '50%', marginRight: '8px', verticalAlign: 'middle', objectFit: 'cover' }} />}
                     {d.nome}
                   </Link>
                 </td>
-                <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>{d.partido} - {d.uf}</td>
-                <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 700, fontFamily: 'Space Grotesk', color: classColor(d.classificacaoTransparenciaBR) }}>
+                <td style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '13px' }}>{d.partido} - {d.uf}</td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: '700', color: classColor(d.classificacaoTransparenciaBR) }}>
                   {d.scoreFinalTransparenciaBR != null ? d.scoreFinalTransparenciaBR.toFixed(1) : '-'}
                 </td>
-                <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                  <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, background: classColor(d.classificacaoTransparenciaBR) + '22', color: classColor(d.classificacaoTransparenciaBR) }}>
+                <td style={{ padding: '12px 8px', textAlign: 'center' }}>
+                  <span style={{ color: classColor(d.classificacaoTransparenciaBR), fontWeight: '600', fontSize: '12px' }}>
                     {d.classificacaoTransparenciaBR || '-'}
                   </span>
                 </td>
-                <td style={{ padding: '10px 8px', textAlign: 'center', fontFamily: 'Space Grotesk' }}>{d.economiaScore != null ? d.economiaScore.toFixed(1) : '-'}</td>
-                <td style={{ padding: '10px 8px', textAlign: 'center', fontFamily: 'Space Grotesk' }}>{d.presencaScore != null ? d.presencaScore.toFixed(1) : '-'}</td>
-                <td style={{ padding: '10px 8px', textAlign: 'center', fontFamily: 'Space Grotesk' }}>{d.proposicoesScore != null ? d.proposicoesScore.toFixed(1) : '-'}</td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>{d.economiaScore != null ? d.economiaScore.toFixed(1) : '-'}</td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>{d.presencaScore != null ? d.presencaScore.toFixed(1) : '-'}</td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>{d.proposicoesScore != null ? d.proposicoesScore.toFixed(1) : '-'}</td>
               </tr>
             ))}
           </tbody>
@@ -164,9 +146,9 @@ export default function RankingPage() {
       </div>
 
       {filtered.length === 0 && (
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
-          Nenhum deputado com score calculado. Execute o script run-calcular-indice.js primeiro.
-        </p>
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+          Nenhum deputado com score calculado. Execute o script run-ingest-score-transparencia.js primeiro.
+        </div>
       )}
     </div>
   );
