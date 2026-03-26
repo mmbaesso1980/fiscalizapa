@@ -151,7 +151,7 @@ export default function PoliticoPage({ user }) {
     { k: 'categorias', l: 'Por Categoria' },
     { k: 'fornecedores', l: 'Fornecedores' },
     { k: 'emendas', l: 'Emendas (' + emendas.length + ')' },
-    { k: 'presenca', l: 'Presenca' },
+    { k: 'presenca', l: 'Presença' },
     { k: 'alertas', l: 'Alertas de Fretamento' },
     { k: 'gabinete', l: 'Gabinete' },  
             { k: 'projetos', l: 'Proposicoes' },
@@ -343,7 +343,7 @@ export default function PoliticoPage({ user }) {
 
       {/* Presenca */}
       {tab === 'presenca' && (
-        <PresencaSection deputadoId={id} colecao={col} presenca={pol.presenca} totalSessoes={pol.totalSessoes} sessoesPresente={pol.sessoesPresente} sessoes={sessoes} />
+        <PresencaSection deputadoId={id} colecao={col} presenca={pol.presencaPct} totalSessoes={pol.sessoesTotal} sessoesPresente={pol.sessoesPresente} presencaAnual={pol.presencaAnual} />
       )}
 
             {tab === 'alertas' && (<AlertasFretamento colecao={col} politicoId={id} gastos={gastos} />)}
