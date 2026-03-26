@@ -2,6 +2,13 @@ import { useState, useMemo } from 'react';
 
 const GOAL_PRESENCA = 75;
 
+// Custo anual medio por deputado federal: ~R$ 3.6M (salario + gabinete + cota + encargos)
+// Fonte: Camara dos Deputados / Transparencia, valores de 2024-2025
+// Dias uteis parlamentares por ano: ~200 (fev-dez, descontando recessos e feriados)
+const CUSTO_ANUAL_PARLAMENTAR = 3600000;
+const DIAS_UTEIS_ANO = 200;
+const CUSTO_DIA_PARLAMENTAR = Math.round(CUSTO_ANUAL_PARLAMENTAR / DIAS_UTEIS_ANO); // ~R$ 18.000
+
 const CircularProgress = ({ value, size = 120, strokeWidth = 10 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -19,7 +26,7 @@ const CircularProgress = ({ value, size = 120, strokeWidth = 10 }) => {
       <text x={size / 2} y={size / 2}
         textAnchor="middle" dominantBaseline="middle"
         style={{ transform: 'rotate(90deg)', transformOrigin: `${size/2}px ${size/2}px`, fontSize: '18px',
-          fontWeight: 'bold', fill: color, fontFamily: 'Space Grotesk' }}>
+        fontWeight: 'bold', fill: color, fontFamily: 'Space Grotesk' }}>
         {value}%
       </text>
     </svg>
@@ -55,11 +62,10 @@ export default function PresencaSection({ deputadoId, colecao, presenca: propPre
   const statusColor = data.presenca >= 75 ? 'var(--accent-green)' : data.presenca >= 50 ? 'var(--accent-gold)' : 'var(--accent-red)';
   const comparison = (data.presenca - GOAL_PRESENCA).toFixed(1);
 
-  const custoMedioDiario = 120000;
-  const custoAusencias = data.sessoesAusente * custoMedioDiario;
+  const custoAusencias = data.sessoesAusente * CUSTO_DIA_PARLAMENTAR;
 
   const statCards = [
-    { label: 'Sessões Plenárias (Total)', value: data.totalSessoes, color: 'var(--text-primary)', bg: 'var(--bg-secondary)' },
+    { label: 'Sessões Deliberativas (Total)', value: data.totalSessoes, color: 'var(--text-primary)', bg: 'var(--bg-secondary)' },
     { label: 'Presente', value: data.sessoesPresente, color: 'var(--accent-green)', bg: 'rgba(61,107,94,0.08)' },
     { label: 'Ausente', value: data.sessoesAusente, color: 'var(--accent-red)', bg: 'rgba(233,69,96,0.08)' },
     { label: `vs Meta (${GOAL_PRESENCA}%)`, value: `${comparison >= 0 ? '+' : ''}${comparison}%`, color: comparison >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', bg: 'var(--bg-secondary)' },
@@ -91,9 +97,9 @@ export default function PresencaSection({ deputadoId, colecao, presenca: propPre
         <div style={{ padding: '12px 16px', background: 'rgba(233,69,96,0.06)', border: '1px solid rgba(233,69,96,0.2)', borderRadius: '8px', marginBottom: '16px' }}>
           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-red)', marginBottom: '4px' }}>Custo estimado das ausências para o contribuinte</div>
           <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-            {data.sessoesAusente} sessões ausente x R$ 120.000/dia (custo médio parlamentar) = <strong style={{ color: 'var(--accent-red)' }}>R$ {custoAusencias.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            {data.sessoesAusente} sessões ausente x R$ {CUSTO_DIA_PARLAMENTAR.toLocaleString('pt-BR')}/dia = <strong style={{ color: 'var(--accent-red)' }}>R$ {custoAusencias.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
           </div>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>Inclui salário, gabinete, assessores, cota parlamentar proporcional. Fonte: Transparência Câmara.</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>Estimativa: custo anual médio por parlamentar (~R$ 3,6M) dividido por ~{DIAS_UTEIS_ANO} dias úteis parlamentares. Inclui salário, gabinete, assessores, cota parlamentar. Fontes: Câmara dos Deputados, Portal da Transparência.</div>
         </div>
       )}
 
@@ -105,6 +111,7 @@ export default function PresencaSection({ deputadoId, colecao, presenca: propPre
               {showDetalhes ? 'Ocultar' : 'Ver detalhes'}
             </button>
           </div>
+
           {showDetalhes && (
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {Object.keys(data.anual).sort().map((ano, i) => {
