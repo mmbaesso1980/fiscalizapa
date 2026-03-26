@@ -16,7 +16,7 @@ const UFS =
 
 const COLECOES = [
   { key: "deputados_federais", label: "Dep. Federais", ready: true },
-  { key: "deputados", label: "Dep. Estaduais PA", ready: false },
+  { key: "deputados", label: "Dep. Estaduais PA", ready: true },
   { key: "senadores", label: "Senadores", ready: false },
   { key: "governadores", label: "Governadores", ready: false },
   { key: "deputados_distritais", label: "Distritais DF", ready: false }
