@@ -49,7 +49,8 @@ async function fetchPaginated(url, params, maxPages = 50) {
       page++;
       await delay(DELAY_MS);
     } catch (err) {
-      if (err.response && err.response.status === 404) break;
+            const st = err.response && err.response.status;
+      if (st === 404 || st === 400) break;
       console.error(`  fetch err ${url} p${page}: ${err.message}`);
       break;
     }
@@ -145,11 +146,7 @@ async function calcEixo2(depId) {
     });
   } catch (e) { /* skip */ }
 
-  // Frentes parlamentares
-  try {
-    const frentes = await fetchPaginated(`${CAMARA_API}/deputados/${depId}/frentes`, {}, 3);
-    pontos += Math.min(frentes.length * 2, 20);
-  } catch (e) { /* skip */ }
+    // Frentes removidas (API 400)
 
   const eixo2 = Math.min(100, pontos);
   return { eixo2: Number(eixo2.toFixed(1)) };
