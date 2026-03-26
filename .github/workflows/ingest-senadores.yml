@@ -1,0 +1,22 @@
+name: Ingest Senadores
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: cd functions && npm install
+      - name: Write service account key
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa-key.json
+      - name: Run senadores ingestion
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
+        run: cd functions && node run-ingest-senadores-v2.js 2024 2025
