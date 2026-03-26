@@ -17,7 +17,7 @@ const UFS =
 const COLECOES = [
   { key: "deputados_federais", label: "Dep. Federais", ready: true },
   { key: "deputados", label: "Dep. Estaduais PA", ready: true },
-  { key: "senadores", label: "Senadores", ready: false },
+  { key: "senadores", label: "Senadores", ready: true },
   { key: "governadores", label: "Governadores", ready: false },
   { key: "deputados_distritais", label: "Distritais DF", ready: false }
 ];
@@ -29,7 +29,7 @@ const PLACEHOLDER_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2
 
 // Build photo URL: prefer urlFoto, fallback to Camara API, then placeholder
 function fotoUrl(p) {
-  if (p.urlFoto) return p.urlFoto;
+  if (p.urlFoto || p.fotoUrl) return p.urlFoto || p.fotoUrl;
   if (p.idCamara) return `https://www.camara.leg.br/internet/deputado/bandep/${p.idCamara}.jpg`;
   return PLACEHOLDER_AVATAR;
 }
