@@ -2,21 +2,22 @@
 /**
  * run-ingest-presenca-real.js
  * Multi-year presence ingest: 2023-2026 consolidated + per-year breakdown.
- * Uses events API (codTipoEvento=110) for deliberative sessions.
+ * Uses events API (codTipoEvento=110) for deliberative plenary sessions.
+ * Matches deputy events ONLY by session ID (not descricaoTipo) to avoid
+ * counting commission meetings as plenary presence.
  *
  * Stores in Firestore:
- *   politicos/{id}.presencaPct (consolidated %)
- *   politicos/{id}.sessoesTotal (consolidated total)
- *   politicos/{id}.sessoesPresente (consolidated present)
- *   politicos/{id}.presencaAnual (object with per-year data)
- *   politicos/{id}.presencaClassificacao
+ *   deputados_federais/{id}.presencaPct (consolidated %)
+ *   deputados_federais/{id}.sessoesTotal (consolidated total)
+ *   deputados_federais/{id}.sessoesPresente (consolidated present)
+ *   deputados_federais/{id}.presencaAnual (object with per-year data)
+ *   deputados_federais/{id}.presencaClassificacao
  *
  * Usage: node run-ingest-presenca-real.js
  */
 const admin = require("firebase-admin");
 const axios = require("axios");
 
-// Init without explicit projectId - let service account credentials determine project
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
@@ -58,7 +59,6 @@ async function fetchSessoesTotais(year) {
       break;
     }
   }
-  // Accept any session that was actually held (not cancelled)
   const realizadas = sessoes.filter(s =>
     s.situacao && s.situacao !== "Cancelada" && s.situacao !== "Cancelado"
   );
@@ -103,7 +103,6 @@ async function main() {
   console.log(`=== Ingestao Presenca Real Multi-Ano ==`);
   console.log(`Anos: ${YEARS.join(', ')}\n`);
 
-  // 1. Fetch total sessions per year
   const sessoesPorAno = {};
   const sessaoIdsPorAno = {};
   let totalGeralSessoes = 0;
@@ -123,7 +122,6 @@ async function main() {
     process.exit(1);
   }
 
-  // 2. Get all deputados
   const snap = await db.collection("deputados_federais")
     .limit(520).get();
   if (snap.empty) {
@@ -149,12 +147,11 @@ async function main() {
 
       const eventos = await fetchEventosDeputado(depId, year);
       const sessaoIds = sessaoIdsPorAno[year];
-      const sessoesDeputado = eventos.filter(e =>
-        sessaoIds.has(e.id) ||
-        (e.descricaoTipo && e.descricaoTipo.includes("Deliberativa"))
-      );
+      // ONLY match by session ID - do NOT use descricaoTipo fallback
+      // to avoid counting commission meetings as plenary presence
+      const sessoesDeputado = eventos.filter(e => sessaoIds.has(e.id));
       const sessoesUnicas = new Set(sessoesDeputado.map(s => s.id));
-      const presentes = sessoesUnicas.size;
+      const presentes = Math.min(sessoesUnicas.size, sessoesAno.length);
       const total = sessoesAno.length;
       const pct = total > 0 ? Number(((presentes / total) * 100).toFixed(1)) : 0;
 
