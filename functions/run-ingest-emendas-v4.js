@@ -1,7 +1,7 @@
 /**
- * run-ingest-emendas-v4.js
+ * run-ingest-emendas-v4.js (FIXED)
  * Bloco 6 - Emendas Parlamentares v4
- * Fixes: Better error logging, API response debugging
+ * FIX: Convert names to uppercase + remove accents for API matching
  */
 const admin = require("firebase-admin");
 const fetch = require("node-fetch");
@@ -21,28 +21,20 @@ const IDH_UF = {
 };
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-let apiErrorLogged = false;
+
+function normalize(name) {
+  return name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
 
 async function fetchPage(nome, ano, pagina) {
   const url = `${BASE}/emendas?ano=${ano}&nomeAutor=${encodeURIComponent(nome)}&pagina=${pagina}`;
   try {
     const res = await fetch(url, { headers: { "chave-api-dados": API_KEY } });
-    if (!apiErrorLogged && !res.ok) {
-      console.log(`API ERROR: status=${res.status} for ${nome} ${ano}`);
-      const body = await res.text();
-      console.log(`API BODY: ${body.substring(0, 200)}`);
-      apiErrorLogged = true;
-    }
     if (res.status === 429) { await sleep(10000); return fetchPage(nome, ano, pagina); }
     if (!res.ok) return [];
-    const data = await res.json();
-    if (!apiErrorLogged && pagina === 1 && data.length > 0) {
-      console.log(`FIRST RESULT SAMPLE: ${JSON.stringify(data[0]).substring(0, 300)}`);
-      apiErrorLogged = true;
-    }
-    return data;
+    return res.json();
   } catch (err) {
-    console.log(`FETCH ERROR: ${err.message} for ${nome} ${ano}`);
+    console.log(`FETCH ERROR: ${err.message}`);
     return [];
   }
 }
@@ -66,7 +58,7 @@ function analisar(e) {
   const pag = e.valorPago || 0;
   const taxa = emp > 0 ? (pag / emp * 100) : 0;
   if (emp > 0 && taxa < 30) alertas.push(`BAIXA EXECUCAO: ${taxa.toFixed(0)}% pago.`);
-  if (emp > 0 && pag === 0) alertas.push(`SEM PAGAMENTO: Empenhado mas nada pago.`);
+  if (emp > 0 && pag === 0) alertas.push(`SEM PAGAMENTO.`);
   if (emp > 5000000) alertas.push(`VALOR ELEVADO: R$ ${(emp/1e6).toFixed(1)}M.`);
   const loc = e.localidadeDoGasto || '';
   const uf = loc.substring(0, 2).toUpperCase();
@@ -77,7 +69,7 @@ function analisar(e) {
   if (tipo.includes('ESPECIAL')) alertas.push(`TRANSFERENCIA ESPECIAL.`);
   const funcao = (e.nomeFuncao || e.codigoFuncao || '').toUpperCase();
   const isShow = funcao.includes('CULTURA') || funcao.includes('DESPORTO') || funcao.includes('LAZER');
-  if (isShow && idh && idh < 0.70) alertas.push(`SHOW EM REGIAO CARENTE: ${funcao}.`);
+  if (isShow && idh && idh < 0.70) alertas.push(`SHOW EM REGIAO CARENTE.`);
   if (isShow && emp > 1000000) alertas.push(`SHOW MILIONARIO: R$ ${(emp/1e6).toFixed(1)}M.`);
   return {
     taxaExecucao: Math.round(taxa), alertas,
@@ -87,41 +79,32 @@ function analisar(e) {
 }
 
 async function main() {
-  console.log("=== EMENDAS v4 - Bloco 6 ===");
-  console.log(`API_KEY: ${API_KEY.substring(0,6)}...${API_KEY.substring(API_KEY.length-4)}`);
+  console.log("=== EMENDAS v4 FIXED ===");
+  console.log(`API_KEY: ${API_KEY.substring(0,6)}...`);
 
-  // Test API first
-  console.log("\nTesting API with known query...");
-  const testUrl = `${BASE}/emendas?ano=2024&pagina=1`;
-  const testRes = await fetch(testUrl, { headers: { "chave-api-dados": API_KEY } });
-  console.log(`Test (no author, 2024): status=${testRes.status}`);
-  if (testRes.ok) {
-    const testData = await testRes.json();
-    console.log(`Test results: ${testData.length} emendas`);
-    if (testData.length > 0) {
-      console.log(`Sample keys: ${Object.keys(testData[0]).join(', ')}`);
-      console.log(`Sample author: ${testData[0].nomeAutor || 'N/A'}`);
-    }
-  } else {
-    const body = await testRes.text();
-    console.log(`Test error body: ${body.substring(0, 300)}`);
-    console.log("API KEY IS INVALID. Exiting.");
-    process.exit(1);
-  }
+  // Test API with uppercase name
+  console.log("\nTest: querying PEDRO PAULO (uppercase)...");
+  const t1 = await fetchPage("PEDRO PAULO", 2024, 1);
+  console.log(`PEDRO PAULO uppercase: ${t1.length} results`);
+  if (t1.length > 0) console.log(`First: ${t1[0].nomeAutor}`);
+
+  const t2 = await fetchPage("Pedro Paulo", 2024, 1);
+  console.log(`Pedro Paulo mixed: ${t2.length} results`);
 
   const snap = await db.collection("deputados_federais").get();
   const deps = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.nome);
-  console.log(`\n${deps.length} deputados federais encontrados.`);
-  console.log(`Sample names: ${deps.slice(0,5).map(d => d.nome).join(', ')}`);
+  console.log(`\n${deps.length} deputados federais.`);
+  console.log(`First 3: ${deps.slice(0,3).map(d => `${d.nome} -> ${normalize(d.nome)}`).join('; ')}`);
 
   const anos = [2023, 2024, 2025];
   let totalEmendas = 0, processedDeps = 0;
 
   for (const dep of deps) {
+    const nomeApi = normalize(dep.nome);
     let allEmendas = [];
     for (const ano of anos) {
       try {
-        const em = await fetchAll(dep.nome, ano);
+        const em = await fetchAll(nomeApi, ano);
         allEmendas = allEmendas.concat(em.map(e => ({ ...e, anoConsulta: ano })));
       } catch (err) {
         console.log(` ERR ${dep.nome} ${ano}: ${err.message}`);
