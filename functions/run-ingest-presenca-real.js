@@ -15,7 +15,7 @@
  */
 const admin = require("firebase-admin");
 const axios = require("axios");
-if (!admin.apps.length) admin.initializeApp({ projectId: "fiscalizapa-e3fd4" });
+if (!admin.apps.length) admin.initializeApp({ projectId: "fiscallizapa" });
 const db = admin.firestore();
 const CAMARA_API = "https://dadosabertos.camara.leg.br/api/v2";
 const DELAY_MS = 500;
