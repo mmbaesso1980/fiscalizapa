@@ -15,8 +15,11 @@
  */
 const admin = require("firebase-admin");
 const axios = require("axios");
-if (!admin.apps.length) admin.initializeApp({ projectId: "fiscallizapa" });
+
+// Init without explicit projectId - let service account credentials determine project
+if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
+
 const CAMARA_API = "https://dadosabertos.camara.leg.br/api/v2";
 const DELAY_MS = 500;
 const COD_SESSAO_DELIBERATIVA = 110;
@@ -29,7 +32,7 @@ async function fetchSessoesTotais(year) {
   let page = 1;
   const hoje = new Date();
   const dataFim = year < hoje.getFullYear() ? `${year}-12-31` : hoje.toISOString().split('T')[0];
-  while (page <= 10) {
+  while (page <= 50) {
     try {
       const resp = await axios.get(`${CAMARA_API}/eventos`, {
         params: {
@@ -55,8 +58,11 @@ async function fetchSessoesTotais(year) {
       break;
     }
   }
-  const realizadas = sessoes.filter(s => s.situacao === "Encerrada" || s.situacao === "Finalizada");
-  console.log(`  Sessoes deliberativas ${year}: ${realizadas.length}`);
+  // Accept any session that was actually held (not cancelled)
+  const realizadas = sessoes.filter(s =>
+    s.situacao && s.situacao !== "Cancelada" && s.situacao !== "Cancelado"
+  );
+  console.log(`  Sessoes deliberativas ${year}: ${realizadas.length} (de ${sessoes.length} eventos)`);
   return realizadas;
 }
 
@@ -101,6 +107,7 @@ async function main() {
   const sessoesPorAno = {};
   const sessaoIdsPorAno = {};
   let totalGeralSessoes = 0;
+
   for (const year of YEARS) {
     const sessoes = await fetchSessoesTotais(year);
     sessoesPorAno[year] = sessoes;
@@ -108,6 +115,7 @@ async function main() {
     totalGeralSessoes += sessoes.length;
     await delay(DELAY_MS);
   }
+
   console.log(`\nTotal sessoes deliberativas (todos anos): ${totalGeralSessoes}\n`);
 
   if (totalGeralSessoes === 0) {
@@ -141,7 +149,6 @@ async function main() {
 
       const eventos = await fetchEventosDeputado(depId, year);
       const sessaoIds = sessaoIdsPorAno[year];
-
       const sessoesDeputado = eventos.filter(e =>
         sessaoIds.has(e.id) ||
         (e.descricaoTipo && e.descricaoTipo.includes("Deliberativa"))
@@ -154,7 +161,6 @@ async function main() {
       presencaAnual[year] = { presentes, total, pct };
       totalPresente += presentes;
       totalSessoes += total;
-
       console.log(`  ${year}: ${presentes}/${total} (${pct}%)`);
       await delay(DELAY_MS);
     }
@@ -179,7 +185,6 @@ async function main() {
       presencaEstimativa: false,
       presencaUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
-
     console.log(`  CONSOLIDADO: ${totalPresente}/${totalSessoes} (${presencaPct}%) - ${presencaClassificacao}`);
     processed++;
   }
