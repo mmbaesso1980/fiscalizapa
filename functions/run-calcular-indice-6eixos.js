@@ -173,7 +173,7 @@ async function calcEixo3(depId) {
       props.forEach(p => {
         const sigla = (p.siglaTipo || "").toUpperCase();
         if (tiposRelevantes.includes(sigla)) {
-          pontos += sigla === "PEC" ? 8 : sigla === "PLP" ? 6 : 4;
+          pontos += sigla === "PEC" ? 4 : sigla === "PLP" ? 3 : 2;
         } else if (sigla === "REQ") {
           pontos += 1;
         } else {
@@ -251,32 +251,20 @@ async function calcEixo5(depId) {
 }
 
 // ========== EIXO 6: EFICIENCIA FISCAL (10%) ==========
-
 async function calcEixo6(depId) {
-  // Ler gastos do Firestore (ja ingestados)
   let gastoTotal = 0;
   try {
     const doc = await db.collection("deputados_federais").doc(String(depId)).get();
     if (doc.exists) {
-      gastoTotal = doc.data().totalGastos || 0;
+      const data = doc.data();
+      const ceap = data.totalGastos || data.totalGasto || 0;
+      const vg = (data.verbaGabinete && data.verbaGabinete.totalGasto) ? data.verbaGabinete.totalGasto : 0;
+      gastoTotal = ceap + vg;
     }
   } catch (e) { /* skip */ }
 
-  // Tambem tentar da collection politicos
-  if (gastoTotal === 0) {
-    try {
-      const doc = await db.collection("politicos").doc(String(depId)).get();
-      if (doc.exists) {
-        gastoTotal = doc.data().totalGastos || 0;
-      }
-    } catch (e) { /* skip */ }
-  }
-
-  const anosAtivos = YEARS.length;
-  const tetoPeriodo = TETO_CEAP_ANUAL * anosAtivos;
-  const pctGasto = tetoPeriodo > 0 ? gastoTotal / tetoPeriodo : 0;
-
-  // Quanto MENOS gastou, MAIOR o score
+  const TETO = 5616000;
+  const pctGasto = TETO > 0 ? gastoTotal / TETO : 0;
   const eixo6 = Math.max(0, Math.min(100, (1 - pctGasto) * 100));
   return { eixo6: Number(eixo6.toFixed(1)), gastoTotal };
 }
