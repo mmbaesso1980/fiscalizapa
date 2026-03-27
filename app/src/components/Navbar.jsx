@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
+import LoginModal from "./LoginModal";
 const LogoSVG = () => (
   <svg width="36" height="36" viewBox="0 0 100 100" className="logo-glow">
     <defs>
@@ -32,8 +32,8 @@ import LoginModal from "./LoginModal";
 export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits }) {
   const [showLogin, setShowLogin] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
-  const navigate = useNavigate();
+  { user, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits }
+  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -161,27 +161,22 @@ export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, r
           )}
         </div>
       ) : (
-        <button onClick={() => setShowLogin(true)} style={{
-          fontSize: '13px', padding: '7px 16px', borderRadius: '6px',
-          background: 'var(--accent-green)', color: '#fff', border: 'none',
-          cursor: 'pointer', fontWeight: 500,
-          display: 'flex', alignItems: 'center', gap: '6px'
-        }}>
-          <svg width="14" height="14" viewBox="0 0 24 24">
-            <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" opacity="0.9"/>
-            <path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" opacity="0.7"/>
-          </svg>
-          Entrar
-        </button>
-    {showLogin && (
-  <LoginModal
-    onClose={() => setShowLogin(false)}
-    onGoogle={login}
-    onGitHub={loginWithGitHub}
-    onEmail={loginWithEmail}
-    onRegister={registerWithEmail}
-  />
-)}
+     <>
+  <button onClick={() => setShowLogin(true)} style={{
+    padding: '8px 20px', borderRadius: 8, border: 'none',
+    background: '#3d6b5e', color: '#fff', fontWeight: 600,
+    fontSize: 13, cursor: 'pointer'
+  }}>Entrar</button>
+  {showLogin && (
+    <LoginModal
+      onClose={() => setShowLogin(false)}
+      onGoogle={login}
+      onGitHub={loginWithGitHub}
+      onEmail={loginWithEmail}
+      onRegister={registerWithEmail}
+    />
+  )}
+</>
     )}
     </nav>
   );
