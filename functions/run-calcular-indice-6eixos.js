@@ -153,10 +153,12 @@ async function calcEixo2(depId) {
 }
 
 // ========== EIXO 3: PRODUCAO LEGISLATIVA QUALIFICADA (20%) ==========
-
+// CORRIGIDO: Conta APENAS PL/PEC/PLP/PDL. Ignora EMC, REQ, REC, RPD, etc.
+// Normaliza: 30 proposicoes relevantes na legislatura = nota 100
 async function calcEixo3(depId) {
-  let pontos = 0;
+  let totalRelevantes = 0;
   const tiposRelevantes = ["PL", "PEC", "PLP", "PDL"];
+  const detalhes = { PL: 0, PEC: 0, PLP: 0, PDL: 0 };
 
   for (const year of YEARS) {
     try {
@@ -166,23 +168,25 @@ async function calcEixo3(depId) {
         ordem: "DESC",
         ordenarPor: "id",
       }, 5);
-
       props.forEach(p => {
         const sigla = (p.siglaTipo || "").toUpperCase();
         if (tiposRelevantes.includes(sigla)) {
-          pontos += sigla === "PEC" ? 4 : sigla === "PLP" ? 3 : 2;
-        } else if (sigla === "REQ") {
-          pontos += 1;
-        } else {
-          pontos += 2;
+          totalRelevantes++;
+          if (detalhes[sigla] !== undefined) detalhes[sigla]++;
         }
       });
     } catch (e) { /* skip */ }
     await delay(DELAY_MS);
   }
 
-  const eixo3 = Math.min(100, pontos);
-  return { eixo3: Number(eixo3.toFixed(1)), totalProposicoes: pontos };
+  // Benchmark: 30 proposicoes relevantes = 100 (percentil ~90 da Camara)
+  const BENCHMARK_PRODUCAO = 30;
+  const eixo3 = Math.min(100, (totalRelevantes / BENCHMARK_PRODUCAO) * 100);
+  return {
+    eixo3: Number(eixo3.toFixed(1)),
+    totalRelevantes,
+    detalhes,
+  };
 }
 
 // ========== EIXO 4: FISCALIZACAO E CONTROLE (15%) ==========
@@ -210,46 +214,76 @@ async function calcEixo4(depId) {
     await delay(DELAY_MS);
   }
 
-  const eixo4 = Math.min(100, pontos);
-  return { eixo4: Number(eixo4.toFixed(1)) };
+    // Benchmark: 20 acoes fiscalizatorias na legislatura = 100
+    const BENCHMARK_FISC = 20;
+    const eixo4 = Math.min(100, (pontos / BENCHMARK_FISC) * 100);
+    return { eixo4: Number(eixo4.toFixed(1)), totalFiscalizacao: pontos };
 }
 
 // ========== EIXO 5: POSICIONAMENTO E FIDELIDADE (15%) ==========
-
+// CORRIGIDO: Usa API de votacoes reais, nao iguala presenca=total
+// Busca votacoes nominais e verifica se o deputado votou em cada uma
 async function calcEixo5(depId) {
-  let totalVotacoes = 0;
-  let presencaVotacoes = 0;
+  let totalVotacoesNominais = 0;
+  let votosEmitidos = 0;
 
-  // Buscar votacoes do deputado
   try {
     for (const year of [2024, 2025, 2026]) {
-      const votacoes = await fetchPaginated(`${CAMARA_API}/deputados/${depId}/eventos`, {
+      const hoje = new Date();
+      if (year > hoje.getFullYear()) continue;
+      const dataFim = year < hoje.getFullYear() ? `${year}-12-31` : hoje.toISOString().split("T")[0];
+
+      // Buscar votacoes nominais do periodo
+      const votacoes = await fetchPaginated(`${CAMARA_API}/votacoes`, {
         dataInicio: `${year}-02-01`,
-        dataFim: year < new Date().getFullYear() ? `${year}-12-31` : new Date().toISOString().split("T")[0],
-        ordem: "ASC",
-        ordenarPor: "dataHoraInicio",
+        dataFim,
+        ordem: "DESC",
+        ordenarPor: "dataHoraRegistro",
       }, 10);
-      // Filtrar eventos que sao votacoes
-      const vots = votacoes.filter(v => {
-        const desc = (v.descricaoTipo || "").toLowerCase();
-        return desc.includes("deliberativ") || desc.includes("vota");
-      });
-      totalVotacoes += vots.length;
-      presencaVotacoes += vots.length; // se aparece no evento, estava presente
+
+      // Para cada votacao, verificar se o deputado votou
+      // Limitar a 30 votacoes por ano para nao estourar rate limit
+      const amostra = votacoes.slice(0, 30);
+      totalVotacoesNominais += amostra.length;
+
+      for (const vot of amostra) {
+        try {
+          const resp = await axios.get(`${CAMARA_API}/votacoes/${vot.id}/votos`, {
+            headers: { Accept: "application/json" },
+            timeout: 15000,
+          });
+          const votos = resp.data.dados || [];
+          const votouDeputado = votos.find(v => {
+            const uri = v.deputado_ ? (v.deputado_.uri || "") : "";
+            return uri.includes(`/${depId}`);
+          });
+          if (votouDeputado) votosEmitidos++;
+        } catch (e) { /* skip individual vote */ }
+        await delay(300);
+      }
       await delay(DELAY_MS);
     }
   } catch (e) { /* skip */ }
 
-  const pctVotacoes = totalVotacoes > 0 ? Math.min(100, (presencaVotacoes / Math.max(totalVotacoes, 1)) * 100) : 50;
+  // Calcular presenca real em votacoes
+  const pctPresencaVotacoes = totalVotacoesNominais > 0
+    ? (votosEmitidos / totalVotacoesNominais) * 100
+    : 0;
 
-  // Score base: 40% presenca votacoes + 60% participacao ativa
-  const eixo5 = Math.min(100, 0.4 * pctVotacoes + 0.6 * Math.min(100, totalVotacoes * 2));
-  return { eixo5: Number(eixo5.toFixed(1)), totalVotacoes };
+  // E5 = presenca em votacoes nominais
+  const eixo5 = Math.min(100, Math.max(0, pctPresencaVotacoes));
+  return {
+    eixo5: Number(eixo5.toFixed(1)),
+    totalVotacoesNominais,
+    votosEmitidos,
+  };
 }
 
 // ========== EIXO 6: EFICIENCIA FISCAL (10%) ==========
+// CORRIGIDO: gastos=0 nao da nota 100 (retorna nota neutra 50)
 async function calcEixo6(depId) {
   let gastoTotal = 0;
+
   try {
     const doc = await db.collection("deputados_federais").doc(String(depId)).get();
     if (doc.exists) {
@@ -260,7 +294,12 @@ async function calcEixo6(depId) {
     }
   } catch (e) { /* skip */ }
 
-  const TETO = 5616000;
+  // Se nao tem dados de gasto, dar nota neutra (50) em vez de 100
+  if (gastoTotal === 0) {
+    return { eixo6: 50, gastoTotal: 0 };
+  }
+
+  const TETO = 5616000; // teto da legislatura
   const pctGasto = TETO > 0 ? gastoTotal / TETO : 0;
   const eixo6 = Math.max(0, Math.min(100, (1 - pctGasto) * 100));
   return { eixo6: Number(eixo6.toFixed(1)), gastoTotal };
@@ -322,13 +361,13 @@ async function main() {
       console.log(`  E2 Protagonismo: ${r2.eixo2}`);
 
       const r3 = await calcEixo3(depId);
-      console.log(`  E3 Producao: ${r3.eixo3}`);
+      console.log(`  E3 Producao: ${r3.eixo3} (${r3.totalRelevantes} props: PL=${r3.detalhes.PL} PEC=${r3.detalhes.PEC} PLP=${r3.detalhes.PLP} PDL=${r3.detalhes.PDL})`);
 
       const r4 = await calcEixo4(depId);
-      console.log(`  E4 Fiscalizacao: ${r4.eixo4}`);
+      console.log(`  E4 Fiscalizacao: ${r4.eixo4} (${r4.totalFiscalizacao} acoes)`);
 
       const r5 = await calcEixo5(depId);
-      console.log(`  E5 Posicionamento: ${r5.eixo5}`);
+      console.log(`  E5 Posicionamento: ${r5.eixo5} (${r5.votosEmitidos}/${r5.totalVotacoesNominais} votacoes)`);
 
       const r6 = await calcEixo6(depId);
       console.log(`  E6 Eficiencia: ${r6.eixo6} (gastos: R$${r6.gastoTotal.toLocaleString()})`);
