@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import { onAuthStateChanged, signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
-import { auth, googleProvider, functions } from "../lib/firebase";
+import { auth, googleProvider, githubProvider, functions } from "../lib/firebase";
 
 // Gerar ID unico de sessao
 function generateSessionId() {
@@ -33,14 +33,12 @@ export function useAuth() {
           } catch (e) {
             console.warn('Session registration failed:', e.message);
           }
-
           // Buscar dados do usuario
           const getUser = httpsCallable(functions, "getUser");
           const result = await getUser();
           const userCredits = result.data?.credits ?? 5;
           setCredits(userCredits);
           localStorage.setItem('userCredits', String(userCredits));
-
           // Processar referral se houver
           const urlParams = new URLSearchParams(window.location.search);
           const refCode = urlParams.get('ref');
@@ -48,7 +46,6 @@ export function useAuth() {
             try {
               const processRef = httpsCallable(functions, "processReferralCode");
               await processRef({ codigoReferral: refCode });
-              // Limpar URL
               window.history.replaceState({}, '', window.location.pathname);
             } catch (e) {
               console.warn('Referral processing failed:', e.message);
@@ -81,12 +78,16 @@ export function useAuth() {
       } catch (e) {
         // Silently fail on validation
       }
-    }, 60000); // Verificar a cada 60 segundos
+    }, 60000);
     return () => clearInterval(interval);
   }, [user, sessionId]);
 
+  // Login methods
   const login = () => signInWithPopup(auth, googleProvider);
+  const loginWithGitHub = () => signInWithPopup(auth, githubProvider);
+  const loginWithEmail = (email, password) => signInWithEmailAndPassword(auth, email, password);
+  const registerWithEmail = (email, password) => createUserWithEmailAndPassword(auth, email, password);
   const logout = () => signOut(auth);
 
-  return { user, loading, login, logout, credits, sessionId, sessionError, setSessionError };
+  return { user, loading, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits, sessionId, sessionError, setSessionError };
 }
