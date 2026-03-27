@@ -9,7 +9,7 @@ import PoliticoPage from "./pages/PoliticoPage";
 import MetodologiaPage from "./pages/MetodologiaPage"; import RankingPage from "./pages/RankingPage"; import ComparadorPage from "./pages/ComparadorPage";
 
 export default function App() {
-  const { user, loading, login, logout, credits } = useAuth();
+  const { user, loading, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits } = useAuth();
   if (loading) return (
     <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center">
       <div className="w-10 h-10 border-2 border-[#3d6b5e] border-t-transparent rounded-full animate-spin" />
@@ -19,7 +19,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <Navbar user={user} login={login} logout={logout} credits={credits} />
+       <Navbar user={user} login={login} loginWithGitHub={loginWithGitHub} loginWithEmail={loginWithEmail} registerWithEmail={registerWithEmail} logout={logout} credits={credits} />
         <Routes>
           {user ? (
             <>
