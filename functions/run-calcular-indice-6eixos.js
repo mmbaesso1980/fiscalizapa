@@ -100,14 +100,33 @@ async function calcEixo1(depId, sessoesPlenario) {
   }
   const pctPlenario = totalPlenSessoes > 0 ? (totalPlenPresente / totalPlenSessoes) * 100 : 0;
 
-  // Presenca comissoes - usar orgaos do deputado
+   // Presenca comissoes - medir eventos REAIS de comissao que o deputado participou
   let pctComissoes = 50; // fallback
   try {
-    const orgaos = await fetchPaginated(`${CAMARA_API}/deputados/${depId}/orgaos`, {}, 5);
-    const comissoes = orgaos.filter(o => o.siglaOrgao && o.siglaOrgao.startsWith("C"));
-    pctComissoes = comissoes.length > 0 ? Math.min(100, comissoes.length * 15) : 30;
+    let totalEventosComissao = 0, presenteComissao = 0;
+    for (const year of YEARS) {
+      const hoje = new Date();
+      const dataFim = year < hoje.getFullYear() ? `${year}-12-31` : hoje.toISOString().split("T")[0];
+      // Buscar reunioes de comissao (codTipoEvento nao 110 = nao deliberativa)
+      const eventosComissao = await fetchPaginated(`${CAMARA_API}/eventos`, {
+        dataInicio: `${year}-02-01`, dataFim,
+        codTipoEvento: "100,120,130,140,150,160",
+        ordem: "ASC", ordenarPor: "dataHoraInicio",
+      }, 10);
+      const realizados = eventosComissao.filter(s => s.situacao && s.situacao !== "Cancelada" && s.situacao !== "Cancelado");
+      totalEventosComissao += realizados.length;
+      // Verificar presenca do deputado nesses eventos
+      const evtsDep = await fetchPaginated(`${CAMARA_API}/deputados/${depId}/eventos`, {
+        dataInicio: `${year}-02-01`, dataFim,
+        ordem: "ASC", ordenarPor: "dataHoraInicio",
+      }, 20);
+      const idsRealizados = new Set(realizados.map(e => e.id));
+      const presentesComissao = evtsDep.filter(e => idsRealizados.has(e.id));
+      presenteComissao += presentesComissao.length;
+      await delay(DELAY_MS);
+    }
+    pctComissoes = totalEventosComissao > 0 ? Math.min(100, (presenteComissao / totalEventosComissao) * 100) : 50;
   } catch (e) { /* fallback */ }
-
   const eixo1 = 0.7 * pctPlenario + 0.3 * pctComissoes;
   return {
     eixo1: Number(Math.min(100, Math.max(0, eixo1)).toFixed(1)),
@@ -325,6 +344,17 @@ function classificar(score) {
 async function main() {
   console.log("=== Pipeline 6 Eixos TransparenciaBR ===");
   if (ONLY_ID) console.log(`Modo filtrado: apenas deputado ${ONLY_ID}`);
+
+       // Skip se ja processado nas ultimas 24h
+      const existingData = data;
+      if (existingData.indiceUpdatedAt && !ONLY_ID) {
+        const updatedAt = existingData.indiceUpdatedAt.toDate ? existingData.indiceUpdatedAt.toDate() : new Date(existingData.indiceUpdatedAt);
+        const horasDesdeUpdate = (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60);
+        if (horasDesdeUpdate < 24) {
+          console.log(`  SKIP - ja processado ha ${horasDesdeUpdate.toFixed(1)}h\n`);
+          continue;
+        }
+      } 
 
   // 1) Buscar sessoes plenario (global)
   console.log("\n--- Buscando sessoes plenario ---");
