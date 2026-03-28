@@ -344,18 +344,6 @@ function classificar(score) {
 async function main() {
   console.log("=== Pipeline 6 Eixos TransparenciaBR ===");
   if (ONLY_ID) console.log(`Modo filtrado: apenas deputado ${ONLY_ID}`);
-
-       // Skip se ja processado nas ultimas 24h
-      const existingData = data;
-      if (existingData.indiceUpdatedAt && !ONLY_ID) {
-        const updatedAt = existingData.indiceUpdatedAt.toDate ? existingData.indiceUpdatedAt.toDate() : new Date(existingData.indiceUpdatedAt);
-        const horasDesdeUpdate = (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60);
-        if (horasDesdeUpdate < 24) {
-          console.log(`  SKIP - ja processado ha ${horasDesdeUpdate.toFixed(1)}h\n`);
-          continue;
-        }
-      } 
-
   // 1) Buscar sessoes plenario (global)
   console.log("\n--- Buscando sessoes plenario ---");
   const sessoesPlenario = await fetchSessoesPlenario();
@@ -381,6 +369,16 @@ async function main() {
     const depId = doc.id;
     const data = doc.data();
     const nome = data.nome || depId;
+    
+      // Skip se ja processado nas ultimas 24h
+      if (data.indiceUpdatedAt && !ONLY_ID) {
+        const updatedAt = data.indiceUpdatedAt.toDate ? data.indiceUpdatedAt.toDate() : new Date(data.indiceUpdatedAt);
+        const horasDesdeUpdate = (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60);
+        if (horasDesdeUpdate < 24) {
+          console.log(`  SKIP - ja processado ha ${horasDesdeUpdate.toFixed(1)}h\n`);
+          continue;
+        }
+      }
     console.log(`[${i + 1}/${snap.docs.length}] ${nome} (${depId})`);
 
     try {
