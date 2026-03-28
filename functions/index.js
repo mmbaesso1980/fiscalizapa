@@ -1,4 +1,5 @@
 const { onCall, onRequest } = require("firebase-functions/v2/https");
+// deploy fix: restore secrets binding 2026-03-28
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
 if (!admin.apps.length) admin.initializeApp();
