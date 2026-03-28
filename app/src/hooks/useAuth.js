@@ -3,7 +3,6 @@ import { onAuthStateChanged, signInWithPopup, signOut, signInWithEmailAndPasswor
 import { httpsCallable } from "firebase/functions";
 import { auth, googleProvider, githubProvider, functions } from "../lib/firebase";
 
-// Gerar ID unico de sessao
 function generateSessionId() {
   return 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
 }
@@ -24,43 +23,51 @@ export function useAuth() {
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      // FIX: setLoading(false) imediatamente - nao bloquear na Cloud Function
+      setLoading(false);
+
       if (u) {
-        try {
-          // Registrar sessao (anti-login simultaneo)
+        // Carregar dados em background (nao bloqueia o login)
+        const stored = localStorage.getItem('userCredits');
+        if (stored) setCredits(parseInt(stored, 10));
+
+        // Cloud Functions em background - sem bloquear
+        (async () => {
           try {
             const registerSess = httpsCallable(functions, "registerUserSession");
             await registerSess({ sessionId, deviceInfo: { ua: navigator.userAgent } });
           } catch (e) {
             console.warn('Session registration failed:', e.message);
           }
-          // Buscar dados do usuario
-          const getUser = httpsCallable(functions, "getUser");
-          const result = await getUser();
-          const userCredits = result.data?.credits ?? 5;
-          setCredits(userCredits);
-          localStorage.setItem('userCredits', String(userCredits));
+
+          try {
+            const getUser = httpsCallable(functions, "getUser");
+            const result = await getUser();
+            const userCredits = result.data?.credits ?? 5;
+            setCredits(userCredits);
+            localStorage.setItem('userCredits', String(userCredits));
+          } catch (e) {
+            console.warn('getUser failed:', e.message);
+            if (!stored) setCredits(5);
+          }
+
           // Processar referral se houver
-          const urlParams = new URLSearchParams(window.location.search);
-          const refCode = urlParams.get('ref');
-          if (refCode) {
-            try {
+          try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const refCode = urlParams.get('ref');
+            if (refCode) {
               const processRef = httpsCallable(functions, "processReferralCode");
               await processRef({ codigoReferral: refCode });
               window.history.replaceState({}, '', window.location.pathname);
-            } catch (e) {
-              console.warn('Referral processing failed:', e.message);
             }
+          } catch (e) {
+            console.warn('Referral processing failed:', e.message);
           }
-        } catch (e) {
-          console.error("getUser error", e);
-          const stored = localStorage.getItem('userCredits');
-          setCredits(stored ? parseInt(stored, 10) : 5);
-        }
+        })();
       } else {
         setCredits(null);
         localStorage.removeItem('userCredits');
       }
-      setLoading(false);
     });
   }, []);
 
@@ -76,13 +83,12 @@ export function useAuth() {
           await signOut(auth);
         }
       } catch (e) {
-        // Silently fail on validation
+        // Silently fail
       }
     }, 60000);
     return () => clearInterval(interval);
   }, [user, sessionId]);
 
-  // Login methods
   const login = () => signInWithPopup(auth, googleProvider);
   const loginWithGitHub = () => signInWithPopup(auth, githubProvider);
   const loginWithEmail = (email, password) => signInWithEmailAndPassword(auth, email, password);
