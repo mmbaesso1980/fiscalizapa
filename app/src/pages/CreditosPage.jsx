@@ -242,7 +242,7 @@ export default function CreditosPage() {
       <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 12, padding: 20, marginTop: 32 }}>
         <strong style={{ color: '#1e293b' }}>Como funcionam os créditos?</strong>
         <ul style={{ marginTop: 12, color: '#64748b', lineHeight: 2, paddingLeft: 20 }}>
-          >Chat com IA: <strong>1 crédito</strong> por mensagem</li>
+          <li>Chat com IA: <strong>1 crédito</strong> por mensagem</li>
           <li>Análise completa de político: <strong>2 créditos</strong></li>
           <li>Novos usuários recebem <strong>5 créditos grátis</strong></li>
           <li>Plano Ilimitado inclui acesso à <strong>barra de perguntas subjetivas à nossa IA</strong></li>
@@ -253,5 +253,5 @@ export default function CreditosPage() {
     </div>
   );
 }
-          >Análise completa de político: <strong>2 créditos</strong></li>
+          
           >Novos usuários recebem <strong>5 créditos grátis
