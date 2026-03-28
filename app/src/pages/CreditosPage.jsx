@@ -254,4 +254,4 @@ export default function CreditosPage() {
   );
 }
           
-          >Novos usuários recebem <strong>5 créditos grátis
+          
