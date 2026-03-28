@@ -6,6 +6,8 @@ const db = admin.firestore();
 
 const { defineSecret } = require("firebase-functions/params");
 const geminiKey = defineSecret("GEMINI_KEY");
+const stripeKey = defineSecret("STRIPE_SECRET1");
+const stripeWebhookKey = defineSecret("STRIPE_WEBHOOK_SECRET");
 
 // ============================================
 // CREDITOS - Modulo de gestao de creditos
@@ -65,8 +67,8 @@ async function callGemini(prompt) {
 // ============================================
 
 // Criar sessão de checkout
-exports.createCheckoutSession = onCall({ region: "southamerica-east1" }, async (request) => {
-  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
+exports.createCheckoutSession = onCall({ region: "southamerica-east1", secrets: [stripeKey] }, async (request) => {
+  const stripe = require("stripe")(process.env.STRIPE_SECRET1 || "");
   const { priceId } = request.data;
   const userId = request.auth?.uid;
   if (!userId) throw new Error("Auth required");
@@ -82,9 +84,9 @@ exports.createCheckoutSession = onCall({ region: "southamerica-east1" }, async (
 });
 
 // Webhook do Stripe para processar pagamentos e assinaturas
-exports.stripeWebhook = onRequest({ region: "southamerica-east1" }, async (req, res) => {
+exports.stripeWebhook = onRequest({ region: "southamerica-east1" , secrets: [stripeKey, stripeWebhookKey]}, async (req, res) => {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
+  const stripe = require("stripe")(process.env.STRIPE_SECRET1 || "");
   const sig = req.headers["stripe-signature"];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
@@ -1391,8 +1393,8 @@ exports.getCreditHistory = onCall({ region: "southamerica-east1" }, async (reque
 });
 
 // Comprar creditos - cria sessao Stripe com priceId do pacote
-exports.buyCredits = onCall({ region: "southamerica-east1" }, async (request) => {
-  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
+exports.buyCredits = onCall({ region: "southamerica-east1", secrets: [stripeKey] }, async (request) => {
+  const stripe = require("stripe")(process.env.STRIPE_SECRET1 || "");
   const uid = request.auth?.uid;
   if (!uid) throw new Error("Authentication required");
   checkRateLimit(uid);
@@ -1420,9 +1422,9 @@ exports.buyCredits = onCall({ region: "southamerica-east1" }, async (request) =>
 });
 
 // Webhook Stripe V2 - integrado com creditService
-exports.stripeWebhookV2 = onRequest({ region: "southamerica-east1" }, async (req, res) => {
+exports.stripeWebhookV2 = onRequest({ region: "southamerica-east1", secrets: [stripeKey, stripeWebhookKey] }, async (req, res) => {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
+  const stripe = require("stripe")(process.env.STRIPE_SECRET1 || "");
   const sig = req.headers["stripe-signature"];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
