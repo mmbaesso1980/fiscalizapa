@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import CreditosPage from "./pages/CreditosPage";
 import DashboardPage from "./pages/DashboardPage";
 import PoliticoPage from "./pages/PoliticoPage";
+import EmendaPage from "./pages/EmendaPage";
 import MetodologiaPage from "./pages/MetodologiaPage";
 import RankingPage from "./pages/RankingPage";
 import ComparadorPage from "./pages/ComparadorPage";
@@ -31,6 +32,7 @@ export default function App() {
               <Route path="/creditos" element={<CreditosPage user={user} />} />
               <Route path="/politico/:colecao/:id" element={<PoliticoPage user={user} />} />
               <Route path="/deputado/:nome" element={<PoliticoPage user={user} />} />
+              <Route path="/emenda/:id" element={<EmendaPage />} />
               <Route path="/ranking" element={<RankingPage />} />
               <Route path="/comparador" element={<ComparadorPage />} />
               <Route path="/metodologia" element={<MetodologiaPage />} />
