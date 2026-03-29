@@ -1,7 +1,7 @@
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { db } from "../lib/firebase";
 
 const fmt = (v) => {
   if (!v || v === "0,00" || v === "0.00") return "R$ 0,00";
