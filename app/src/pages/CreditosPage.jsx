@@ -14,7 +14,7 @@ const PACKAGES = [
     color: '#22c55e',
     icon: '\u26A1',
     popular: false,
-    descricao: '10 análises ou 10 chats com a IA',
+        descricao: '10 análises de políticos',
   },
   {
     id: 'price_pro_50',
@@ -25,7 +25,7 @@ const PACKAGES = [
     color: '#3b82f6',
     icon: '\uD83D\uDE80',
     popular: true,
-    descricao: '50 análises ou chats – melhor custo-benefício',
+        descricao: '50 análises de políticos – melhor custo-benefício',
   },
   {
     id: 'price_ultra_200',
@@ -36,7 +36,7 @@ const PACKAGES = [
     color: '#8b5cf6',
     icon: '\uD83D\uDC8E',
     popular: false,
-    descricao: '200 créditos para uso intensivo',
+        descricao: '200 análises de políticos para uso intensivo',
   },
   {
     id: 'price_ilimitado',
@@ -242,11 +242,11 @@ export default function CreditosPage() {
       <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 12, padding: 20, marginTop: 32 }}>
         <strong style={{ color: '#1e293b' }}>Como funcionam os créditos?</strong>
         <ul style={{ marginTop: 12, color: '#64748b', lineHeight: 2, paddingLeft: 20 }}>
-          <li>Chat com IA: <strong>1 crédito</strong> por mensagem</li>
+          <li>Chat com IA (apenas Ilimitado): <strong>1 crédito</strong> por mensagem</li>
           <li>Análise completa de político: <strong>2 créditos</strong></li>
           <li>Novos usuários recebem <strong>5 créditos grátis</strong></li>
           <li>Plano Ilimitado inclui acesso à <strong>barra de perguntas subjetivas à nossa IA</strong></li>
-          <li>Pagamento seguro via Stripe (cartão ou PIX)</li>
+          <li>Pagamento seguro via Stripe (cartão)</li>
         </ul>
       </div>
 
