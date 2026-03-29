@@ -1,313 +1,178 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
-function toNumber(value) {
-  if (value === null || value === undefined || value === '') return 0;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+function toNum(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
+function fmtPct(v) { return `${toNum(v).toFixed(1).replace('.', ',')}%`; }
+function fmtNum(v) { return new Intl.NumberFormat('pt-BR').format(toNum(v)); }
 
-function formatNumber(value) {
-  return new Intl.NumberFormat('pt-BR').format(toNumber(value));
-}
+const BADGE = {
+  Excelente: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  Bom: 'bg-sky-100 text-sky-700 border-sky-200',
+  Regular: 'bg-amber-100 text-amber-700 border-amber-200',
+  Ruim: 'bg-rose-100 text-rose-700 border-rose-200',
+};
 
-function formatPercent(value) {
-  return `${toNumber(value).toFixed(1).replace('.', ',')}%`;
-}
-
-function pickNumber(...values) {
-  for (const value of values) {
-    const num = toNumber(value);
-    if (num > 0) return num;
-  }
-  return 0;
-}
-
-function getNested(obj, path) {
-  return path.split('.').reduce((acc, key) => (acc ? acc[key] : undefined), obj);
-}
-
-function resolveMetric(source, possiblePaths) {
-  for (const path of possiblePaths) {
-    const value = getNested(source, path);
-    const num = toNumber(value);
-    if (num > 0) return num;
-  }
-  return 0;
-}
-
-function PresenceStackBar({ items }) {
-  const total = items.reduce((acc, item) => acc + item.total, 0);
-
-  if (!total) {
-    return (
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm leading-6 text-slate-500">
-        Ainda não há dados suficientes para consolidar a presença parlamentar neste período.
-      </div>
-    );
-  }
-
+function GaugeBar({ pct, label, color }) {
   return (
-    <div className="space-y-3">
-      <div className="h-4 w-full overflow-hidden rounded-full bg-slate-200">
-        {items.map((item) => (
-          <div
-            key={item.key}
-            className={`h-full ${item.barColor} inline-block`}
-            style={{ width: `${item.percent}%` }}
-            title={`${item.label}: ${formatPercent(item.percent)} (${formatNumber(item.total)} registros)`}
-          />
-        ))}
+    <div className="mb-3">
+      <div className="mb-1 flex items-center justify-between text-sm">
+        <span className="font-medium text-slate-700">{label}</span>
+        <span className={`font-bold ${color}`}>{fmtPct(pct)}</span>
       </div>
-
-      <div className="flex flex-wrap gap-3">
-        {items.map((item) => (
-          <div
-            key={item.key}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600"
-          >
-            <span className={`h-2.5 w-2.5 rounded-full ${item.dotColor}`} />
-            <span>{item.label}</span>
-            <span className="text-slate-400">•</span>
-            <span>{formatPercent(item.percent)}</span>
-          </div>
-        ))}
+      <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full transition-all`}
+          style={{ width: `${Math.min(toNum(pct), 100)}%`, backgroundColor: color === 'text-emerald-600' ? '#059669' : color === 'text-sky-600' ? '#0284c7' : color === 'text-indigo-600' ? '#4f46e5' : '#059669' }} />
       </div>
     </div>
   );
 }
 
-function SummaryCard({ item }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2">
-        <span className={`h-3 w-3 rounded-full ${item.dotColor}`} />
-        <h3 className="text-sm font-semibold text-slate-900">{item.label}</h3>
-      </div>
-
-      <div className="text-2xl font-bold tracking-tight text-slate-900">
-        {formatPercent(item.percent)}
-      </div>
-
-      <div className="mt-1 text-sm text-slate-500">
-        {formatNumber(item.total)} registros
-      </div>
-
-      <p className="mt-3 text-sm leading-6 text-slate-600">
-        {item.description}
-      </p>
-    </div>
-  );
-}
-
-export default function PresencaSection(props) {
+export default function PresencaSection({ politico, colecao, politicoId }) {
+  const pol = politico || {};
+  const [presencas, setPresencas] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(null);
   const [expanded, setExpanded] = useState(false);
 
-  const source =
-    props?.presenca ||
-    props?.presencaData ||
-    props?.data?.presenca ||
-    props?.data ||
-    props?.politico?.presenca ||
-    props?.politico ||
-    props ||
-    {};
+  const overallPct = toNum(pol.presencaPct);
+  const plenarioPct = toNum(pol.presencaPlenarioPct);
+  const comissoesPct = toNum(pol.presencaComissoesPct);
+  const classificacao = pol.presencaClassificacao || '';
+  const sessoesPresente = toNum(pol.sessoesPresente);
+  const sessoesTotal = toNum(pol.sessoesTotal || pol.totalSessions);
+  const totalEventos = toNum(pol.totalEventos);
+  const totalProposicoes = toNum(pol.totalProposicoes);
 
-  const summary = useMemo(() => {
-    const plenario = pickNumber(
-      resolveMetric(source, [
-        'plenario_presenca',
-        'presenca_plenario',
-        'presencas_plenario',
-        'presencaPlenario',
-        'plenario.presenca',
-        'plenario.presentes',
-        'presencas.plenario',
-      ])
+  const hasData = overallPct > 0 || sessoesPresente > 0 || sessoesTotal > 0;
+
+  useEffect(() => {
+    if (!colecao || !politicoId) return;
+    setLoading(true);
+    getDocs(collection(db, colecao, politicoId, 'presencas'))
+      .then(snap => {
+        setPresencas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [colecao, politicoId]);
+
+  const yearly = useMemo(() => {
+    const map = {};
+    presencas.forEach(p => {
+      const date = p.data || p.date || '';
+      const year = date.substring(0, 4);
+      if (!year || year.length < 4) return;
+      if (!map[year]) map[year] = { total: 0, presente: 0, ausente: 0, justificada: 0 };
+      map[year].total++;
+      const pres = (p.presenca || p.frequencia || '').toLowerCase();
+      if (pres.includes('presente') || pres.includes('presença')) map[year].presente++;
+      else if (pres.includes('justificad')) map[year].justificada++;
+      else map[year].ausente++;
+    });
+    return map;
+  }, [presencas]);
+
+  const yearKeys = Object.keys(yearly).sort();
+
+  if (!hasData && yearKeys.length === 0) {
+    return (
+      <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm sm:p-6">
+        <h2 className="text-xl font-bold text-slate-900">Presenca parlamentar</h2>
+        <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+          Ainda nao ha dados de presenca disponiveis para este parlamentar.
+        </div>
+      </section>
     );
+  }
 
-    const comissoes = pickNumber(
-      resolveMetric(source, [
-        'comissoes_presenca',
-        'presenca_comissoes',
-        'presencas_comissoes',
-        'presencaComissoes',
-        'comissoes.presenca',
-        'comissoes.presentes',
-        'presencas.comissoes',
-      ])
-    );
-
-    const ausenciasJustificadas = pickNumber(
-      resolveMetric(source, [
-        'ausencias_justificadas',
-        'faltas_justificadas',
-        'ausenciasJustificadas',
-        'ausencias.justificadas',
-      ])
-    );
-
-    const ausenciasNaoJustificadas = pickNumber(
-      resolveMetric(source, [
-        'ausencias_nao_justificadas',
-        'faltas_nao_justificadas',
-        'ausenciasNaoJustificadas',
-        'ausencias.nao_justificadas',
-        'ausencias.naoJustificadas',
-      ])
-    );
-
-    const rawItems = [
-      {
-        key: 'plenario',
-        label: 'Plenário',
-        total: plenario,
-        description: 'Comparecimentos registrados em sessões plenárias.',
-        dotColor: 'bg-emerald-500',
-        barColor: 'bg-emerald-500',
-      },
-      {
-        key: 'comissoes',
-        label: 'Comissões',
-        total: comissoes,
-        description: 'Comparecimentos registrados em reuniões e colegiados de comissões.',
-        dotColor: 'bg-sky-500',
-        barColor: 'bg-sky-500',
-      },
-      {
-        key: 'ausencias_justificadas',
-        label: 'Ausências justificadas',
-        total: ausenciasJustificadas,
-        description: 'Faltas com justificativa pública, quando informadas pela fonte oficial.',
-        dotColor: 'bg-amber-400',
-        barColor: 'bg-amber-400',
-      },
-      {
-        key: 'ausencias_nao_justificadas',
-        label: 'Ausências não justificadas',
-        total: ausenciasNaoJustificadas,
-        description: 'Faltas sem justificativa pública, quando informadas pela fonte oficial.',
-        dotColor: 'bg-rose-500',
-        barColor: 'bg-rose-500',
-      },
-    ].filter((item) => item.total > 0);
-
-    const total = rawItems.reduce((acc, item) => acc + item.total, 0);
-
-    const items = rawItems.map((item) => ({
-      ...item,
-      percent: total > 0 ? (item.total / total) * 100 : 0,
-    }));
-
-    return {
-      total,
-      hasData: total > 0,
-      items,
-    };
-  }, [source]);
+  const detail = selectedYear ? yearly[selectedYear] : null;
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 shadow-sm sm:p-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="max-w-3xl">
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-            Presença parlamentar no mandato
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600 sm:text-base">
-            Consolidação dos registros públicos de presença do parlamentar em plenário e comissões,
-            com distinção entre comparecimento e ausências quando disponível.
-          </p>
+    <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm sm:p-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Presenca parlamentar no mandato</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Dados consolidados de presenca em plenario, comissoes e atividade legislativa.</p>
         </div>
-
-        {summary.hasData && (
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Total consolidado
+        {classificacao && (
+          <div className="flex items-center gap-3">
+            <span className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold ${BADGE[classificacao] || 'bg-slate-100 text-slate-600'}`}>{classificacao}</span>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-slate-900">{fmtPct(overallPct)}</div>
+              <div className="text-xs text-slate-500">presenca geral</div>
             </div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">
-              {formatNumber(summary.total)}
-            </div>
-            <div className="text-xs text-slate-500">registros públicos</div>
           </div>
         )}
       </div>
 
-      <div className="mb-6">
-        <PresenceStackBar items={summary.items} />
-      </div>
-
-      {summary.hasData ? (
-        <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {summary.items.map((item) => (
-              <SummaryCard key={item.key} item={item} />
-            ))}
-          </div>
-
-          <div className="mt-5">
-            <button
-              type="button"
-              onClick={() => setExpanded((prev) => !prev)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-            >
-              {expanded ? 'Ocultar detalhes' : 'Ver detalhes'}
-              <span className={`transition-transform ${expanded ? 'rotate-180' : ''}`}>⌄</span>
-            </button>
-          </div>
-
-          {expanded && (
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-              <h3 className="text-base font-semibold text-slate-900">
-                Detalhamento da consolidação
-              </h3>
-
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-                <div className="grid grid-cols-12 bg-slate-100 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <div className="col-span-5 sm:col-span-6">Grupo</div>
-                  <div className="col-span-3 text-right">Registros</div>
-                  <div className="col-span-4 text-right sm:col-span-3">Participação</div>
-                </div>
-
-                <div className="divide-y divide-slate-200">
-                  {summary.items.map((item) => (
-                    <div
-                      key={item.key}
-                      className="grid grid-cols-12 items-start px-4 py-4 text-sm text-slate-700"
-                    >
-                      <div className="col-span-5 pr-3 sm:col-span-6">
-                        <div className="flex items-center gap-2 font-medium text-slate-900">
-                          <span className={`h-3 w-3 rounded-full ${item.dotColor}`} />
-                          {item.label}
-                        </div>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
-                          {item.description}
-                        </p>
-                      </div>
-
-                      <div className="col-span-3 text-right font-semibold text-slate-900">
-                        {formatNumber(item.total)}
-                      </div>
-
-                      <div className="col-span-4 text-right font-semibold text-slate-900 sm:col-span-3">
-                        {formatPercent(item.percent)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <p className="mt-4 text-xs leading-5 text-slate-500">
-                Esta seção consolida apenas registros públicos de presença parlamentar. Quando a
-                fonte oficial não distingue certos tipos de ausência ou comparecimento, o grupo
-                correspondente pode não aparecer.
-              </p>
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm leading-6 text-slate-500">
-          Ainda não há dados suficientes para consolidar a presença parlamentar neste período.
+      {hasData && (
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+          {overallPct > 0 && <GaugeBar pct={overallPct} label="Presenca Geral" color="text-emerald-600" />}
+          {plenarioPct > 0 && <GaugeBar pct={plenarioPct} label="Plenario" color="text-sky-600" />}
+          {comissoesPct > 0 && <GaugeBar pct={comissoesPct} label="Comissoes" color="text-indigo-600" />}
         </div>
       )}
+
+      {(sessoesPresente > 0 || sessoesTotal > 0 || totalEventos > 0 || totalProposicoes > 0) && (
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {sessoesPresente > 0 && (<div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><div className="text-2xl font-bold text-emerald-600">{fmtNum(sessoesPresente)}</div><div className="text-xs text-slate-500">Sessoes presente</div></div>)}
+          {sessoesTotal > 0 && (<div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><div className="text-2xl font-bold text-slate-700">{fmtNum(sessoesTotal)}</div><div className="text-xs text-slate-500">Total sessoes</div></div>)}
+          {totalEventos > 0 && (<div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><div className="text-2xl font-bold text-sky-600">{fmtNum(totalEventos)}</div><div className="text-xs text-slate-500">Eventos</div></div>)}
+          {totalProposicoes > 0 && (<div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><div className="text-2xl font-bold text-indigo-600">{fmtNum(totalProposicoes)}</div><div className="text-xs text-slate-500">Proposicoes</div></div>)}
+        </div>
+      )}
+
+      {loading && <div className="mb-4 text-sm text-slate-500">Carregando sessoes detalhadas...</div>}
+
+      {yearKeys.length > 0 && (
+        <>
+          <h3 className="mb-3 text-base font-semibold text-slate-900">Presenca por ano (sessoes detalhadas)</h3>
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {yearKeys.map(yr => {
+              const d = yearly[yr];
+              const pct = d.total > 0 ? (d.presente / d.total) * 100 : 0;
+              return (
+                <button key={yr} type="button" onClick={() => setSelectedYear(selectedYear === yr ? null : yr)}
+                  className={`rounded-2xl border p-4 text-left transition ${selectedYear === yr ? 'border-emerald-400 bg-emerald-50 shadow-md' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}`}>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{yr}</div>
+                  <div className="mt-1 text-2xl font-bold text-slate-900">{fmtPct(pct)}</div>
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(pct, 100)}%` }} />
+                  </div>
+                  <div className="mt-2 flex justify-between text-xs text-slate-500">
+                    <span>{d.presente} presente{d.presente !== 1 ? 's' : ''}</span>
+                    <span>{d.total - d.presente} ausencia{(d.total - d.presente) !== 1 ? 's' : ''}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {detail && (
+        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+          <h4 className="mb-3 text-sm font-semibold text-emerald-800">Detalhes {selectedYear}</h4>
+          <div className="grid grid-cols-4 gap-4 text-center">
+            <div><div className="text-xl font-bold text-emerald-700">{detail.presente}</div><div className="text-xs text-emerald-600">Presentes</div></div>
+            <div><div className="text-xl font-bold text-amber-600">{detail.justificada}</div><div className="text-xs text-amber-500">Justificadas</div></div>
+            <div><div className="text-xl font-bold text-rose-600">{detail.ausente}</div><div className="text-xs text-rose-500">Ausencias</div></div>
+            <div><div className="text-xl font-bold text-slate-700">{detail.total}</div><div className="text-xs text-slate-500">Total</div></div>
+          </div>
+          <div className="mt-3">
+            <div className="h-3 w-full overflow-hidden rounded-full bg-rose-200">
+              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${detail.total > 0 ? (detail.presente / detail.total) * 100 : 0}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p className="mt-6 text-xs text-slate-400">Fonte: Dados publicos da Camara dos Deputados. Atualizado automaticamente.</p>
     </section>
   );
 }
