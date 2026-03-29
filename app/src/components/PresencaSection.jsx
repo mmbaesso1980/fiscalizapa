@@ -10,24 +10,35 @@ function toNum(v) {
 function fmtPct(v) { return `${toNum(v).toFixed(1).replace('.', ',')}%`; }
 function fmtNum(v) { return new Intl.NumberFormat('pt-BR').format(toNum(v)); }
 
-const BADGE = {
-  Excelente: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  Bom: 'bg-sky-100 text-sky-700 border-sky-200',
-  Regular: 'bg-amber-100 text-amber-700 border-amber-200',
-  Ruim: 'bg-rose-100 text-rose-700 border-rose-200',
+const BADGE_STYLES = {
+  Excelente: { background: '#d1fae5', color: '#047857', border: '1px solid #a7f3d0' },
+  Bom: { background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' },
+  Regular: { background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' },
+  Ruim: { background: '#ffe4e6', color: '#be123c', border: '1px solid #fecdd3' },
 };
 
-function GaugeBar({ pct, label, color }) {
+const BAR_COLORS = ['#059669', '#0284c7', '#4f46e5'];
+
+function GaugeBar({ pct, label, colorIdx }) {
+  const color = BAR_COLORS[colorIdx] || BAR_COLORS[0];
   return (
-    <div className="mb-3">
-      <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="font-medium text-slate-700">{label}</span>
-        <span className={`font-bold ${color}`}>{fmtPct(pct)}</span>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 4 }}>
+        <span style={{ fontWeight: 500, color: '#334155' }}>{label}</span>
+        <span style={{ fontWeight: 700, color }}>{fmtPct(pct)}</span>
       </div>
-      <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
-        <div className={`h-full rounded-full transition-all`}
-          style={{ width: `${Math.min(toNum(pct), 100)}%`, backgroundColor: color === 'text-emerald-600' ? '#059669' : color === 'text-sky-600' ? '#0284c7' : color === 'text-indigo-600' ? '#4f46e5' : '#059669' }} />
+      <div style={{ height: 12, width: '100%', borderRadius: 9999, background: '#f1f5f9', overflow: 'hidden' }}>
+        <div style={{ height: '100%', borderRadius: 9999, background: color, width: `${Math.min(toNum(pct), 100)}%`, transition: 'width 0.5s' }} />
       </div>
+    </div>
+  );
+}
+
+function StatCard({ value, label, color }) {
+  return (
+    <div style={{ borderRadius: 16, border: '1px solid #e2e8f0', background: '#fff', padding: 16, textAlign: 'center', flex: '1 1 0' }}>
+      <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
+      <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{label}</div>
     </div>
   );
 }
@@ -37,7 +48,6 @@ export default function PresencaSection({ politico, colecao, politicoId }) {
   const [presencas, setPresencas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState(null);
-  const [expanded, setExpanded] = useState(false);
 
   const overallPct = toNum(pol.presencaPct);
   const plenarioPct = toNum(pol.presencaPlenarioPct);
@@ -47,16 +57,13 @@ export default function PresencaSection({ politico, colecao, politicoId }) {
   const sessoesTotal = toNum(pol.sessoesTotal || pol.totalSessions);
   const totalEventos = toNum(pol.totalEventos);
   const totalProposicoes = toNum(pol.totalProposicoes);
-
   const hasData = overallPct > 0 || sessoesPresente > 0 || sessoesTotal > 0;
 
   useEffect(() => {
     if (!colecao || !politicoId) return;
     setLoading(true);
     getDocs(collection(db, colecao, politicoId, 'presencas'))
-      .then(snap => {
-        setPresencas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      })
+      .then(snap => setPresencas(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [colecao, politicoId]);
@@ -70,7 +77,7 @@ export default function PresencaSection({ politico, colecao, politicoId }) {
       if (!map[year]) map[year] = { total: 0, presente: 0, ausente: 0, justificada: 0 };
       map[year].total++;
       const pres = (p.presenca || p.frequencia || '').toLowerCase();
-      if (pres.includes('presente') || pres.includes('presença')) map[year].presente++;
+      if (pres.includes('presente') || pres.includes('presen')) map[year].presente++;
       else if (pres.includes('justificad')) map[year].justificada++;
       else map[year].ausente++;
     });
@@ -79,11 +86,13 @@ export default function PresencaSection({ politico, colecao, politicoId }) {
 
   const yearKeys = Object.keys(yearly).sort();
 
+  const sectionStyle = { borderRadius: 24, border: '1px solid #e2e8f0', background: '#f8fafc', padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' };
+
   if (!hasData && yearKeys.length === 0) {
     return (
-      <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm sm:p-6">
-        <h2 className="text-xl font-bold text-slate-900">Presenca parlamentar</h2>
-        <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+      <section style={sectionStyle}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>Presenca parlamentar</h2>
+        <div style={{ marginTop: 16, borderRadius: 16, border: '2px dashed #cbd5e1', background: '#fff', padding: 24, fontSize: 14, color: '#64748b' }}>
           Ainda nao ha dados de presenca disponiveis para este parlamentar.
         </div>
       </section>
@@ -93,60 +102,61 @@ export default function PresencaSection({ politico, colecao, politicoId }) {
   const detail = selectedYear ? yearly[selectedYear] : null;
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm sm:p-6">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <section style={sectionStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Presenca parlamentar no mandato</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Dados consolidados de presenca em plenario, comissoes e atividade legislativa.</p>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', margin: 0 }}>Presenca parlamentar no mandato</h2>
+          <p style={{ marginTop: 8, fontSize: 14, color: '#475569', lineHeight: 1.6 }}>Dados consolidados de presenca em plenario, comissoes e atividade legislativa.</p>
         </div>
         {classificacao && (
-          <div className="flex items-center gap-3">
-            <span className={`inline-block rounded-full border px-3 py-1 text-xs font-semibold ${BADGE[classificacao] || 'bg-slate-100 text-slate-600'}`}>{classificacao}</span>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-slate-900">{fmtPct(overallPct)}</div>
-              <div className="text-xs text-slate-500">presenca geral</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ ...BADGE_STYLES[classificacao] || { background: '#f1f5f9', color: '#475569' }, borderRadius: 9999, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>{classificacao}</span>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#0f172a' }}>{fmtPct(overallPct)}</div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>presenca geral</div>
             </div>
           </div>
         )}
       </div>
 
       {hasData && (
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
-          {overallPct > 0 && <GaugeBar pct={overallPct} label="Presenca Geral" color="text-emerald-600" />}
-          {plenarioPct > 0 && <GaugeBar pct={plenarioPct} label="Plenario" color="text-sky-600" />}
-          {comissoesPct > 0 && <GaugeBar pct={comissoesPct} label="Comissoes" color="text-indigo-600" />}
+        <div style={{ borderRadius: 16, border: '1px solid #e2e8f0', background: '#fff', padding: 16, marginBottom: 24 }}>
+          {overallPct > 0 && <GaugeBar pct={overallPct} label="Presenca Geral" colorIdx={0} />}
+          {plenarioPct > 0 && <GaugeBar pct={plenarioPct} label="Plenario" colorIdx={1} />}
+          {comissoesPct > 0 && <GaugeBar pct={comissoesPct} label="Comissoes" colorIdx={2} />}
         </div>
       )}
 
       {(sessoesPresente > 0 || sessoesTotal > 0 || totalEventos > 0 || totalProposicoes > 0) && (
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {sessoesPresente > 0 && (<div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><div className="text-2xl font-bold text-emerald-600">{fmtNum(sessoesPresente)}</div><div className="text-xs text-slate-500">Sessoes presente</div></div>)}
-          {sessoesTotal > 0 && (<div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><div className="text-2xl font-bold text-slate-700">{fmtNum(sessoesTotal)}</div><div className="text-xs text-slate-500">Total sessoes</div></div>)}
-          {totalEventos > 0 && (<div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><div className="text-2xl font-bold text-sky-600">{fmtNum(totalEventos)}</div><div className="text-xs text-slate-500">Eventos</div></div>)}
-          {totalProposicoes > 0 && (<div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><div className="text-2xl font-bold text-indigo-600">{fmtNum(totalProposicoes)}</div><div className="text-xs text-slate-500">Proposicoes</div></div>)}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
+          {sessoesPresente > 0 && <StatCard value={fmtNum(sessoesPresente)} label="Sessoes presente" color="#059669" />}
+          {sessoesTotal > 0 && <StatCard value={fmtNum(sessoesTotal)} label="Total sessoes" color="#334155" />}
+          {totalEventos > 0 && <StatCard value={fmtNum(totalEventos)} label="Eventos" color="#0284c7" />}
+          {totalProposicoes > 0 && <StatCard value={fmtNum(totalProposicoes)} label="Proposicoes" color="#4f46e5" />}
         </div>
       )}
 
-      {loading && <div className="mb-4 text-sm text-slate-500">Carregando sessoes detalhadas...</div>}
+      {loading && <div style={{ marginBottom: 16, fontSize: 14, color: '#64748b' }}>Carregando sessoes detalhadas...</div>}
 
       {yearKeys.length > 0 && (
         <>
-          <h3 className="mb-3 text-base font-semibold text-slate-900">Presenca por ano (sessoes detalhadas)</h3>
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f172a', marginBottom: 12 }}>Presenca por ano (sessoes detalhadas)</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
             {yearKeys.map(yr => {
               const d = yearly[yr];
               const pct = d.total > 0 ? (d.presente / d.total) * 100 : 0;
+              const isSelected = selectedYear === yr;
               return (
-                <button key={yr} type="button" onClick={() => setSelectedYear(selectedYear === yr ? null : yr)}
-                  className={`rounded-2xl border p-4 text-left transition ${selectedYear === yr ? 'border-emerald-400 bg-emerald-50 shadow-md' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}`}>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{yr}</div>
-                  <div className="mt-1 text-2xl font-bold text-slate-900">{fmtPct(pct)}</div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(pct, 100)}%` }} />
+                <button key={yr} type="button" onClick={() => setSelectedYear(isSelected ? null : yr)}
+                  style={{ borderRadius: 16, border: isSelected ? '2px solid #34d399' : '1px solid #e2e8f0', background: isSelected ? '#ecfdf5' : '#fff', padding: 16, textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s', boxShadow: isSelected ? '0 4px 12px rgba(0,0,0,0.1)' : 'none' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, color: '#64748b' }}>{yr}</div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', marginTop: 4 }}>{fmtPct(pct)}</div>
+                  <div style={{ height: 8, width: '100%', borderRadius: 9999, background: '#f1f5f9', overflow: 'hidden', marginTop: 8 }}>
+                    <div style={{ height: '100%', borderRadius: 9999, background: '#059669', width: `${Math.min(pct, 100)}%` }} />
                   </div>
-                  <div className="mt-2 flex justify-between text-xs text-slate-500">
-                    <span>{d.presente} presente{d.presente !== 1 ? 's' : ''}</span>
-                    <span>{d.total - d.presente} ausencia{(d.total - d.presente) !== 1 ? 's' : ''}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginTop: 8 }}>
+                    <span>{d.presente} presentes</span>
+                    <span>{d.total - d.presente} ausencias</span>
                   </div>
                 </button>
               );
@@ -156,23 +166,21 @@ export default function PresencaSection({ politico, colecao, politicoId }) {
       )}
 
       {detail && (
-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-          <h4 className="mb-3 text-sm font-semibold text-emerald-800">Detalhes {selectedYear}</h4>
-          <div className="grid grid-cols-4 gap-4 text-center">
-            <div><div className="text-xl font-bold text-emerald-700">{detail.presente}</div><div className="text-xs text-emerald-600">Presentes</div></div>
-            <div><div className="text-xl font-bold text-amber-600">{detail.justificada}</div><div className="text-xs text-amber-500">Justificadas</div></div>
-            <div><div className="text-xl font-bold text-rose-600">{detail.ausente}</div><div className="text-xs text-rose-500">Ausencias</div></div>
-            <div><div className="text-xl font-bold text-slate-700">{detail.total}</div><div className="text-xs text-slate-500">Total</div></div>
+        <div style={{ marginTop: 16, borderRadius: 16, border: '1px solid #a7f3d0', background: '#ecfdf5', padding: 20 }}>
+          <h4 style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: '#065f46' }}>Detalhes {selectedYear}</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, textAlign: 'center' }}>
+            <div><div style={{ fontSize: 20, fontWeight: 700, color: '#047857' }}>{detail.presente}</div><div style={{ fontSize: 12, color: '#059669' }}>Presentes</div></div>
+            <div><div style={{ fontSize: 20, fontWeight: 700, color: '#d97706' }}>{detail.justificada}</div><div style={{ fontSize: 12, color: '#f59e0b' }}>Justificadas</div></div>
+            <div><div style={{ fontSize: 20, fontWeight: 700, color: '#e11d48' }}>{detail.ausente}</div><div style={{ fontSize: 12, color: '#f43f5e' }}>Ausencias</div></div>
+            <div><div style={{ fontSize: 20, fontWeight: 700, color: '#334155' }}>{detail.total}</div><div style={{ fontSize: 12, color: '#64748b' }}>Total</div></div>
           </div>
-          <div className="mt-3">
-            <div className="h-3 w-full overflow-hidden rounded-full bg-rose-200">
-              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${detail.total > 0 ? (detail.presente / detail.total) * 100 : 0}%` }} />
-            </div>
+          <div style={{ marginTop: 12, height: 12, width: '100%', borderRadius: 9999, background: '#fecdd3', overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 9999, background: '#059669', width: `${detail.total > 0 ? (detail.presente / detail.total) * 100 : 0}%` }} />
           </div>
         </div>
       )}
 
-      <p className="mt-6 text-xs text-slate-400">Fonte: Dados publicos da Camara dos Deputados. Atualizado automaticamente.</p>
+      <p style={{ marginTop: 24, fontSize: 12, color: '#94a3b8' }}>Fonte: Dados publicos da Camara dos Deputados. Atualizado automaticamente.</p>
     </section>
   );
 }
