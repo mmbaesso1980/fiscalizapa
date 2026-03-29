@@ -307,7 +307,7 @@ export default function PoliticoPage({ user }) {
           {/* Top Fornecedores mini */}
           <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20, border: '1px solid var(--border-light)', marginBottom: 20 }}>
             <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Top Fornecedores</h4>
-            {fornSorted.slice(0, 5).map((f, val], i) => (
+            {fornSorted.slice(0, 5).map(([f, val], i) => (
               <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < 4 ? '1px solid var(--border-light)' : 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 13 }}>{f}</span>
