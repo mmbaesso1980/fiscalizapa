@@ -42,6 +42,7 @@ jobs:
         run: |
           rm -f package-lock.json
           npm install --legacy-peer-deps
+                    rm -f package-lock.json
         working-directory: functions
 
       - name: Deploy Functions + Firestore rules
