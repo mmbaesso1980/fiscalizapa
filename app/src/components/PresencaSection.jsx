@@ -48,7 +48,7 @@ function StatCard({ value, label, color, href }) {
       onMouseLeave={e => { if (href) { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = '#e2e8f0'; } }}>
       <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
       <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{label}</div>
-      {href && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6 }}>Clique para detalhes \u2192</div>}
+      {href && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6 }}>Clique para detalhes →</div>}
     </Tag>
   );
 }
