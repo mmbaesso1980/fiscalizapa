@@ -40,16 +40,15 @@ function StatCard({ value, label, color, href }) {
     transition: 'all 0.2s',
     textDecoration: 'none',
   };
-  const hoverStyle = href ? { boxShadow: '0 4px 12px rgba(0,0,0,0.1)', borderColor: '#94a3b8' } : {};
   const Tag = href ? 'a' : 'div';
   const extraProps = href ? { href, target: '_blank', rel: 'noopener noreferrer' } : {};
   return (
     <Tag {...extraProps} style={cardStyle}
-      onMouseEnter={e => { if (href) { Object.assign(e.currentTarget.style, hoverStyle); } }}
+      onMouseEnter={e => { if (href) { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; e.currentTarget.style.borderColor = '#94a3b8'; } }}
       onMouseLeave={e => { if (href) { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = '#e2e8f0'; } }}>
       <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
       <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{label}</div>
-      {href && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6 }}>Clique para ver detalhes \u2192</div>}
+      {href && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6 }}>Clique para detalhes \u2192</div>}
     </Tag>
   );
 }
@@ -68,10 +67,11 @@ export default function PresencaSection({ politico, colecao, politicoId }) {
   const totalProposicoes = toNum(pol.totalProposicoes);
   const hasData = overallPct > 0 || sessoesPresente > 0 || sessoesTotal > 0;
 
+  const year = new Date().getFullYear();
   const camaraBase = `https://www.camara.leg.br/deputados/${id}`;
-  const linkSessoes = id ? `${camaraBase}/presenca-em-plenario` : null;
-  const linkEventos = id ? `${camaraBase}/eventos` : null;
-  const linkProposicoes = id ? `${camaraBase}/proposicoes` : null;
+  const linkSessoes = id ? `${camaraBase}/presenca-plenario/${year}` : null;
+  const linkEventos = id ? `${camaraBase}/agenda` : null;
+  const linkProposicoes = id ? `https://www.camara.leg.br/busca-portal?contextoBusca=BuscaProposicoes&pagina=1&order=data&abaEspecifica=true&q=autores.ideCadastro:%20${id}` : null;
 
   const sectionStyle = { borderRadius: 24, border: '1px solid #e2e8f0', background: '#f8fafc', padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' };
 
