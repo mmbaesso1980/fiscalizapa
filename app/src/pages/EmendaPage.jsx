@@ -4,9 +4,10 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
 function fmt(v) {
-  if (!v) return "R$ 0,00";
-  return "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-}
+    if (!v || v === "0,00" || v === "0.00") return "R$ 0,00";
+    const n = typeof v === "string" ? parseFloat(v.replace(/\./g, "").replace(",", ".")) : v;
+    return "R$ " + Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+  }
 
 const CRIT_STYLES = {
   ALTA: { background: '#ffe4e6', color: '#be123c', border: '1px solid #fecdd3' },
