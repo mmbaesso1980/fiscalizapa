@@ -69,7 +69,7 @@ async function callGemini(prompt) {
 
 // Criar sessão de checkout
 exports.createCheckoutSession = onCall({ region: "southamerica-east1", secrets: [stripeKey] }, async (request) => {
-  const stripe = require("stripe")(process.env.STRIPE_SECRET1 || "");
+  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
   const { priceId } = request.data;
   const userId = request.auth?.uid;
   if (!userId) throw new Error("Auth required");
@@ -87,7 +87,7 @@ exports.createCheckoutSession = onCall({ region: "southamerica-east1", secrets: 
 // Webhook do Stripe para processar pagamentos e assinaturas
 exports.stripeWebhook = onRequest({ region: "southamerica-east1" , secrets: [stripeKey, stripeWebhookKey]}, async (req, res) => {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-  const stripe = require("stripe")(process.env.STRIPE_SECRET1 || "");
+  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
   const sig = req.headers["stripe-signature"];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
@@ -1395,7 +1395,7 @@ exports.getCreditHistory = onCall({ region: "southamerica-east1" }, async (reque
 
 // Comprar creditos - cria sessao Stripe com priceId do pacote
 exports.buyCredits = onCall({ region: "southamerica-east1", secrets: [stripeKey] }, async (request) => {
-  const stripe = require("stripe")(process.env.STRIPE_SECRET1 || "");
+  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
   const uid = request.auth?.uid;
   if (!uid) throw new Error("Authentication required");
   checkRateLimit(uid);
@@ -1425,7 +1425,7 @@ exports.buyCredits = onCall({ region: "southamerica-east1", secrets: [stripeKey]
 // Webhook Stripe V2 - integrado com creditService
 exports.stripeWebhookV2 = onRequest({ region: "southamerica-east1", secrets: [stripeKey, stripeWebhookKey] }, async (req, res) => {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-  const stripe = require("stripe")(process.env.STRIPE_SECRET1 || "");
+  const stripe = require("stripe")(process.env.STRIPE_SECRET || "");
   const sig = req.headers["stripe-signature"];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
