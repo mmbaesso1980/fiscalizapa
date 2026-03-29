@@ -7,7 +7,7 @@ const db = admin.firestore();
 
 const { defineSecret } = require("firebase-functions/params");
 const geminiKey = defineSecret("GEMINI_KEY");
-const stripeKey = defineSecret("STRIPE_SECRET1");
+const stripeKey = defineSecret("STRIPE_SECRET");
 const stripeWebhookKey = defineSecret("STRIPE_WEBHOOK_SECRET");
 
 // ============================================
