@@ -511,10 +511,10 @@ exports.getReport = onCall({ region: "southamerica-east1" }, async (request) => 
   return { error: "Report type not supported" };
 });
 
-
 // ============================================
-// INGESTAO DESPESAS - Cloud Function HTTP
-// Processa deputados sem gastos em lotes
+// INGESTAO DESPESAS - Cloud Function HTTP Melhorada
+// Traz gastos de 2023 a 2026 para todos os deputados
+// Suporta ?force=true para reingestão completa
 // ============================================
 exports.ingestDespesas = onRequest(
   { region: "southamerica-east1", timeoutSeconds: 540, memory: "1GiB" },
@@ -524,105 +524,140 @@ exports.ingestDespesas = onRequest(
     if (!adminKey || authHeader !== adminKey) {
       return res.status(401).json({ error: "Unauthorized" });
     }
+
     const axios = require("axios");
     const LEGISLATURA = 57;
-    const BATCH_SIZE = parseInt(req.query.batch || "5");
+    const BATCH_SIZE = parseInt(req.query.batch || "3");     // Reduzi default para ser mais seguro
+    const FORCE_REINGEST = req.query.force === "true";
+
     try {
-      // 1. Buscar todos deputados da API
+      // Buscar todos os deputados da legislatura 57
       const depResp = await axios.get(
         `https://dadosabertos.camara.leg.br/api/v2/deputados?idLegislatura=${LEGISLATURA}&itens=600&ordem=ASC&ordenarPor=nome`,
         { timeout: 30000 }
       );
       const allDeps = depResp.data.dados;
-      // 2. Verificar quais ja tem gastos no Firestore
-      const missing = [];
-      for (const dep of allDeps) {
-        const gastosSnap = await db.collection("deputados_federais")
-          .doc(String(dep.id)).collection("gastos").limit(1).get();
-        if (gastosSnap.empty) missing.push(dep);
+
+      let toProcess = allDeps;
+
+      if (!FORCE_REINGEST) {
+        // Só processa os que ainda não têm gastos
+        const missing = [];
+        for (const dep of allDeps) {
+          const snap = await db.collection("deputados_federais")
+            .doc(String(dep.id)).collection("gastos").limit(1).get();
+          if (snap.empty) missing.push(dep);
+        }
+        toProcess = missing;
       }
-      if (missing.length === 0) {
-        return res.json({ success: true, message: "All deputies already have expenses", total: allDeps.length });
+
+      if (toProcess.length === 0) {
+        return res.json({ 
+          success: true, 
+          message: FORCE_REINGEST ? "Forçando reingestão..." : "Todos os deputados já possuem gastos." 
+        });
       }
-      // 3. Processar lote
-      const batch = missing.slice(0, BATCH_SIZE);
+
+      const batchToProcess = toProcess.slice(0, BATCH_SIZE);
       const results = [];
-      for (const dep of batch) {
+
+      for (const dep of batchToProcess) {
         let totalDesp = 0;
         let totalValor = 0;
-        for (let ano = 2023; ano <= 2026; ano++) {
-          try {
-            let pg = 1;
-            while (true) {
-              const r = await axios.get(
-                `https://dadosabertos.camara.leg.br/api/v2/deputados/${dep.id}/despesas?ano=${ano}&itens=100&pagina=${pg}`,
-                { timeout: 15000 }
-              );
-              const items = r.data.dados;
-              if (!items || items.length === 0) break;
-              const fbBatch = db.batch();
-              for (const d of items) {
-                const docId = `${ano}_${d.mes}_${d.cnpjCpfFornecedor || 'x'}_${d.valorDocumento}`.replace(/[\/.]/g, '_');
-                fbBatch.set(
-                  db.collection("deputados_federais").doc(String(dep.id))
-                    .collection("gastos").doc(docId),
-                  {
-                    ano: d.ano, mes: d.mes,
-                    tipoDespesa: d.tipoDespesa || '',
-                    fornecedorNome: d.nomeFornecedor || '',
-                    cnpjCpf: d.cnpjCpfFornecedor || '',
-                    valorDocumento: d.valorDocumento || 0,
-                    valorLiquido: d.valorLiquido || 0,
-                    urlDocumento: d.urlDocumento || '',
-                    dataDocumento: d.dataDocumento || '',
-                    numDocumento: d.numDocumento || '',
-                  }
-                );
-                totalDesp++;
-                totalValor += (d.valorLiquido || 0);
-              }
-              await fbBatch.commit();
-              if (items.length < 100) break;
-              pg++;
-              await new Promise(r => setTimeout(r, 200));
-            }
-          } catch (e) {
-            console.log(`Err dep ${dep.id} ano ${ano}: ${e.message}`);
-          }
-          await new Promise(r => setTimeout(r, 300));
-        }
-        // Atualizar doc do deputado
 
-                // Mark deputies with 0 expenses so they don't appear as "missing"
-        if (totalDesp === 0) {
-          await db.collection("deputados_federais").doc(String(dep.id))
-            .collection("gastos").doc("_no_expenses").set({
-              marker: true,
-              message: "Sem despesas registradas na API da Camara",
-              checkedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
+        // Se for force=true, limpa os gastos antigos primeiro
+        if (FORCE_REINGEST) {
+          const existingSnap = await db.collection("deputados_federais")
+            .doc(String(dep.id)).collection("gastos").get();
+          
+          const deleteBatch = db.batch();
+          existingSnap.docs.forEach(doc => {
+            if (!doc.id.startsWith("_")) {
+              deleteBatch.delete(doc.ref);
+            }
+          });
+          await deleteBatch.commit();
+          console.log(`Limpou gastos antigos do deputado ${dep.id}`);
         }
+
+        // Busca despesas por ano (2023 até 2026)
+        for (let ano = 2023; ano <= 2026; ano++) {
+          let pg = 1;
+          while (true) {
+            const r = await axios.get(
+              `https://dadosabertos.camara.leg.br/api/v2/deputados/${dep.id}/despesas?ano=${ano}&itens=100&pagina=${pg}`,
+              { timeout: 15000 }
+            );
+
+            const items = r.data.dados || [];
+            if (items.length === 0) break;
+
+            const fbBatch = db.batch();
+            for (const d of items) {
+              const docId = `${d.ano}_${d.mes}_${d.cnpjCpfFornecedor || 'semcnpj'}_${Math.floor((d.valorLiquido || 0) * 100)}`
+                .replace(/[\/.#$[\]]/g, '_');
+
+              fbBatch.set(
+                db.collection("deputados_federais").doc(String(dep.id)).collection("gastos").doc(docId),
+                {
+                  ano: d.ano,
+                  mes: d.mes,
+                  tipoDespesa: d.tipoDespesa || '',
+                  fornecedorNome: d.nomeFornecedor || '',
+                  cnpjCpf: d.cnpjCpfFornecedor || '',
+                  valorDocumento: d.valorDocumento || 0,
+                  valorLiquido: d.valorLiquido || 0,
+                  urlDocumento: d.urlDocumento || '',
+                  dataDocumento: d.dataDocumento || '',
+                  numDocumento: d.numDocumento || '',
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                }
+              );
+
+              totalDesp++;
+              totalValor += (d.valorLiquido || 0);
+            }
+
+            await fbBatch.commit();
+
+            if (items.length < 100) break;
+            pg++;
+            await new Promise(r => setTimeout(r, 300));
+          }
+
+          await new Promise(r => setTimeout(r, 500)); // delay entre anos
+        }
+
+        // Atualiza totais no documento do deputado
         await db.collection("deputados_federais").doc(String(dep.id)).set({
           totalGastos: totalValor,
           totalDespesas: totalDesp,
           lastIngest: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
-        results.push({ id: dep.id, nome: dep.nome, despesas: totalDesp, valor: totalValor });
+
+        results.push({ 
+          id: dep.id, 
+          nome: dep.nome, 
+          despesas: totalDesp, 
+          valor: totalValor 
+        });
       }
+
       res.json({
         success: true,
+        forceMode: FORCE_REINGEST,
         processed: results.length,
-        remaining: missing.length - results.length,
-        totalMissing: missing.length,
+        remaining: toProcess.length - results.length,
+        totalToProcess: toProcess.length,
         results,
       });
+
     } catch (error) {
       console.error("ingestDespesas error:", error);
       res.status(500).json({ error: error.message });
     }
   }
 );
-
 // ============================================
 // RANKING DE GASTOS - CEAP
 // ============================================
