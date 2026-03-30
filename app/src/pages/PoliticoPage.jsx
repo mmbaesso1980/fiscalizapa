@@ -12,6 +12,7 @@ import NepotismoCard from "../components/NepotismoCard";
 import EmendasAba from "../components/EmendasAba";
 import useFeatureFlags from "../hooks/useFeatureFlags";
 import ScorePilaresCard from "../components/ScorePilaresCard";
+import React from 'react';
 
 function fmt(v) {
   if (!v) return "R$ 0,00";
@@ -39,7 +40,52 @@ function getVal(g) { return g.valorLiquido || g.valor || g.valorDocumento || 0; 
 function getTipo(g) { return g.tipoDespesa || g.tipo || g.descricao || g.categoria || "Outros"; }
 function getFornecedor(g) { return g.fornecedorNome || g.nomeFornecedor || g.fornecedor || "Desconhecido"; }
 function getCnpj(g) { return g.cnpjCpf || g.cnpjCpfFornecedor || g.cnpj || ""; }
+function SafeBadge({ children }) {
+  if (!children) return null;
 
+  return (
+    <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
+      {children}
+    </span>
+  );
+}
+
+function InfoCard({ title, value, subtitle, tone = 'default' }) {
+  const toneClasses = {
+    default: 'border-slate-200 bg-white text-slate-900',
+    warning: 'border-amber-200 bg-amber-50 text-amber-900',
+    muted: 'border-slate-200 bg-slate-50 text-slate-800',
+  };
+
+  return (
+    <div className={`rounded-2xl border p-4 shadow-sm ${toneClasses[tone] || toneClasses.default}`}>
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {title}
+      </div>
+      <div className="mt-2 text-lg font-bold tracking-tight">
+        {value}
+      </div>
+      {subtitle ? (
+        <div className="mt-1 text-sm leading-5 text-slate-500">
+          {subtitle}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ValidationCard({ title, message }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {title}
+      </div>
+      <div className="mt-2 text-sm font-medium text-slate-800">
+        {message}
+      </div>
+    </div>
+  );
+}
 export default function PoliticoPage({ user }) {
   const { colecao, id } = useParams();
   const [pol, setPol] = useState(null);
@@ -53,7 +99,44 @@ export default function PoliticoPage({ user }) {
   const [loading, setLoading] = useState(true);
   const col = colecao || "deputados_federais";
   const { flags } = useFeatureFlags();
+const politico = pol || {};
 
+const nome =
+  politico?.nomeCivil ||
+  politico?.nome_parlamentar ||
+  politico?.nomeParlamentar ||
+  politico?.nome ||
+  'Parlamentar';
+
+const cargo =
+  politico?.cargo ||
+  politico?.titulo ||
+  'Parlamentar';
+
+const partido =
+  politico?.siglaPartido ||
+  politico?.partido ||
+  politico?.sigla_partido ||
+  '';
+
+const uf =
+  politico?.siglaUf ||
+  politico?.uf ||
+  politico?.sigla_uf ||
+  '';
+
+const foto =
+  politico?.urlFoto ||
+  politico?.foto ||
+  politico?.imagem ||
+  politico?.image ||
+  '';
+
+const legislatura =
+  politico?.legislatura ||
+  politico?.mandato ||
+  politico?.periodo ||
+  '';
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -144,36 +227,65 @@ export default function PoliticoPage({ user }) {
   if (flags.emendas) TABS.push({ k: 'emendasV2', l: 'Emendas V2' });
     return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 16px' }}>
+{/* HERO DO PERFIL */}
+<section className="mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+  <div className="p-5 sm:p-6 lg:p-8">
+    <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-start">
+        <div className="flex-shrink-0">
+          {foto ? (
+            <img
+              src={foto}
+              alt={nome}
+              className="h-24 w-24 rounded-2xl object-cover ring-1 ring-slate-200 sm:h-28 sm:w-28"
+            />
+          ) : (
+            <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-slate-100 text-2xl font-bold text-slate-500 ring-1 ring-slate-200 sm:h-28 sm:w-28">
+              {nome?.charAt(0) || 'P'}
+            </div>
+          )}
+        </div>
 
-      {/* HERO EDITORIAL */}
-      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', marginBottom: 32, background: 'var(--bg-card)', borderRadius: 16, padding: '32px 28px', border: '1px solid var(--border-light)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: 'var(--accent-green)' }} />
-        <img src={pol.foto || pol.urlFoto || '/placeholder-avatar.png'} alt={pol.nome}
-          style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--border-light)', flexShrink: 0 }}
-          onError={(e) => { e.target.src = '/placeholder-avatar.png'; }} />
-        <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.5, color: 'var(--text-muted)', marginBottom: 4 }}>Dossiê Parlamentar</p>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 6px', fontFamily: 'Space Grotesk, sans-serif' }}>{pol.nome}</h1>
-          <p style={{ fontSize: 15, color: 'var(--text-secondary)', margin: 0 }}>
-            {pol.partido || pol.siglaPartido} — {pol.uf || pol.estado || pol.siglaUf} · {pol.cargo || 'Deputado Federal'}
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Perfil parlamentar
           </p>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-            {calcScore != null && (
-              <span className={risk.cls} style={{ padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-                Score {calcScore} · {risk.label}
-              </span>
-            )}
-            {Number(concentracao) > 70 && (
-              <span style={{ padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'rgba(233,69,96,0.1)', color: 'var(--accent-red)' }}>
-                Alta concentração fornecedores
-              </span>
-            )}
-            <a href={`https://www.camara.leg.br/deputados/${id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent-green)', textDecoration: 'none' }}>
-              Perfil oficial ↗
-            </a>
+
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            {nome}
+          </h1>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <SafeBadge>{cargo}</SafeBadge>
+            <SafeBadge>{partido}</SafeBadge>
+            <SafeBadge>{uf}</SafeBadge>
+            <SafeBadge>{legislatura}</SafeBadge>
           </div>
+
+          <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
+            Hub de informações rápidas, gráficas e didáticas sobre o mandato. Os indicadores só
+            devem aparecer quando forem verificáveis, auditáveis e metodologicamente neutros.
+          </p>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:w-[360px]">
+        <InfoCard
+          title="Leitura rápida"
+          value="Resumo do mandato"
+          subtitle="Cards visuais para compreensão imediata."
+          tone="muted"
+        />
+        <InfoCard
+          title="Detalhamento"
+          value="Abrir quando necessário"
+          subtitle="Mais profundidade sem poluir a primeira dobra."
+          tone="muted"
+        />
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* KPIs RESUMO */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 24 }}>
