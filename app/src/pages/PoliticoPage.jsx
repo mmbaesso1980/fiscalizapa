@@ -12,7 +12,6 @@ import NepotismoCard from "../components/NepotismoCard";
 import EmendasAba from "../components/EmendasAba";
 import useFeatureFlags from "../hooks/useFeatureFlags";
 import ScorePilaresCard from "../components/ScorePilaresCard";
-import React from 'react';
 
 function fmt(v) {
   if (!v) return "R$ 0,00";
@@ -30,62 +29,17 @@ function simpleMarkdown(text) {
   return text
     .replace(/### (.*)/g, '<h3>$1</h3>')
     .replace(/## (.*)/g, '<h2>$1</h2>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^\* (.*)/gm, '>$1</li>')
+    .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')
+    .replace(/^\\* (.*)/gm, '>$1</li>')
     .replace(/---/g, '<hr/>')
-    .replace(/\n/g, '<br/>');
+    .replace(/\\n/g, '<br/>');
 }
 
 function getVal(g) { return g.valorLiquido || g.valor || g.valorDocumento || 0; }
 function getTipo(g) { return g.tipoDespesa || g.tipo || g.descricao || g.categoria || "Outros"; }
 function getFornecedor(g) { return g.fornecedorNome || g.nomeFornecedor || g.fornecedor || "Desconhecido"; }
 function getCnpj(g) { return g.cnpjCpf || g.cnpjCpfFornecedor || g.cnpj || ""; }
-function SafeBadge({ children }) {
-  if (!children) return null;
 
-  return (
-    <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-      {children}
-    </span>
-  );
-}
-
-function InfoCard({ title, value, subtitle, tone = 'default' }) {
-  const toneClasses = {
-    default: 'border-slate-200 bg-white text-slate-900',
-    warning: 'border-amber-200 bg-amber-50 text-amber-900',
-    muted: 'border-slate-200 bg-slate-50 text-slate-800',
-  };
-
-  return (
-    <div className={`rounded-2xl border p-4 shadow-sm ${toneClasses[tone] || toneClasses.default}`}>
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {title}
-      </div>
-      <div className="mt-2 text-lg font-bold tracking-tight">
-        {value}
-      </div>
-      {subtitle ? (
-        <div className="mt-1 text-sm leading-5 text-slate-500">
-          {subtitle}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ValidationCard({ title, message }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {title}
-      </div>
-      <div className="mt-2 text-sm font-medium text-slate-800">
-        {message}
-      </div>
-    </div>
-  );
-}
 export default function PoliticoPage({ user }) {
   const { colecao, id } = useParams();
   const [pol, setPol] = useState(null);
@@ -99,44 +53,7 @@ export default function PoliticoPage({ user }) {
   const [loading, setLoading] = useState(true);
   const col = colecao || "deputados_federais";
   const { flags } = useFeatureFlags();
-const politico = pol || {};
 
-const nome =
-  politico?.nomeCivil ||
-  politico?.nome_parlamentar ||
-  politico?.nomeParlamentar ||
-  politico?.nome ||
-  'Parlamentar';
-
-const cargo =
-  politico?.cargo ||
-  politico?.titulo ||
-  'Parlamentar';
-
-const partido =
-  politico?.siglaPartido ||
-  politico?.partido ||
-  politico?.sigla_partido ||
-  '';
-
-const uf =
-  politico?.siglaUf ||
-  politico?.uf ||
-  politico?.sigla_uf ||
-  '';
-
-const foto =
-  politico?.urlFoto ||
-  politico?.foto ||
-  politico?.imagem ||
-  politico?.image ||
-  '';
-
-const legislatura =
-  politico?.legislatura ||
-  politico?.mandato ||
-  politico?.periodo ||
-  '';
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -195,7 +112,7 @@ const legislatura =
     if (catSorted.some(([cat]) => (cat || '').toUpperCase().includes('FRETAMENTO') || (cat || '').toUpperCase().includes('AERONAVE'))) achados.push('- FRETAMENTO DE AERONAVES detectado.');
     if (totalGastos > 1000000) achados.push('- VOLUME ELEVADO: ' + fmt(totalGastos) + ' na CEAP.');
     if (fornSorted.length > 0 && fornSorted[0][1] > 200000) achados.push('- FORNECEDOR ELEVADO: ' + fornSorted[0][0] + ' recebeu ' + fmt(fornSorted[0][1]));
-    const texto = `RELATORIO DE FISCALIZACAO PARLAMENTAR\nGerado por: TransparenciaBR\nData: ${new Date().toLocaleDateString('pt-BR')}\n\nPARLAMENTAR: ${pol.nome}\nPARTIDO/UF: ${pol.partido || pol.siglaPartido} - ${pol.uf || pol.estado || pol.siglaUf}\nCARGO: ${pol.cargo || 'Deputado Federal'}\n\nRESUMO FINANCEIRO:\n- Gastos totais (CEAP): ${fmt(totalGastos)}\n- Notas fiscais: ${gastos.length}\n- Fornecedores: ${Object.keys(porFornecedor).length}\n- Concentracao top 3: ${concentracao}%\n\nACHADOS:\n${achados.length > 0 ? achados.join('\n') : '- Nenhuma irregularidade automatica detectada.'}\n\nTOP 5 FORNECEDORES:\n${fornSorted.slice(0, 5).map((f, i) => (i+1) + '. ' + f[0] + ' - ' + fmt(f[1])).join('\n')}`;
+    const texto = `RELATORIO DE FISCALIZACAO PARLAMENTAR\\nGerado por: TransparenciaBR\\nData: ${new Date().toLocaleDateString('pt-BR')}\\n\\nPARLAMENTAR: ${pol.nome}\\nPARTIDO/UF: ${pol.partido || pol.siglaPartido} - ${pol.uf || pol.estado || pol.siglaUf}\\nCARGO: ${pol.cargo || 'Deputado Federal'}\\n\\nRESUMO FINANCEIRO:\\n- Gastos totais (CEAP): ${fmt(totalGastos)}\\n- Notas fiscais: ${gastos.length}\\n- Fornecedores: ${Object.keys(porFornecedor).length}\\n- Concentracao top 3: ${concentracao}%\\n\\nACHADOS:\\n${achados.length > 0 ? achados.join('\\n') : '- Nenhuma irregularidade automatica detectada.'}\\n\\nTOP 5 FORNECEDORES:\\n${fornSorted.slice(0, 5).map((f, i) => (i+1) + '. ' + f[0] + ' - ' + fmt(f[1])).join('\\n')}`;
     navigator.clipboard.writeText(texto).then(() => alert('Relatorio copiado!')).catch(() => { const w = window.open('', '_blank'); w.document.write('<pre>' + texto + '</pre>'); });
   }
 
@@ -228,233 +145,36 @@ const legislatura =
     return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 16px' }}>
 
-{/* HERO DO PERFIL */}
-<section className="mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-  <div className="p-5 sm:p-6 lg:p-8">
-    <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-      <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-start">
-        <div className="flex-shrink-0">
-          {foto ? (
-            <img
-              src={foto}
-              alt={nome}
-              className="h-24 w-24 rounded-2xl object-cover ring-1 ring-slate-200 sm:h-28 sm:w-28"
-            />
-          ) : (
-            <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-slate-100 text-2xl font-bold text-slate-500 ring-1 ring-slate-200 sm:h-28 sm:w-28">
-              {nome?.charAt(0) || 'P'}
-            </div>
-          )}
-        </div>
-
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Perfil parlamentar
+      {/* HERO EDITORIAL */}
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', marginBottom: 32, background: 'var(--bg-card)', borderRadius: 16, padding: '32px 28px', border: '1px solid var(--border-light)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: 'var(--accent-green)' }} />
+        <img src={pol.foto || pol.urlFoto || '/placeholder-avatar.png'} alt={pol.nome}
+          style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--border-light)', flexShrink: 0 }}
+          onError={(e) => { e.target.src = '/placeholder-avatar.png'; }} />
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.5, color: 'var(--text-muted)', marginBottom: 4 }}>Dossiê Parlamentar</p>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 6px', fontFamily: 'Space Grotesk, sans-serif' }}>{pol.nome}</h1>
+          <p style={{ fontSize: 15, color: 'var(--text-secondary)', margin: 0 }}>
+            {pol.partido || pol.siglaPartido} — {pol.uf || pol.estado || pol.siglaUf} · {pol.cargo || 'Deputado Federal'}
           </p>
-
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            {nome}
-          </h1>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <SafeBadge>{cargo}</SafeBadge>
-            <SafeBadge>{partido}</SafeBadge>
-            <SafeBadge>{uf}</SafeBadge>
-            <SafeBadge>{legislatura}</SafeBadge>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            {calcScore != null && (
+              <span className={risk.cls} style={{ padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+                Score {calcScore} · {risk.label}
+              </span>
+            )}
+            {Number(concentracao) > 70 && (
+              <span style={{ padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'rgba(233,69,96,0.1)', color: 'var(--accent-red)' }}>
+                Alta concentração fornecedores
+              </span>
+            )}
+            <a href={`https://www.camara.leg.br/deputados/${id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent-green)', textDecoration: 'none' }}>
+              Perfil oficial ↗
+            </a>
           </div>
-
-          <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-            Hub de informações rápidas, gráficas e didáticas sobre o mandato. Os indicadores só
-            devem aparecer quando forem verificáveis, auditáveis e metodologicamente neutros.
-          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:w-[360px]">
-        <InfoCard
-          title="Leitura rápida"
-          value="Resumo do mandato"
-          subtitle="Cards visuais para compreensão imediata."
-          tone="muted"
-        />
-        <InfoCard
-          title="Detalhamento"
-          value="Abrir quando necessário"
-          subtitle="Mais profundidade sem poluir a primeira dobra."
-          tone="muted"
-        />
-      </div>
-    </div>
-  </div>
-</section>
-      {/* HUB PRINCIPAL */}
-<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 24, marginBottom: 32 }}>
-  <div>
-    <PresencaSection politico={politico} />
-  </div>
-
-  <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-    <div
-      style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-light)',
-        borderRadius: 16,
-        padding: 20,
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-      }}
-    >
-      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
-        Critério editorial
-      </div>
-      <p style={{ marginTop: 12, fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
-        O TransparenciaBR é apartidário: quem vai bem, vai bem; quem vai mal, vai mal. Nenhum indicador deve permanecer em destaque sem fonte, fórmula e critério auditáveis.
-      </p>
-    </div>
-
-    <div
-      style={{
-        background: '#fff8e8',
-        border: '1px solid #f3d38a',
-        borderRadius: 16,
-        padding: 20,
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-      }}
-    >
-      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8a5a00' }}>
-        Atenção metodológica
-      </div>
-      <p style={{ marginTop: 12, fontSize: 14, lineHeight: 1.7, color: '#6b4b00' }}>
-        Se a presença geral estiver apenas replicando plenário, o card deve ser removido ou renomeado. Se todos os perfis aparecerem sem emendas, o problema é sistêmico e a interface não deve tratar isso como dado real.
-      </p>
-    </div>
-  </aside>
-</div>
-{/* PROPOSIÇÕES AUTORAIS */}
-<div
-  style={{
-    marginBottom: 32,
-    background: 'var(--bg-card)',
-    borderRadius: 16,
-    padding: '24px 22px',
-    border: '1px solid var(--border-light)',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-  }}
->
-  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-    <div style={{ minWidth: 0 }}>
-      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-        Proposições autorais
-      </h2>
-      <p style={{ marginTop: 10, fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 720 }}>
-        Este bloco deve considerar apenas proposições em que o parlamentar figure como autor principal.
-        Não incluir coautoria, relatoria, assinatura secundária, tramitação associada ou qualquer
-        outro vínculo que não represente autoria principal claramente identificada.
-      </p>
-    </div>
-
-    <div
-      style={{
-        border: '1px dashed #cbd5e1',
-        background: '#f8fafc',
-        borderRadius: 14,
-        padding: '12px 14px',
-        minWidth: 220
-      }}
-    >
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b' }}>
-        Status metodológico
-      </div>
-      <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: '#334155' }}>
-        Métrica em validação
-      </div>
-      <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5, color: '#64748b' }}>
-        Exibir somente após garantir contagem exclusiva de autoria principal.
-      </div>
-    </div>
-  </div>
-</div>
-      {/* EMENDAS PARLAMENTARES */}
-<div
-  style={{
-    marginBottom: 32,
-    background: 'var(--bg-card)',
-    borderRadius: 16,
-    padding: '24px 22px',
-    border: '1px solid var(--border-light)',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-  }}
->
-  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-    <div style={{ minWidth: 0 }}>
-      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-        Emendas parlamentares
-      </h2>
-      <p style={{ marginTop: 10, fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 720 }}>
-        Este bloco só deve exibir valores quando a cadeia de dados estiver auditada de ponta a ponta,
-        com vínculo correto entre parlamentar, fonte original, query e agregação final. Se todos os
-        perfis estiverem zerados por falha sistêmica, o dado não deve ser tratado como verdadeiro.
-      </p>
-    </div>
-
-    <div
-      style={{
-        border: '1px dashed #cbd5e1',
-        background: '#f8fafc',
-        borderRadius: 14,
-        padding: '12px 14px',
-        minWidth: 240
-      }}
-    >
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b' }}>
-        Status metodológico
-      </div>
-      <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: '#334155' }}>
-        Métrica temporariamente indisponível
-      </div>
-      <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5, color: '#64748b' }}>
-        Exibir somente após validar ingestão, vínculo do parlamentar e consolidação das emendas.
-      </div>
-    </div>
-  </div>
-</div>
-      {/* NOTA METODOLÓGICA */}
-<div
-  style={{
-    marginBottom: 32,
-    background: '#f8fafc',
-    borderRadius: 16,
-    padding: '20px 22px',
-    border: '1px solid #dbe3ea',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-  }}
->
-  <div
-    style={{
-      fontSize: 12,
-      fontWeight: 700,
-      textTransform: 'uppercase',
-      letterSpacing: '0.08em',
-      color: '#64748b'
-    }}
-  >
-    Nota metodológica
-  </div>
-
-  <p
-    style={{
-      marginTop: 12,
-      fontSize: 14,
-      lineHeight: 1.7,
-      color: '#475569',
-      maxWidth: 820
-    }}
-  >
-    O TransparenciaBR prioriza precisão e auditabilidade. Indicadores de presença, proposições e
-    emendas só devem ser exibidos em destaque quando houver fonte identificável, critério explícito
-    e fórmula verificável. Quando a validação metodológica ainda não estiver concluída, a métrica
-    pode ser temporariamente ocultada ou marcada como indisponível.
-  </p>
-</div>
       {/* KPIs RESUMO */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 24 }}>
         {[
