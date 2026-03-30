@@ -1038,8 +1038,8 @@ function fmt_brl(v) {
 }
 
 // ============================================
-// INGESTAO VERBA DE GABINETE - Scraping Portal Camara
-// Importa dados mensais de verba de gabinete e pessoal
+// INGESTAO VERBA DE GABINETE - Versão Corrigida (completa)
+// Suporta ?force=true e múltiplos anos (2026 por padrão)
 // ============================================
 exports.ingestVerbaGabinete = onRequest(
   { region: "southamerica-east1", timeoutSeconds: 540, memory: "1GiB" },
@@ -1051,34 +1051,53 @@ exports.ingestVerbaGabinete = onRequest(
     }
     const axios = require("axios");
     const cheerio = require("cheerio");
-    const BATCH_SIZE = parseInt(req.query.batch || "10");
-    const ANO = parseInt(req.query.ano || "2025");
+    const BATCH_SIZE = parseInt(req.query.batch || "5");
+    const FORCE = req.query.force === "true";
+    const ANO = parseInt(req.query.ano || "2026");
+
     try {
-      // 1. Buscar deputados do Firestore
+      // Buscar todos os deputados
       const depSnapshot = await db.collection("deputados_federais").get();
       const allDeps = [];
       depSnapshot.forEach(doc => {
         const d = doc.data();
         if (d.idCamara || doc.id) allDeps.push({ firestoreId: doc.id, idCamara: d.idCamara || doc.id, nome: d.nome });
       });
-      // 2. Filtrar quem ainda nao tem verba_gabinete
-      const missing = [];
-      for (const dep of allDeps) {
-        const vgSnap = await db.collection("deputados_federais")
-          .doc(dep.firestoreId).collection("verbas_gabinete").limit(1).get();
-        if (vgSnap.empty) missing.push(dep);
+
+      let toProcess = allDeps;
+      if (!FORCE) {
+        const missing = [];
+        for (const dep of allDeps) {
+          const vgSnap = await db.collection("deputados_federais")
+            .doc(dep.firestoreId).collection("verbas_gabinete").limit(1).get();
+          if (vgSnap.empty) missing.push(dep);
+        }
+        toProcess = missing;
       }
-      if (missing.length === 0) {
-        return res.json({ success: true, message: "All deputies already have verba gabinete data", total: allDeps.length });
+
+      if (toProcess.length === 0) {
+        return res.json({ success: true, message: "Todos os deputados já possuem verba gabinete." });
       }
-      const batch_deps = missing.slice(0, BATCH_SIZE);
+
+      const batch_deps = toProcess.slice(0, BATCH_SIZE);
       const results = [];
+
       for (const dep of batch_deps) {
         try {
-          // Scrape verba-gabinete page
+          // Se for force=true, limpa os dados antigos
+          if (FORCE) {
+            const oldSnap = await db.collection("deputados_federais")
+              .doc(dep.firestoreId).collection("verbas_gabinete").get();
+            const delBatch = db.batch();
+            oldSnap.docs.forEach(d => delBatch.delete(d.ref));
+            await delBatch.commit();
+          }
+
+          // Scrape verba-gabinete
           const vgUrl = `https://www.camara.leg.br/deputados/${dep.idCamara}/verba-gabinete?ano=${ANO}`;
           const vgResp = await axios.get(vgUrl, { timeout: 15000, headers: { 'User-Agent': 'TransparenciaBR/1.0 (civic-tech)' } });
           const $ = cheerio.load(vgResp.data);
+
           const rows = [];
           $('table tbody tr').each((i, tr) => {
             const cells = $(tr).find('td');
@@ -1096,7 +1115,8 @@ exports.ingestVerbaGabinete = onRequest(
               });
             }
           });
-          // Scrape pessoal-gabinete page
+
+          // Scrape pessoal-gabinete
           const pgUrl = `https://www.camara.leg.br/deputados/${dep.idCamara}/pessoal-gabinete?ano=${ANO}`;
           const pgResp = await axios.get(pgUrl, { timeout: 15000, headers: { 'User-Agent': 'TransparenciaBR/1.0 (civic-tech)' } });
           const $pg = cheerio.load(pgResp.data);
@@ -1112,7 +1132,8 @@ exports.ingestVerbaGabinete = onRequest(
               });
             }
           });
-          // Save to Firestore
+
+          // Salvar no Firestore
           const fbBatch = db.batch();
           let totalGasto = 0;
           let totalDisponivel = 0;
@@ -1126,7 +1147,8 @@ exports.ingestVerbaGabinete = onRequest(
             totalGasto += row.valorGasto;
             totalDisponivel += row.valorDisponivel;
           }
-          // Save pessoal
+
+          // Salvar pessoal
           for (const p of pessoal) {
             const pDocId = `${ANO}_${p.nome.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 40)}`;
             fbBatch.set(
@@ -1135,8 +1157,10 @@ exports.ingestVerbaGabinete = onRequest(
               { ...p, ano: ANO }
             );
           }
+
           await fbBatch.commit();
-          // Update deputy doc with summary
+
+          // Atualizar resumo no documento do deputado
           await db.collection("deputados_federais").doc(dep.firestoreId).set({
             verbaGabinete: {
               ano: ANO,
@@ -1148,18 +1172,21 @@ exports.ingestVerbaGabinete = onRequest(
               atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
             },
           }, { merge: true });
+
           results.push({ id: dep.idCamara, nome: dep.nome, meses: rows.length, pessoal: pessoal.length, totalGasto });
+
         } catch (e) {
           console.log(`Err verba gabinete dep ${dep.idCamara}: ${e.message}`);
           results.push({ id: dep.idCamara, nome: dep.nome, error: e.message });
         }
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 600));
       }
+
       res.json({
         success: true,
+        force: FORCE,
         processed: results.length,
-        remaining: missing.length - results.length,
-        totalMissing: missing.length,
+        remaining: toProcess.length - results.length,
         results,
       });
     } catch (error) {
@@ -1668,6 +1695,89 @@ exports.weeklyAlerts = onSchedule(
         executedAt: admin.firestore.FieldValue.serverTimestamp(),
         success: false,
       });
+
+      // ============================================
+// INGESTÃO OFICIAL DE PRESENÇAS (Câmara dos Deputados)
+// Traz presença real 2023-2026 + calcula percentual
+// Suporta ?force=true
+// ============================================
+exports.ingestPresencas = onRequest(
+  { region: "southamerica-east1", timeoutSeconds: 540, memory: "1GiB" },
+  async (req, res) => {
+    const authHeader = req.headers["x-admin-key"];
+    const adminKey = process.env.ADMIN_KEY;
+    if (!adminKey || authHeader !== adminKey) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const axios = require("axios");
+    const BATCH_SIZE = parseInt(req.query.batch || "3");
+    const FORCE = req.query.force === "true";
+
+    try {
+      const depSnap = await db.collection("deputados_federais").get();
+      let toProcess = [];
+      depSnap.forEach(doc => toProcess.push({ id: doc.id, ...doc.data() }));
+
+      if (!FORCE) {
+        const filtered = [];
+        for (const dep of toProcess) {
+          const s = await db.collection("deputados_federais").doc(dep.id).collection("sessoes").limit(1).get();
+          if (s.empty) filtered.push(dep);
+        }
+        toProcess = filtered;
+      }
+
+      if (toProcess.length === 0) {
+        return res.json({ success: true, message: "Todos os deputados já possuem presenças." });
+      }
+
+      const batch = toProcess.slice(0, BATCH_SIZE);
+      const results = [];
+
+      for (const dep of batch) {
+        let total = 0;
+        const fbBatch = db.batch();
+
+        for (let ano = 2023; ano <= 2026; ano++) {
+          const resp = await axios.get(
+            `https://dadosabertos.camara.leg.br/api/v2/deputados/${dep.idCamara || dep.id}/presencas?ano=${ano}&itens=100`,
+            { timeout: 15000 }
+          );
+          const presencas = resp.data.dados || [];
+          for (const p of presencas) {
+            const docId = `${p.dataSessao || ano}-${p.tipoSessao || 'PLEN'}`;
+            fbBatch.set(
+              db.collection("deputados_federais").doc(dep.id).collection("sessoes").doc(docId),
+              { ...p, ano, updatedAt: admin.firestore.FieldValue.serverTimestamp() }
+            );
+            total++;
+          }
+        }
+        await fbBatch.commit();
+
+        // Atualiza percentual no documento principal
+        await db.collection("deputados_federais").doc(dep.id).set({
+          presenca: total > 0 ? Math.round((total / 320) * 100) : 0,
+          totalSessoes: total,
+          lastPresencaIngest: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        results.push({ id: dep.id, nome: dep.nome, sessoesImportadas: total });
+      }
+
+      res.json({
+        success: true,
+        force: FORCE,
+        processed: results.length,
+        remaining: toProcess.length - results.length,
+        results,
+      });
+    } catch (e) {
+      console.error("ingestPresencas error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
     }
   }
 );
