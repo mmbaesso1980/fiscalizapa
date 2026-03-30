@@ -227,6 +227,7 @@ const legislatura =
   if (flags.emendas) TABS.push({ k: 'emendasV2', l: 'Emendas V2' });
     return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 16px' }}>
+
 {/* HERO DO PERFIL */}
 <section className="mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
   <div className="p-5 sm:p-6 lg:p-8">
@@ -286,7 +287,174 @@ const legislatura =
     </div>
   </div>
 </section>
+      {/* HUB PRINCIPAL */}
+<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 24, marginBottom: 32 }}>
+  <div>
+    <PresencaSection politico={politico} />
+  </div>
 
+  <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div
+      style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-light)',
+        borderRadius: 16,
+        padding: 20,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+      }}
+    >
+      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+        Critério editorial
+      </div>
+      <p style={{ marginTop: 12, fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
+        O TransparenciaBR é apartidário: quem vai bem, vai bem; quem vai mal, vai mal. Nenhum indicador deve permanecer em destaque sem fonte, fórmula e critério auditáveis.
+      </p>
+    </div>
+
+    <div
+      style={{
+        background: '#fff8e8',
+        border: '1px solid #f3d38a',
+        borderRadius: 16,
+        padding: 20,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+      }}
+    >
+      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8a5a00' }}>
+        Atenção metodológica
+      </div>
+      <p style={{ marginTop: 12, fontSize: 14, lineHeight: 1.7, color: '#6b4b00' }}>
+        Se a presença geral estiver apenas replicando plenário, o card deve ser removido ou renomeado. Se todos os perfis aparecerem sem emendas, o problema é sistêmico e a interface não deve tratar isso como dado real.
+      </p>
+    </div>
+  </aside>
+</div>
+{/* PROPOSIÇÕES AUTORAIS */}
+<div
+  style={{
+    marginBottom: 32,
+    background: 'var(--bg-card)',
+    borderRadius: 16,
+    padding: '24px 22px',
+    border: '1px solid var(--border-light)',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+  }}
+>
+  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+    <div style={{ minWidth: 0 }}>
+      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+        Proposições autorais
+      </h2>
+      <p style={{ marginTop: 10, fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 720 }}>
+        Este bloco deve considerar apenas proposições em que o parlamentar figure como autor principal.
+        Não incluir coautoria, relatoria, assinatura secundária, tramitação associada ou qualquer
+        outro vínculo que não represente autoria principal claramente identificada.
+      </p>
+    </div>
+
+    <div
+      style={{
+        border: '1px dashed #cbd5e1',
+        background: '#f8fafc',
+        borderRadius: 14,
+        padding: '12px 14px',
+        minWidth: 220
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b' }}>
+        Status metodológico
+      </div>
+      <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: '#334155' }}>
+        Métrica em validação
+      </div>
+      <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5, color: '#64748b' }}>
+        Exibir somente após garantir contagem exclusiva de autoria principal.
+      </div>
+    </div>
+  </div>
+</div>
+      {/* EMENDAS PARLAMENTARES */}
+<div
+  style={{
+    marginBottom: 32,
+    background: 'var(--bg-card)',
+    borderRadius: 16,
+    padding: '24px 22px',
+    border: '1px solid var(--border-light)',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+  }}
+>
+  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+    <div style={{ minWidth: 0 }}>
+      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+        Emendas parlamentares
+      </h2>
+      <p style={{ marginTop: 10, fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)', maxWidth: 720 }}>
+        Este bloco só deve exibir valores quando a cadeia de dados estiver auditada de ponta a ponta,
+        com vínculo correto entre parlamentar, fonte original, query e agregação final. Se todos os
+        perfis estiverem zerados por falha sistêmica, o dado não deve ser tratado como verdadeiro.
+      </p>
+    </div>
+
+    <div
+      style={{
+        border: '1px dashed #cbd5e1',
+        background: '#f8fafc',
+        borderRadius: 14,
+        padding: '12px 14px',
+        minWidth: 240
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b' }}>
+        Status metodológico
+      </div>
+      <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: '#334155' }}>
+        Métrica temporariamente indisponível
+      </div>
+      <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5, color: '#64748b' }}>
+        Exibir somente após validar ingestão, vínculo do parlamentar e consolidação das emendas.
+      </div>
+    </div>
+  </div>
+</div>
+      {/* NOTA METODOLÓGICA */}
+<div
+  style={{
+    marginBottom: 32,
+    background: '#f8fafc',
+    borderRadius: 16,
+    padding: '20px 22px',
+    border: '1px solid #dbe3ea',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+  }}
+>
+  <div
+    style={{
+      fontSize: 12,
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      color: '#64748b'
+    }}
+  >
+    Nota metodológica
+  </div>
+
+  <p
+    style={{
+      marginTop: 12,
+      fontSize: 14,
+      lineHeight: 1.7,
+      color: '#475569',
+      maxWidth: 820
+    }}
+  >
+    O TransparenciaBR prioriza precisão e auditabilidade. Indicadores de presença, proposições e
+    emendas só devem ser exibidos em destaque quando houver fonte identificável, critério explícito
+    e fórmula verificável. Quando a validação metodológica ainda não estiver concluída, a métrica
+    pode ser temporariamente ocultada ou marcada como indisponível.
+  </p>
+</div>
       {/* KPIs RESUMO */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 24 }}>
         {[
