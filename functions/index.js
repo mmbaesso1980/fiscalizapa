@@ -1665,7 +1665,7 @@ exports.aggregateEvents = onRequest(
   }
 );
 
-    // ============================================
+// ============================================
 // BLOCO 7 - ALERTAS SEMANAIS E INSTANTANEOS
 // ============================================
 const alertaService = require('./alertaService');
@@ -1695,8 +1695,11 @@ exports.weeklyAlerts = onSchedule(
         executedAt: admin.firestore.FieldValue.serverTimestamp(),
         success: false,
       });
+    }
+  }
+);
 
-      // ============================================
+// ============================================
 // INGESTÃO OFICIAL DE PRESENÇAS (Câmara dos Deputados)
 // Traz presença real 2023-2026 + calcula percentual
 // Suporta ?force=true
@@ -1721,7 +1724,8 @@ exports.ingestPresencas = onRequest(
       if (!FORCE) {
         const filtered = [];
         for (const dep of toProcess) {
-          const s = await db.collection("deputados_federais").doc(dep.id).collection("sessoes").limit(1).get();
+          const s = await db.collection("deputados_federais")
+            .doc(dep.id).collection("sessoes").limit(1).get();
           if (s.empty) filtered.push(dep);
         }
         toProcess = filtered;
@@ -1755,7 +1759,6 @@ exports.ingestPresencas = onRequest(
         }
         await fbBatch.commit();
 
-        // Atualiza percentual no documento principal
         await db.collection("deputados_federais").doc(dep.id).set({
           presenca: total > 0 ? Math.round((total / 320) * 100) : 0,
           totalSessoes: total,
@@ -1778,9 +1781,6 @@ exports.ingestPresencas = onRequest(
     }
   }
 );
-    }
-  }
-);
 
 exports.checkInstantAlerts = onRequest(
   { region: "southamerica-east1", timeoutSeconds: 300 },
@@ -1799,6 +1799,7 @@ exports.checkInstantAlerts = onRequest(
     }
   }
 );
+
 // --- ADICIONAR NO FINAL DO FICHEIRO functions/index.js ---
 const { Pool } = require('pg');
 
@@ -1813,32 +1814,30 @@ const pool = new Pool({
 
 exports.getEmendasSQL = onCall({ region: "southamerica-east1" }, async (request) => {
   const deputadoId = request.data.deputadoId;
-  
+
   if (!deputadoId) {
     return { error: "ID do deputado não fornecido." };
   }
 
   const client = await pool.connect();
   try {
-    // Fazemos um SELECT rápido filtrando apenas as emendas do deputado específico
     const result = await client.query(
       'SELECT * FROM emendas WHERE deputado_id = $1 ORDER BY valor_empenhado DESC',
       [Number(deputadoId)]
     );
-    
-    // Devolvemos as linhas (rows) direto para o frontend
     return { emendas: result.rows };
   } catch (error) {
     console.error("Erro ao buscar emendas no SQL:", error);
     return { error: "Erro interno no servidor ao buscar emendas." };
   } finally {
-    client.release(); // Liberta a conexão
+    client.release();
   }
 });
+
 // --- NOVO MOTOR MASSIVO SQL (Versão Firebase v2 Safe) ---
 const https = require('https');
 
-// Função auxiliar para fazer chamadas de API sem quebrar o Firebase
+// Função auxiliar para chamadas de API
 function getAPINativa(url, apiKey = null) {
   return new Promise((resolve) => {
     const options = { headers: {} };
@@ -1861,7 +1860,6 @@ function getAPINativa(url, apiKey = null) {
 exports.ingestMotorMassivo = onRequest(
   { region: 'southamerica-east1', timeoutSeconds: 540, memory: '1GiB' },
   async (req, res) => {
-    const { Pool } = require('pg');
     const poolSQL = new Pool({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
