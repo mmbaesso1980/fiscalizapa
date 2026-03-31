@@ -58,6 +58,6 @@ jobs:
         working-directory: functions
 
       - name: Deploy Functions + Firestore rules
-        run: firebase deploy --only functions,firestore --non-interactive --project=fiscallizapa
+        run: firebase deploy --only functions,firestore --non-interactive --project=fiscallizapa --force
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
