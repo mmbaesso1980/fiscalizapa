@@ -1896,3 +1896,135 @@ exports.ingestMotorMassivo = onRequest(
     }
   }
 );
+
+
+// ============================================
+// SQL SERVICE - Endpoints Cloud SQL (Fase 3)
+// ============================================
+const sqlService = require('./sqlService');
+
+// Health check do banco SQL
+exports.sqlHealthCheck = onRequest(
+  { region: 'southamerica-east1' },
+  async (req, res) => {
+    const result = await sqlService.healthCheck();
+    res.json(result);
+  }
+);
+
+// Perfil completo do parlamentar via SQL (substitui multiplas queries Firestore)
+exports.getPerfilSQL = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error('Authentication required');
+    checkRateLimit(uid);
+
+    const politicoId = sanitizeString(request.data.politicoId || request.data.deputadoId || '', 100);
+    const casa = sanitizeString(request.data.casa || 'CAMARA', 10);
+    if (!politicoId) throw new Error('politicoId is required');
+    if (!validateId(politicoId)) throw new Error('Invalid politicoId');
+
+    const perfil = await sqlService.getPerfilCompleto(politicoId, casa);
+    if (!perfil.politico) throw new Error('Politician not found');
+    return perfil;
+  }
+);
+
+// Busca de politicos via SQL
+exports.searchPoliticosSQL = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error('Authentication required');
+    checkRateLimit(uid);
+
+    const { casa, uf, partido, nome, limit } = request.data;
+    const politicos = await sqlService.searchPoliticos({
+      casa: casa ? sanitizeString(casa, 10) : null,
+      uf: uf ? sanitizeString(uf, 2) : null,
+      partido: partido ? sanitizeString(partido, 20) : null,
+      nome: nome ? sanitizeString(nome, 200) : null,
+      limit: Math.min(Number(limit) || 50, 200),
+    });
+    return { politicos };
+  }
+);
+
+// Rankings via SQL
+exports.getRankingsSQL = onRequest(
+  { region: 'southamerica-east1' },
+  async (req, res) => {
+    if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
+    const casa = (req.query.casa || 'CAMARA').toUpperCase();
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+
+    const rankings = casa === 'SENADO'
+      ? await sqlService.getRankingSenado(limit)
+      : await sqlService.getRankingCamara(limit);
+    res.json({ casa, total: rankings.length, rankings });
+  }
+);
+
+// Analise IA com dados SQL (Fase 4 - prompt enrichment via SQL)
+exports.analyzePoliticianSQL = onCall(
+  { region: 'southamerica-east1', secrets: [geminiKey] },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error('Authentication required');
+    checkRateLimit(uid);
+
+    const politicoId = sanitizeString(request.data.politicoId || request.data.deputadoId || '', 100);
+    const casa = sanitizeString(request.data.casa || request.data.colecao === 'senadores' ? 'SENADO' : 'CAMARA', 10);
+    if (!politicoId) throw new Error('politicoId is required');
+    if (!validateId(politicoId)) throw new Error('Invalid politicoId');
+
+    const userRef = db.collection('users').doc(uid);
+    const userDoc = await userRef.get();
+    const credits = userDoc.exists ? (userDoc.data().credits || 0) : 0;
+    if (credits < 2) throw new Error('Insufficient credits (need 2 for analysis)');
+
+    const dados = await sqlService.getDadosParaRelatorioIA(politicoId, casa);
+    if (!dados) throw new Error('Politician not found');
+
+    const p = dados.politico;
+    const g = dados.gastos.resumo;
+    const e = dados.emendas.resumo;
+    const pres = dados.presenca;
+
+    const prompt = `Voce e um auditor fiscal do TransparenciaBR. Gere RELATORIO TECNICO baseado nos dados SQL:
+
+POLITICO: ${p.nome} (${p.sigla_partido}/${p.uf}) - ${p.casa}
+GASTOS CEAP: ${g.total_notas} notas, Total R$${Number(g.total_valor || 0).toFixed(2)}, Media R$${Number(g.media_valor || 0).toFixed(2)}, Maior R$${Number(g.maior_gasto || 0).toFixed(2)}
+EMENDAS: ${e.total_emendas} emendas, Empenhado R$${Number(e.total_empenhado || 0).toFixed(2)}, Pago R$${Number(e.total_pago || 0).toFixed(2)}
+PRESENCA: ${pres.presentes}/${pres.total_sessoes} sessoes (${pres.percentual}%)
+
+TOP FORNECEDORES:
+${dados.gastos.topFornecedores.map(f => `- ${f.fornecedor_nome} (${f.cnpj_cpf}): R$${Number(f.total_valor).toFixed(2)} em ${f.num_notas} notas`).join('\n')}
+
+MAIORES GASTOS:
+${dados.gastosMaiores.slice(0, 10).map(g => `- ${g.tipo_despesa}: R$${Number(g.valor_liquido).toFixed(2)} (${g.fornecedor_nome})`).join('\n')}
+
+ALERTAS: ${(dados.alertas || []).length} alertas ativos
+
+Gere relatorio com: RESUMO EXECUTIVO, ANALISE CEAP, PRESENCA, INDICIOS, RECOMENDACOES, DISCLAIMER.`;
+
+    const analysis = await callGemini(prompt);
+
+    await userRef.update({
+      credits: admin.firestore.FieldValue.increment(-2),
+      lastActivity: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await db.collection('analyses').add({
+      userId: uid,
+      politicianId: politicoId,
+      casa,
+      source: 'sql',
+      analysis,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { analysis };
+  }
+);
