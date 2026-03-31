@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -12,10 +15,10 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install app dependencies
         run: npm install --legacy-peer-deps
@@ -33,7 +36,7 @@ jobs:
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json" >> $GITHUB_ENV
 
-      - name: Deploy Hosting only
+      - name: Deploy Hosting
         run: firebase deploy --only hosting --non-interactive --project=fiscallizapa
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
@@ -42,11 +45,18 @@ jobs:
         run: |
           rm -f package-lock.json
           npm install --legacy-peer-deps
-                    rm -f package-lock.json
+        working-directory: functions
+
+      # --- NOVO: Criar ficheiro .env para as Functions com os dados do SQL ---
+      - name: Create .env for Functions
+        run: |
+          echo "DB_HOST=${{ secrets.DB_HOST }}" > .env
+          echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+          echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
+          echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
         working-directory: functions
 
       - name: Deploy Functions + Firestore rules
         run: firebase deploy --only functions,firestore --non-interactive --project=fiscallizapa
-        continue-on-error: true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
