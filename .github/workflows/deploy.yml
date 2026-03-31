@@ -45,6 +45,7 @@ jobs:
         run: |
           rm -f package-lock.json
           npm install --legacy-peer-deps
+          npm install pg
         working-directory: functions
 
       # --- NOVO: Criar ficheiro .env para as Functions com os dados do SQL ---
