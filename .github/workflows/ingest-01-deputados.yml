@@ -1,21 +1,23 @@
 name: Ingest 01 - Deputados (PostgreSQL)
 
-on: workflow_dispatch:
+on:
+  workflow_dispatch:
 
 jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       
-      - name: Instalar dependências
+      - name: Instalar dependencias
         run: npm install pg node-fetch
         working-directory: functions
         
-      - name: Rodar Ingestão
+      - name: Rodar Ingestao
         run: node ingest-01-deputados-sql.js
         working-directory: functions
         env:
