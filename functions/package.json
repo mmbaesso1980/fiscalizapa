@@ -18,8 +18,8 @@
     "firebase-functions": "^7.0.0",
     "stripe": "^20.4.1",
     "axios": "^1.7.0",
-    "cheerio": "^1.0.0"
-    "pg": "^8.11.3" 
+    "cheerio": "^1.0.0",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "firebase-functions-test": "^3.4.1"
