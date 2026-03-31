@@ -1835,3 +1835,72 @@ exports.getEmendasSQL = onCall({ region: "southamerica-east1" }, async (request)
     client.release(); // Liberta a conexão
   }
 });
+// --- NOVO MOTOR MASSIVO SQL (Legislativo + Executivo) ---
+const { Pool } = require('pg');
+const poolSQL = new Pool({
+  host: process.env.DB_HOST, user: process.env.DB_USER,
+  password: process.env.DB_PASS, database: process.env.DB_NAME, port: 5432
+});
+
+exports.ingestMotorMassivo = functions.runWith({
+  timeoutSeconds: 540, // 9 minutos de timeout
+  memory: '1GB'
+}).https.onRequest(async (req, res) => {
+  const CGU_API_KEY = "717a95e01b072090f41940282eab700a";
+  const client = await poolSQL.connect();
+  const fetch = require('node-fetch');
+  
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const getAPI = async (url, headers = {}) => {
+    try {
+      const resp = await fetch(url, { headers });
+      if (!resp.ok) return null; return await resp.json();
+    } catch(e) { return null; }
+  };
+
+  res.status(200).send("🔥 Motor Massivo Iniciado! Acompanhe os logs no Firebase.");
+
+  try {
+    console.log("-> 1. Sugando Deputados...");
+    const reqCamara = await getAPI("https://dadosabertos.camara.leg.br/api/v2/deputados?itens=1000");
+    if (reqCamara && reqCamara.dados) {
+      await client.query('BEGIN');
+      for (const d of reqCamara.dados) {
+        await client.query(`
+          INSERT INTO politicos (id_politico, casa, nome_urna, sigla_partido, sigla_uf)
+          VALUES ($1, 'CAMARA', $2, $3, $4) ON CONFLICT (id_politico) DO NOTHING;
+        `, [d.id, d.nome, d.siglaPartido, d.siglaUf]);
+      }
+      await client.query('COMMIT');
+    }
+
+    const deputados = (await client.query("SELECT id_politico, nome_urna FROM politicos WHERE casa = 'CAMARA' LIMIT 10")).rows;
+    console.log(`-> 2. Varrendo Emendas/Notas para ${deputados.length} deputados...`);
+
+    for (const dep of deputados) {
+      // Emendas CGU
+      const nomeAutor = dep.nome_urna.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+      const urlEmendas = `https://api.portaldatransparencia.gov.br/api-de-dados/emendas?ano=2024&nomeAutor=${encodeURIComponent(nomeAutor)}&pagina=1`;
+      const emendasReq = await getAPI(urlEmendas, { 'chave-api-dados': CGU_API_KEY });
+      
+      if (emendasReq && emendasReq.length > 0) {
+        await client.query('BEGIN');
+        for (const em of emendasReq) {
+          let recCNPJ = em.favorecido && em.favorecido.length > 0 ? em.favorecido[0].cnpjFormatado : null;
+          let recNome = em.favorecido && em.favorecido.length > 0 ? em.favorecido[0].nome : null;
+          await client.query(`
+            INSERT INTO emendas_rastreadas (codigo_emenda, id_politico_autor, ano, tipo_emenda, municipio_beneficiado, cnpj_recebedor, nome_recebedor, valor_pago)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (codigo_emenda) DO NOTHING;
+          `, [em.codigoEmenda, dep.id_politico, em.ano, em.tipoEmenda, em.localidadeDoGasto, recCNPJ, recNome, em.valorPago]);
+        }
+        await client.query('COMMIT');
+      }
+      await sleep(1000);
+    }
+    console.log("✅ INGESTÃO MASSIVA CONCLUÍDA!");
+  } catch (e) {
+    await client.query('ROLLBACK'); console.error("ERRO:", e);
+  } finally {
+    client.release();
+  }
+});
