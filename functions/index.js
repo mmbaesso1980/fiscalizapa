@@ -1835,94 +1835,121 @@ exports.getEmendasSQL = onCall({ region: "southamerica-east1" }, async (request)
     client.release(); // Liberta a conexão
   }
 });
-// --- NOVO MOTOR MASSIVO SQL (Versão Firebase-Safe) ---
-// Usamos a biblioteca https nativa do Node para evitar erro do node-fetch
-const https = require('https'); 
+// --- NOVO MOTOR MASSIVO SQL (Versão Firebase v2 Safe) ---
+const https = require('https');
 
 // Função auxiliar para fazer chamadas de API sem quebrar o Firebase
 function getAPINativa(url, apiKey = null) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const options = { headers: {} };
-    if (apiKey) {
-      options.headers['chave-api-dados'] = apiKey;
-    }
-    
+    if (apiKey) options.headers['chave-api-dados'] = apiKey;
+
     https.get(url, options, (res) => {
       let data = '';
       res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
-        try { resolve(JSON.parse(data)); } 
-        catch (e) { resolve(null); }
+        try { resolve(JSON.parse(data)); }
+        catch (e) { console.error('JSON parse error', e); resolve(null); }
       });
-    }).on('error', err => reject(err));
+    }).on('error', err => {
+      console.error('HTTP error for', url, err);
+      resolve(null);
+    });
   });
 }
 
-exports.ingestMotorMassivo = functions
-  .runWith({ timeoutSeconds: 540, memory: '1GB' })
-  .https.onRequest(async (req, res) => {
-    
-    // Conexão com o banco isolada dentro da função para não quebrar outras rotas
+exports.ingestMotorMassivo = onRequest(
+  { region: 'southamerica-east1', timeoutSeconds: 540, memory: '1GiB' },
+  async (req, res) => {
     const { Pool } = require('pg');
     const poolSQL = new Pool({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
       password: process.env.DB_PASS,
       database: process.env.DB_NAME,
-      port: 5432
+      port: 5432,
     });
 
-    const CGU_API_KEY = "717a95e01b072090f41940282eab700a";
-    res.status(200).send("🔥 Motor Massivo Iniciado! Rodando em Background no Firebase.");
+    const CGU_API_KEY = '717a95e01b072090f41940282eab700a';
+    res.status(200).send('🔥 Motor Massivo Iniciado! Rodando em Background no Firebase.');
 
     let client;
     try {
       client = await poolSQL.connect();
-      console.log("-> 1. Sugando Deputados da Câmara...");
-      
-      const reqCamara = await getAPINativa("https://dadosabertos.camara.leg.br/api/v2/deputados?itens=1000");
+      console.log('-> 1. Sugando Deputados da Câmara...');
+
+      const reqCamara = await getAPINativa('https://dadosabertos.camara.leg.br/api/v2/deputados?itens=1000');
       if (reqCamara && reqCamara.dados) {
         await client.query('BEGIN');
         for (const d of reqCamara.dados) {
-          await client.query(`
-            INSERT INTO politicos (id_politico, casa, nome_urna, sigla_partido, sigla_uf)
-            VALUES ($1, 'CAMARA', $2, $3, $4) ON CONFLICT (id_politico) DO NOTHING;
-          `, [d.id, d.nome, d.siglaPartido, d.siglaUf]);
+          await client.query(
+            `INSERT INTO politicos (id_politico, casa, nome_urna, sigla_partido, sigla_uf)
+             VALUES ($1,'CAMARA',$2,$3,$4)
+             ON CONFLICT (id_politico) DO NOTHING;`,
+            [d.id, d.nome, d.siglaPartido, d.siglaUf],
+          );
         }
         await client.query('COMMIT');
-        console.log("✅ Deputados Inseridos.");
+        console.log('✅ Deputados Inseridos.');
       }
 
-      // Puxa só 5 deputados para não estourar o timeout do Firebase no primeiro teste
-      const deputados = (await client.query("SELECT id_politico, nome_urna FROM politicos WHERE casa = 'CAMARA' LIMIT 5")).rows;
-      console.log(`-> 2. Varrendo Emendas/Notas para ${deputados.length} deputados...`);
+      const { rows: deputados } = await client.query(
+        "SELECT id_politico, nome_urna FROM politicos WHERE casa = 'CAMARA' LIMIT 5",
+      );
+      console.log(`-> 2. Varrendo Emendas para ${deputados.length} deputados...`);
 
       for (const dep of deputados) {
-        const nomeAutor = dep.nome_urna.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-        const urlEmendas = `https://api.portaldatransparencia.gov.br/api-de-dados/emendas?ano=2024&nomeAutor=${encodeURIComponent(nomeAutor)}&pagina=1`;
-        
+        const nomeAutor = dep.nome_urna
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase();
+
+        const urlEmendas =
+          'https://api.portaldatransparencia.gov.br/api-de-dados/emendas' +
+          `?ano=2024&nomeAutor=${encodeURIComponent(nomeAutor)}&pagina=1`;
+
         const emendasReq = await getAPINativa(urlEmendas, CGU_API_KEY);
-        
         if (emendasReq && emendasReq.length > 0) {
           await client.query('BEGIN');
           for (const em of emendasReq) {
-            let recCNPJ = em.favorecido && em.favorecido.length > 0 ? em.favorecido[0].cnpjFormatado : null;
-            let recNome = em.favorecido && em.favorecido.length > 0 ? em.favorecido[0].nome : null;
-            await client.query(`
-              INSERT INTO emendas_rastreadas (codigo_emenda, id_politico_autor, ano, tipo_emenda, municipio_beneficiado, cnpj_recebedor, nome_recebedor, valor_pago)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (codigo_emenda) DO NOTHING;
-            `, [em.codigoEmenda, dep.id_politico, em.ano, em.tipoEmenda, em.localidadeDoGasto, recCNPJ, recNome, em.valorPago]);
+            const recCNPJ =
+              em.favorecido && em.favorecido.length > 0
+                ? em.favorecido[0].cnpjFormatado
+                : null;
+            const recNome =
+              em.favorecido && em.favorecido.length > 0
+                ? em.favorecido[0].nome
+                : null;
+
+            await client.query(
+              `INSERT INTO emendas_rastreadas
+                 (codigo_emenda, id_politico_autor, ano, tipo_emenda,
+                  municipio_beneficiado, cnpj_recebedor, nome_recebedor, valor_pago)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+               ON CONFLICT (codigo_emenda) DO NOTHING;`,
+              [
+                em.codigoEmenda,
+                dep.id_politico,
+                em.ano,
+                em.tipoEmenda,
+                em.localidadeDoGasto,
+                recCNPJ,
+                recNome,
+                em.valorPago,
+              ],
+            );
           }
           await client.query('COMMIT');
         }
       }
-      console.log("✅ INGESTÃO MASSIVA CONCLUÍDA NO BANCO SQL!");
 
+      console.log('✅ INGESTÃO MASSIVA CONCLUÍDA NO BANCO SQL!');
     } catch (e) {
-      if (client) await client.query('ROLLBACK'); 
-      console.error("ERRO NO MOTOR SQL:", e);
+      if (client) await client.query('ROLLBACK');
+      console.error('ERRO NO MOTOR SQL:', e);
     } finally {
       if (client) client.release();
-      poolSQL.end(); // Fecha a piscina de conexões para não vazar memória
+      await poolSQL.end();
     }
-});
+  }
+);
