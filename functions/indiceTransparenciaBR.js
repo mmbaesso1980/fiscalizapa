@@ -1,124 +1,172 @@
 // functions/indiceTransparenciaBR.js
-// Motor de calculo do Indice TransparenciaBR
-// NAO altera JSX, layout ou rotas.
+// Motor Avançado de Cálculo do Índice Fiscaliza PA
+
+const DIAS_NA_LEGISLATURA = 1460; // 4 anos (2023-2026)
+const TETO_CEAP_MENSAL = 45000;
+const TETO_CEAP_DIARIO = TETO_CEAP_MENSAL / 30; // R$ 1.500/dia
 
 /**
- * Score bruto ponderado (0-100 teorico).
- * Pesos: Economia 40%, Processos 25%, Presenca 20%, Proposicoes 10%, Defesas 5%
+ * Filtro rigoroso: Retorna apenas proposições onde o deputado é AUTOR PRINCIPAL ou RELATOR.
+ * @param {Array} proposicoes - Lista de proposições da API da Câmara
+ * @param {Number} idDeputado - ID do Deputado na Câmara
+ * @returns {Array} - Array filtrado apenas com produção real do deputado
  */
-function calcularScoreBrutoTransparenciaBR(pilares) {
-  const {
-    presencaScore = 0,
-    economiaScore = 0,
-    proposicoesScore = 0,
-    defesasPlenarioScore = 0,
-    processosScore = 0,
-  } = pilares || {};
+function filtrarProducaoReal(proposicoes, idDeputado) {
+  if (!proposicoes || !Array.isArray(proposicoes)) return [];
+  
+  return proposicoes.filter(prop => {
+    // 1. Só consideramos projetos que dão trabalho (Ignora REQ, MOÇÃO, etc)
+    const tiposValidos = ['PL', 'PEC', 'PLP', 'PDL'];
+    const isTipoValido = tiposValidos.includes(prop.siglaTipo);
 
-  const scoreBruto =
-    0.20 * presencaScore +
-    0.40 * economiaScore +
-    0.10 * proposicoesScore +
-    0.05 * defesasPlenarioScore +
-    0.25 * processosScore;
+    // 2. É o autor principal? (Primeiro da lista na API de autores)
+    const isAutorPrincipal = prop.autores && prop.autores.length > 0 
+                             && prop.autores[0].idDeputado === idDeputado;
+                             
+    // 3. Foi relator da matéria na comissão ou plenário?
+    const isRelator = prop.relator && prop.relator.idDeputado === idDeputado;
 
-  return Number(scoreBruto.toFixed(1));
-}
-
-/**
- * processosScore (0-100) para cada deputado.
- * @param {Array} processos - [{ idCamara, totalProcessos, processosGraves }]
- * @returns {Object} { [idCamara]: processosScore }
- */
-function calcularProcessosScores(processos) {
-  if (!Array.isArray(processos)) return {};
-  const scores = {};
-  processos.forEach(function(p) {
-    var idCamara = Number(p.idCamara);
-    var totalProcessos = Number(p.totalProcessos || 0);
-    var processosGraves = Number(p.processosGraves || 0);
-
-    var base = 100;
-    base -= processosGraves * 20;
-    base -= (totalProcessos - processosGraves) * 5;
-
-    var processosScore = Math.max(0, Math.min(100, base));
-    processosScore = Number(processosScore.toFixed(1));
-
-    if (!Number.isNaN(idCamara)) {
-      scores[idCamara] = processosScore;
-    }
+    return isTipoValido && (isAutorPrincipal || isRelator);
   });
-  return scores;
 }
 
 /**
- * Classificacao textual do score final.
+ * Calcula o Score Avançado de um Deputado considerando a proporcionalidade do mandato
+ * @param {Object} dados - Dados brutos do deputado
+ * @returns {Object} - Objeto completo com as notas de todos os eixos
  */
-function classificarScoreTransparenciaBR(scoreFinal) {
-  if (scoreFinal == null || Number.isNaN(scoreFinal)) return null;
-  if (scoreFinal >= 90) return 'Excelente';
-  if (scoreFinal >= 70) return 'Bom';
-  if (scoreFinal >= 50) return 'Regular';
-  if (scoreFinal >= 30) return 'Ruim';
-  return 'Pessimo';
-}
+function calcularScoreAvancado(dados) {
+  const {
+    idDeputado,
+    diasDeMandato = DIAS_NA_LEGISLATURA, // Padrão: mandato completo (4 anos)
+    presencaPlenarioPct = 0,
+    presencaComissoesPct = 0,
+    votosEmitidos = 0,
+    votacoesNominaisOcorridas = 0, // Votações que ocorreram *enquanto* ele estava no mandato
+    totalGastos = 0,
+    gastosComDivulgacaoPct = 0, // % do gasto focado em marketing
+    totalAcoesFiscalizacao = 0, // PFC, RIC
+    proposicoesBrutas = [], // Array de todas as proposições retornadas da API
+    isLiderOuPresidente = false, // Boolean: Lider de bancada, Presidente de comissão
+    processosOuSuspensoes = 0 // Inteiro: Quantidade de processos no STF/Conselho de Ética
+  } = dados;
 
-/**
- * Normaliza usando Kim (idCamara 204536) como referencia = 100.
- * Clamp 0-120. Adiciona scoreFinalTransparenciaBR e classificacaoTransparenciaBR.
- */
-function normalizarScoresPorKim(deputados) {
-  if (!Array.isArray(deputados)) return deputados;
+  // Evita divisão por zero
+  const diasEfetivos = Math.max(1, diasDeMandato);
+  const proporcaoTempo = diasEfetivos / 365; // Quantos "anos" de mandato ele tem
 
-  var KIM_ID = 204536;
-  var kim = deputados.find(function(d) { return Number(d.idCamara) === KIM_ID; });
+  // ====================================================================
+  // EIXO 1: PRESENÇA QUALIFICADA (20%)
+  // Penaliza quem bate ponto de manhã, mas some na hora de votar
+  // ====================================================================
+  let taxaDeVoto = votacoesNominaisOcorridas > 0 
+      ? (votosEmitidos / votacoesNominaisOcorridas) 
+      : 1;
+  
+  // Se votou em menos de 70% do que deveria, o valor das presenças no plenário é cortado
+  let multiplicadorPresenca = taxaDeVoto < 0.70 ? 0.5 : 1; 
+  
+  const notaPresenca = ((presencaPlenarioPct * 0.7 * multiplicadorPresenca) + (presencaComissoesPct * 0.3));
+  const eixo1 = Math.min(100, Math.max(0, notaPresenca));
 
-  if (
-    !kim ||
-    typeof kim.scoreBrutoTransparenciaBR !== 'number' ||
-    kim.scoreBrutoTransparenciaBR <= 0
-  ) {
-    return deputados;
+  // ====================================================================
+  // EIXO 2: PROTAGONISMO E ARTICULAÇÃO (15%)
+  // ====================================================================
+  let eixo2 = 50; // Nota base pra quem é baixo clero
+  if (isLiderOuPresidente) {
+    eixo2 = 100;
+  }
+  // Se for relator de algo relevante, isso sobe depois
+
+  // ====================================================================
+  // EIXO 3: PRODUÇÃO LEGISLATIVA EFETIVA (25%) - O MAIS PESADO
+  // Só conta autor principal e relator.
+  // ====================================================================
+  const proposicoesReais = filtrarProducaoReal(proposicoesBrutas, idDeputado);
+  
+  // A meta é ele entregar 5 projetos densos/relatorias POR ANO DE MANDATO
+  const metaProducaoAnual = 5; 
+  const metaProporcional = metaProducaoAnual * proporcaoTempo;
+  
+  let eixo3 = (proposicoesReais.length / metaProporcional) * 100;
+  
+  // Bônus: +10 pontos na nota bruta do eixo para cada projeto que virou Lei
+  const projetosAprovados = proposicoesReais.filter(p => p.foiSancionado).length;
+  eixo3 += (projetosAprovados * 10);
+  
+  eixo3 = Math.min(100, Math.max(0, eixo3));
+
+  // ====================================================================
+  // EIXO 4: FISCALIZAÇÃO E CONTROLE (10%)
+  // ====================================================================
+  const metaFiscAnual = 5; // 5 ações de controle do executivo por ano
+  const metaFiscProporcional = metaFiscAnual * proporcaoTempo;
+  let eixo4 = (totalAcoesFiscalizacao / metaFiscProporcional) * 100;
+  eixo4 = Math.min(100, Math.max(0, eixo4));
+
+  // ====================================================================
+  // EIXO 5: POSICIONAMENTO E FIDELIDADE (20%)
+  // ====================================================================
+  let eixo5 = taxaDeVoto * 100; // Simples: esteve lá no momento do painel apertou o botão?
+  eixo5 = Math.min(100, Math.max(0, eixo5));
+
+  // ====================================================================
+  // EIXO 6: EFICIÊNCIA FISCAL PROPORCIONAL (10%)
+  // Adeus nota alta de suplente que não gasta porque não fica na câmara
+  // ====================================================================
+  const tetoRealDoDeputado = TETO_CEAP_DIARIO * diasEfetivos;
+  
+  let eixo6 = 0;
+  if (totalGastos === 0) {
+      eixo6 = 50; // Nota neutra pra falha da API
+  } else {
+      const pctGastoDoTeto = totalGastos / tetoRealDoDeputado;
+      eixo6 = (1 - pctGastoDoTeto) * 100;
+  }
+  
+  // Filtro Anti-Marqueteiro: Gasta mais de 40% só com "Divulgação de Atividade"?
+  if (gastosComDivulgacaoPct > 0.40) {
+      eixo6 = eixo6 * 0.8; // Perde 20% da pontuação de economia
+  }
+  eixo6 = Math.min(100, Math.max(0, eixo6));
+
+  // ====================================================================
+  // CALCULO DO ÍNDICE FINAL + PENALIDADES (FICHA LIMPA)
+  // ====================================================================
+  let scoreBruto = 
+    (eixo1 * 0.20) + 
+    (eixo2 * 0.15) + 
+    (eixo3 * 0.25) + 
+    (eixo4 * 0.10) + 
+    (eixo5 * 0.20) + 
+    (eixo6 * 0.10);
+
+  // Dedução da Ficha Limpa: Réus no STF ou Condenados na Ética
+  if (processosOuSuspensoes > 0) {
+      scoreBruto -= (processosOuSuspensoes * 25); // Toma -25 pontos por cada processo grave
   }
 
-  var scoreBrutoKim = kim.scoreBrutoTransparenciaBR;
+  const scoreFinal = Number(Math.max(0, Math.min(100, scoreBruto)).toFixed(1));
 
-  return deputados.map(function(dep) {
-    if (typeof dep.scoreBrutoTransparenciaBR !== 'number') return dep;
-
-    var scoreFinal = (dep.scoreBrutoTransparenciaBR / scoreBrutoKim) * 100;
-    if (scoreFinal < 0) scoreFinal = 0;
-    if (scoreFinal > 120) scoreFinal = 120;
-    scoreFinal = Number(scoreFinal.toFixed(1));
-
-    return Object.assign({}, dep, {
-      scoreFinalTransparenciaBR: scoreFinal,
-      classificacaoTransparenciaBR: classificarScoreTransparenciaBR(scoreFinal),
-    });
-  });
-}
-
-/**
- * Top 10 e Bottom 10 a partir de lista normalizada.
- */
-function gerarRankings(deputados) {
-  var validos = deputados.filter(function(d) {
-    return typeof d.scoreFinalTransparenciaBR === 'number';
-  });
-  var top10 = validos.slice().sort(function(a, b) {
-    return b.scoreFinalTransparenciaBR - a.scoreFinalTransparenciaBR;
-  }).slice(0, 10);
-  var bottom10 = validos.slice().sort(function(a, b) {
-    return a.scoreFinalTransparenciaBR - b.scoreFinalTransparenciaBR;
-  }).slice(0, 10);
-  return { top10: top10, bottom10: bottom10 };
+  return {
+    scoreFinal,
+    eixos: {
+      eixo1_presencaQualificada: Number(eixo1.toFixed(1)),
+      eixo2_protagonismo: Number(eixo2.toFixed(1)),
+      eixo3_producaoEfetiva: Number(eixo3.toFixed(1)),
+      eixo4_fiscalizacao: Number(eixo4.toFixed(1)),
+      eixo5_posicionamento: Number(eixo5.toFixed(1)),
+      eixo6_eficienciaProporcional: Number(eixo6.toFixed(1))
+    },
+    metricasExtras: {
+      diasDeMandatoEfetivos: diasEfetivos,
+      tetoDeGastosAplicado: Number(tetoRealDoDeputado.toFixed(2)),
+      projetosReaisValidados: proposicoesReais.length
+    }
+  };
 }
 
 module.exports = {
-  calcularScoreBrutoTransparenciaBR: calcularScoreBrutoTransparenciaBR,
-  calcularProcessosScores: calcularProcessosScores,
-  classificarScoreTransparenciaBR: classificarScoreTransparenciaBR,
-  normalizarScoresPorKim: normalizarScoresPorKim,
-  gerarRankings: gerarRankings,
+  calcularScoreAvancado,
+  filtrarProducaoReal
 };
