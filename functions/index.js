@@ -341,28 +341,6 @@ exports.ingestSenadores = onRequest({ region: "southamerica-east1" }, async (req
   }
 });
 
-// ============================================
-// AGENDAMENTO - Ingestão automática semanal
-// ============================================
-exports.weeklyIngest = onSchedule(
-  { schedule: "every monday 06:00", region: "southamerica-east1", timeZone: "America/Sao_Paulo" },
-  async (event) => {
-    console.log("Starting weekly ingestion...");
-    const { runWeeklyIngest } = require("./weekly-ingest-logic");
-    try {
-      const results = await runWeeklyIngest();
-      console.log("Weekly ingestion completed:", results);
-    } catch (err) {
-      console.error("Weekly ingestion failed:", err);
-      await db.collection("system_logs").add({
-        type: "weekly_ingest",
-        error: err.message,
-        executedAt: admin.firestore.FieldValue.serverTimestamp(),
-        success: false,
-      });
-    }
-  }
-);
 
 // ============================================
 // ANÁLISE - Resumo do político
@@ -1665,39 +1643,6 @@ exports.aggregateEvents = onRequest(
   }
 );
 
-// ============================================
-// BLOCO 7 - ALERTAS SEMANAIS E INSTANTANEOS
-// ============================================
-const alertaService = require('./alertaService');
-
-exports.weeklyAlerts = onSchedule(
-  {
-    schedule: "every monday 07:00",
-    region: "southamerica-east1",
-    timeZone: "America/Sao_Paulo"
-  },
-  async (event) => {
-    console.log("Starting weekly alerts generation...");
-    try {
-      const results = await alertaService.gerarAlertasSemanal();
-      console.log("Weekly alerts completed:", results);
-      await db.collection("system_logs").add({
-        type: "weekly_alerts",
-        results,
-        executedAt: admin.firestore.FieldValue.serverTimestamp(),
-        success: true,
-      });
-    } catch (err) {
-      console.error("Weekly alerts failed:", err);
-      await db.collection("system_logs").add({
-        type: "weekly_alerts",
-        error: err.message,
-        executedAt: admin.firestore.FieldValue.serverTimestamp(),
-        success: false,
-      });
-    }
-  }
-);
 
 // ============================================
 // INGESTÃO OFICIAL DE PRESENÇAS (Câmara dos Deputados)
