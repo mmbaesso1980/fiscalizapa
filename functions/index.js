@@ -1799,3 +1799,39 @@ exports.checkInstantAlerts = onRequest(
     }
   }
 );
+// --- ADICIONAR NO FINAL DO FICHEIRO functions/index.js ---
+const { Pool } = require('pg');
+
+// O Pool de conexões fica fora da função para ser reaproveitado e garantir velocidade
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  port: 5432,
+});
+
+exports.getEmendasSQL = onCall({ region: "southamerica-east1" }, async (request) => {
+  const deputadoId = request.data.deputadoId;
+  
+  if (!deputadoId) {
+    return { error: "ID do deputado não fornecido." };
+  }
+
+  const client = await pool.connect();
+  try {
+    // Fazemos um SELECT rápido filtrando apenas as emendas do deputado específico
+    const result = await client.query(
+      'SELECT * FROM emendas WHERE deputado_id = $1 ORDER BY valor_empenhado DESC',
+      [Number(deputadoId)]
+    );
+    
+    // Devolvemos as linhas (rows) direto para o frontend
+    return { emendas: result.rows };
+  } catch (error) {
+    console.error("Erro ao buscar emendas no SQL:", error);
+    return { error: "Erro interno no servidor ao buscar emendas." };
+  } finally {
+    client.release(); // Liberta a conexão
+  }
+});
