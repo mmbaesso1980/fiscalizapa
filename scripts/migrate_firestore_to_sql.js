@@ -1,17 +1,16 @@
 /**
  * migrate_firestore_to_sql.js
  * Migra dados do Firestore para Cloud SQL (PostgreSQL)
- * 
+ *
  * Uso:
  *   cd functions && npm install pg
  *   node ../scripts/migrate_firestore_to_sql.js
- * 
+ *
  * Requer:
  *   - GOOGLE_APPLICATION_CREDENTIALS configurado
  *   - Cloud SQL Proxy rodando na porta 5432
  *   - Schema ja aplicado (sql/schema.sql)
  */
-
 const admin = require('firebase-admin');
 const { Pool } = require('pg');
 
@@ -23,263 +22,249 @@ const db = admin.firestore();
 
 // Pool PostgreSQL (via Cloud SQL Proxy)
 const pool = new Pool({
-  host: '127.0.0.1',
-  port: 5432,
-  database: 'transparenciabr',
-  user: 'postgres',
+  host: process.env.DB_HOST || '127.0.0.1',
+  port: parseInt(process.env.DB_PORT) || 5432,
+  database: process.env.DB_NAME || 'transparenciabr',
+  user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || '',
 });
 
-const BATCH_SIZE = 500;
-let stats = { politicos: 0, gastos: 0, emendas: 0, presenca: 0, proposicoes: 0 };
+let stats = { politicos: 0, gastos: 0, emendas: 0, presenca: 0, proposicoes: 0, users: 0 };
 
+// ==========================================
+// POLITICOS
+// ==========================================
 async function migratePoliticos(casa) {
-  const collection = casa === 'CAMARA' ? 'deputados_federais' : 'senadores';
-  console.log(`\n=== Migrando ${collection} ===`);
-  
-  const snapshot = await db.collection(collection).get();
+  const colName = casa === 'CAMARA' ? 'deputados_federais' : 'senadores';
+  console.log(`\n=== Migrando ${colName} (${casa}) ===`);
+  const snapshot = await db.collection(colName).get();
   console.log(`  Total docs: ${snapshot.size}`);
-  
+
   for (const doc of snapshot.docs) {
     const d = doc.data();
-    const politicoId = doc.id;
-    
+    const politicoId = parseInt(doc.id.replace(/^(dep_|sen_)/, '')) || 0;
+    if (!politicoId) { console.warn(`  SKIP ${doc.id}: id nao numerico`); continue; }
     try {
       await pool.query(
-        `INSERT INTO politicos (id_politico, casa, nome, nome_civil, sigla_partido, uf,
-         foto_url, email, situacao, legislatura, cpf, data_nascimento, sexo, escolaridade,
-         url_website, dados_raw, atualizado_em)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
-         ON CONFLICT (id_politico, casa) DO UPDATE SET
-           nome=EXCLUDED.nome, sigla_partido=EXCLUDED.sigla_partido,
-           uf=EXCLUDED.uf, foto_url=EXCLUDED.foto_url,
-           situacao=EXCLUDED.situacao, dados_raw=EXCLUDED.dados_raw,
-           atualizado_em=NOW()`,
+        `INSERT INTO politicos (id_politico, casa, nome, nome_urna, partido, uf, cargo, foto_url, email, situacao, id_legislatura, updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+        ON CONFLICT (id_politico) DO UPDATE SET
+          casa=EXCLUDED.casa, nome=EXCLUDED.nome, partido=EXCLUDED.partido,
+          uf=EXCLUDED.uf, foto_url=EXCLUDED.foto_url, situacao=EXCLUDED.situacao, updated_at=NOW()`,
         [
           politicoId, casa,
           d.nome || d.ultimoStatus?.nome || '',
-          d.nomeCivil || d.nomeCompleto || '',
-          d.siglaPartido || d.ultimoStatus?.siglaPartido || '',
-          d.uf || d.ultimoStatus?.siglaUf || '',
-          d.urlFoto || d.ultimoStatus?.urlFoto || '',
+          d.nomeUrna || d.nome || '',
+          d.siglaPartido || d.partido || d.ultimoStatus?.siglaPartido || '',
+          d.uf || d.siglaUf || d.ultimoStatus?.siglaUf || '',
+          d.cargo || (casa === 'CAMARA' ? 'Deputado Federal' : 'Senador'),
+          d.urlFoto || d.foto || d.ultimoStatus?.urlFoto || '',
           d.email || '',
-          d.ultimoStatus?.situacao || d.situacao || 'ATIVO',
-          d.ultimoStatus?.idLegislatura || 57,
-          d.cpf || '',
-          d.dataNascimento || null,
-          d.sexo || '',
-          d.escolaridade || '',
-          d.urlWebsite || '',
-          JSON.stringify(d)
+          d.ultimoStatus?.situacao || d.situacao || 'Exercicio',
+          d.ultimoStatus?.idLegislatura || d.idLegislatura || 57
         ]
       );
       stats.politicos++;
-      
-      // Migrar subcollections
-      await migrateGastos(collection, politicoId, casa);
-      await migrateEmendas(collection, politicoId);
-      await migratePresenca(collection, politicoId);
-      await migrateProposicoes(collection, politicoId);
-      
-      if (stats.politicos % 50 === 0) {
-        console.log(`  Politicos migrados: ${stats.politicos}`);
-      }
+      await migrateGastos(colName, doc.id, politicoId);
+      await migratePresenca(colName, doc.id, politicoId);
+      await migrateProposicoes(colName, doc.id, politicoId);
+      if (stats.politicos % 50 === 0) console.log(`  Politicos: ${stats.politicos}`);
     } catch (err) {
-      console.error(`  ERRO politico ${politicoId}:`, err.message);
+      console.error(`  ERRO politico ${doc.id}:`, err.message);
     }
   }
 }
 
-async function migrateGastos(collection, politicoId, casa) {
-  const gastoSnap = await db.collection(collection)
-    .doc(politicoId).collection('gastos_ceap').get();
-  
-  if (gastoSnap.empty) return;
-  
-  for (const gdoc of gastoSnap.docs) {
+// ==========================================
+// GASTOS CEAP (subcol gastos de cada politico)
+// ==========================================
+async function migrateGastos(colName, firestoreId, politicoId) {
+  const snap = await db.collection(colName).doc(firestoreId).collection('gastos').get();
+  if (snap.empty) return;
+  for (const gdoc of snap.docs) {
     const g = gdoc.data();
     try {
       await pool.query(
-        `INSERT INTO gastos_ceap (politico_id, casa, ano, mes, tipo_despesa,
-         fornecedor_nome, cnpj_cpf, valor_documento, valor_liquido,
-         valor_glosa, num_documento, url_documento, dados_raw)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-         ON CONFLICT DO NOTHING`,
+        `INSERT INTO gastos_ceap (politico_id, ano, mes, tipo_despesa, fornecedor_nome,
+          cnpj_cpf, valor_documento, valor_liquido, url_documento, data_documento, num_documento)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        ON CONFLICT DO NOTHING`,
         [
-          politicoId, casa,
+          politicoId,
           g.ano || g.numAno || new Date().getFullYear(),
           g.mes || g.numMes || 1,
-          g.tipoDespesa || g.descricao || '',
-          g.nomeFornecedor || g.fornecedor || '',
-          g.cnpjCpfFornecedor || g.cnpjCpf || '',
+          g.tipoDespesa || g.descricao || g.tipo || '',
+          g.nomeFornecedor || g.fornecedorNome || g.fornecedor || '',
+          g.cnpjCpfFornecedor || g.cnpjCpf || g.cnpj || '',
           parseFloat(g.valorDocumento) || 0,
-          parseFloat(g.valorLiquido) || parseFloat(g.valorDocumento) || 0,
-          parseFloat(g.valorGlosa) || 0,
-          g.numDocumento || g.codDocumento || '',
-          g.urlDocumento || '',
-          JSON.stringify(g)
+          parseFloat(g.valorLiquido) || parseFloat(g.valorDocumento) || parseFloat(g.valor) || 0,
+          g.urlDocumento || g.url || '',
+          g.dataDocumento || null,
+          g.numDocumento || g.codDocumento || ''
         ]
       );
       stats.gastos++;
-    } catch (err) {
-      // skip duplicates
-    }
+    } catch (err) { /* skip duplicates */ }
   }
 }
 
-async function migrateEmendas(collection, politicoId) {
-  const emendasSnap = await db.collection(collection)
-    .doc(politicoId).collection('emendas').get();
-  
-  if (emendasSnap.empty) return;
-  
-  for (const edoc of emendasSnap.docs) {
+// ==========================================
+// EMENDAS - le da colecao RAIZ 'emendas' (preenchida pelo run-ingest-emendas-v4)
+// Usa ON CONFLICT (codigo_emenda) DO UPDATE para idempotencia
+// ==========================================
+async function migrateEmendas() {
+  console.log('\n=== Migrando emendas (colecao raiz) ===');
+  const snapshot = await db.collection('emendas').get();
+  console.log(`  Total docs: ${snapshot.size}`);
+
+  for (const edoc of snapshot.docs) {
     const e = edoc.data();
+    // politico_id: converter para inteiro
+    const pid = parseInt(String(e.parlamentarId || e.autorId || '').replace(/^(dep_|sen_)/, '')) || 0;
+    // codigo_emenda: usar codigo se existir, senao gerar deterministico
+    const codigo = e.codigo || e.codigoEmenda || `${pid}_${e.ano || 0}_${edoc.id}`;
+
     try {
       await pool.query(
-        `INSERT INTO emendas (politico_id, numero_emenda, ano, tipo_emenda,
-         valor_empenhado, valor_pago, valor_resto_pagar, localidade_destino,
-         funcao, subfuncao, dados_raw)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-         ON CONFLICT DO NOTHING`,
+        `INSERT INTO emendas (codigo_emenda, politico_id, autor_nome, autor_partido, autor_uf,
+          ano, tipo_emenda, localidade, uf_destino, funcao, subfuncao, programa,
+          valor_empenhado, valor_liquidado, valor_pago, taxa_execucao,
+          criticidade, alertas, idh_local, is_show)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+        ON CONFLICT (codigo_emenda) DO UPDATE SET
+          valor_empenhado=EXCLUDED.valor_empenhado, valor_liquidado=EXCLUDED.valor_liquidado,
+          valor_pago=EXCLUDED.valor_pago, taxa_execucao=EXCLUDED.taxa_execucao,
+          criticidade=EXCLUDED.criticidade, alertas=EXCLUDED.alertas`,
         [
-          politicoId,
-          e.numeroEmenda || e.numero || edoc.id,
+          codigo,
+          pid || null,
+          e.autorNome || e.nomeAutor || '',
+          e.autorPartido || e.partidoAutor || '',
+          e.autorUf || e.ufAutor || '',
           e.ano || new Date().getFullYear(),
-          e.tipoEmenda || e.tipo || '',
-          parseFloat(e.valorEmpenhado) || 0,
-          parseFloat(e.valorPago) || 0,
-          parseFloat(e.valorRestoPagar) || 0,
-          e.localidadeDestino || e.localidade || '',
+          e.tipo || e.tipoEmenda || '',
+          e.localidade || e.municipio || '',
+          e.uf || e.ufDestino || '',
           e.funcao || '',
           e.subfuncao || '',
-          JSON.stringify(e)
+          e.programa || '',
+          parseFloat(e.valorEmpenhado) || 0,
+          parseFloat(e.valorLiquidado) || 0,
+          parseFloat(e.valorPago) || 0,
+          parseInt(e.taxaExecucao) || 0,
+          e.criticidade || 'BAIXA',
+          e.alertas ? (Array.isArray(e.alertas) ? e.alertas : [e.alertas]) : [],
+          parseFloat(e.idhLocal) || null,
+          e.isShow || false
         ]
       );
       stats.emendas++;
-    } catch (err) {}
+    } catch (err) {
+      if (!err.message.includes('violates foreign key')) {
+        console.error(`  ERRO emenda ${codigo}:`, err.message);
+      }
+    }
   }
+  console.log(`  Emendas migradas: ${stats.emendas}`);
 }
 
-async function migratePresenca(collection, politicoId) {
-  const presSnap = await db.collection(collection)
-    .doc(politicoId).collection('presenca').get();
-  
-  if (presSnap.empty) return;
-  
-  for (const pdoc of presSnap.docs) {
+
+// PRESENCA
+async function migratePresenca(colName, firestoreId, politicoId) {
+  let snap = await db.collection(colName).doc(firestoreId).collection('presencas').get();
+  if (snap.empty) snap = await db.collection(colName).doc(firestoreId).collection('sessoes').get();
+  if (snap.empty) return;
+  for (const pdoc of snap.docs) {
     const p = pdoc.data();
     try {
       await pool.query(
-        `INSERT INTO presenca (politico_id, data_sessao, tipo_sessao,
-         presenca, justificativa, dados_raw)
-         VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT DO NOTHING`,
-        [
-          politicoId,
-          p.data || p.dataSessao || pdoc.id,
-          p.tipo || p.descricao || '',
-          p.frequencia || p.presenca || '',
-          p.justificativa || '',
-          JSON.stringify(p)
-        ]
+        `INSERT INTO sessoes_plenario (politico_id, data_sessao, tipo_sessao, ano, presente, justificativa)
+        VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`,
+        [politicoId, p.data || p.dataSessao || pdoc.id, p.tipo || p.descricao || '',
+         parseInt(p.ano) || new Date().getFullYear(),
+         p.frequencia === 'Presenca' || p.presente === true, p.justificativa || '']
       );
       stats.presenca++;
     } catch (err) {}
   }
 }
 
-async function migrateProposicoes(collection, politicoId) {
-  const propSnap = await db.collection(collection)
-    .doc(politicoId).collection('proposicoes').get();
-  
-  if (propSnap.empty) return;
-  
-  for (const pdoc of propSnap.docs) {
+// PROPOSICOES
+async function migrateProposicoes(colName, firestoreId, politicoId) {
+  const snap = await db.collection(colName).doc(firestoreId).collection('proposicoes').get();
+  if (snap.empty) return;
+  for (const pdoc of snap.docs) {
     const p = pdoc.data();
     try {
       await pool.query(
-        `INSERT INTO proposicoes (politico_id, id_proposicao, tipo, numero,
-         ano, ementa, situacao, url_inteiro_teor, dados_raw)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-         ON CONFLICT DO NOTHING`,
-        [
-          politicoId,
-          p.id || pdoc.id,
-          p.siglaTipo || p.tipo || '',
-          parseInt(p.numero) || 0,
-          p.ano || new Date().getFullYear(),
-          p.ementa || '',
-          p.statusProposicao?.descricaoSituacao || p.situacao || '',
-          p.urlInteiroTeor || '',
-          JSON.stringify(p)
-        ]
+        `INSERT INTO proposicoes (politico_id, id_proposicao, tipo, numero, ano, ementa, situacao, url_inteiro_teor)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`,
+        [politicoId, p.id || pdoc.id, p.siglaTipo || p.tipo || '',
+         parseInt(p.numero) || 0, p.ano || new Date().getFullYear(),
+         p.ementa || '', p.statusProposicao?.descricaoSituacao || p.situacao || '',
+         p.urlInteiroTeor || '']
       );
       stats.proposicoes++;
     } catch (err) {}
   }
 }
 
+// USERS
 async function migrateUsers() {
   console.log('\n=== Migrando users ===');
-  const usersSnap = await db.collection('users').get();
-  
-  for (const udoc of usersSnap.docs) {
+  const snap = await db.collection('users').get();
+  for (const udoc of snap.docs) {
     const u = udoc.data();
     try {
       await pool.query(
         `INSERT INTO users (firebase_uid, email, nome, plano, creditos_restantes, criado_em)
-         VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (firebase_uid) DO UPDATE SET
-           email=EXCLUDED.email, plano=EXCLUDED.plano,
-           creditos_restantes=EXCLUDED.creditos_restantes`,
-        [
-          udoc.id,
-          u.email || '',
-          u.displayName || u.nome || '',
-          u.plan || u.plano || 'free',
-          u.credits || u.creditos || 0,
-          u.createdAt ? new Date(u.createdAt._seconds * 1000) : new Date()
-        ]
+        VALUES ($1,$2,$3,$4,$5,$6)
+        ON CONFLICT (firebase_uid) DO UPDATE SET
+          email=EXCLUDED.email, plano=EXCLUDED.plano, creditos_restantes=EXCLUDED.creditos_restantes`,
+        [udoc.id, u.email || '', u.displayName || u.nome || '',
+         u.plan || u.plano || 'free', u.credits || u.creditos || 0,
+         u.createdAt ? new Date(u.createdAt._seconds * 1000) : new Date()]
       );
-    } catch (err) {
-      console.error(`  ERRO user ${udoc.id}:`, err.message);
-    }
+      stats.users++;
+    } catch (err) { console.error(`  ERRO user ${udoc.id}:`, err.message); }
   }
-  console.log(`  Users migrados: ${usersSnap.size}`);
+  console.log(`  Users migrados: ${snap.size}`);
 }
 
+// ==========================================
+// MAIN
+// ==========================================
 async function main() {
   console.log('==========================================');
-  console.log('  MIGRACAO FIRESTORE -> CLOUD SQL');
-  console.log('  Projeto: fiscallizapa');
+  console.log(' MIGRACAO FIRESTORE -> CLOUD SQL');
+  console.log(' Projeto: fiscallizapa');
   console.log('==========================================');
-  
   const start = Date.now();
-  
   try {
-    // Testar conexao
     const res = await pool.query('SELECT NOW()');
     console.log(`\nConectado ao PostgreSQL: ${res.rows[0].now}`);
-    
-    // Migrar politicos (Camara + Senado)
+
+    // 1. Migrar politicos (inclui gastos, presenca, proposicoes como subcollections)
     await migratePoliticos('CAMARA');
     await migratePoliticos('SENADO');
-    
-    // Migrar users
+
+    // 2. Migrar emendas da colecao raiz (preenchida pelo run-ingest-emendas-v4)
+    await migrateEmendas();
+
+    // 3. Migrar users
     await migrateUsers();
-    
+
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
     console.log('\n==========================================');
-    console.log('  MIGRACAO CONCLUIDA!');
-    console.log(`  Tempo: ${elapsed}s`);
-    console.log(`  Politicos: ${stats.politicos}`);
-    console.log(`  Gastos CEAP: ${stats.gastos}`);
-    console.log(`  Emendas: ${stats.emendas}`);
-    console.log(`  Presenca: ${stats.presenca}`);
-    console.log(`  Proposicoes: ${stats.proposicoes}`);
+    console.log(' MIGRACAO CONCLUIDA!');
+    console.log(` Tempo: ${elapsed}s`);
+    console.log(` Politicos: ${stats.politicos}`);
+    console.log(` Gastos CEAP: ${stats.gastos}`);
+    console.log(` Emendas: ${stats.emendas}`);
+    console.log(` Presenca: ${stats.presenca}`);
+    console.log(` Proposicoes: ${stats.proposicoes}`);
+    console.log(` Users: ${stats.users}`);
     console.log('==========================================');
-    
   } catch (err) {
     console.error('ERRO FATAL:', err);
   } finally {
@@ -289,3 +274,5 @@ async function main() {
 }
 
 main();
+
+
