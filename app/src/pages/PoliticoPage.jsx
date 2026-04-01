@@ -144,6 +144,27 @@ export default function PoliticoPage({ user }) {
   const emendasResumo = pol?.emendasResumo || {};
   const emendasTotal = emendasResumo.total || emendas.length || 0;
 
+    // === EMENDAS AGGREGATIONS (Issue #15) ===
+  const emendasPorTipo = {};
+  const emendasPorAno = {};
+  const emendasPorDestino = {};
+  const emendasPorBeneficiario = {};
+  emendas.forEach(e => {
+    const tipo = e.tipoEmenda || e.tipo_emenda || e.tipo || 'Não informado';
+    const ano = e.ano || 'N/A';
+    const destino = e.localidade || e.municipioNome || e.municipio || e.uf_destino || e.uf || 'Não informado';
+    const benef = e.beneficiario || e.nome_recebedor || e.nomeRecebedor || 'Não informado';
+    const val = e.valorEmpenhado || e.valor_empenhado || e.valor || 0;
+    emendasPorTipo[tipo] = (emendasPorTipo[tipo] || 0) + val;
+    emendasPorAno[ano] = (emendasPorAno[ano] || 0) + val;
+    emendasPorDestino[destino] = (emendasPorDestino[destino] || 0) + val;
+    emendasPorBeneficiario[benef] = (emendasPorBeneficiario[benef] || 0) + val;
+  });
+  const tipoEmendasSorted = Object.entries(emendasPorTipo).sort((a, b) => b[1] - a[1]);
+  const anoEmendasSorted = Object.entries(emendasPorAno).sort((a, b) => Number(a[0]) - Number(b[0]));
+  const destinosSorted = Object.entries(emendasPorDestino).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const beneficiariosSorted = Object.entries(emendasPorBeneficiario).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
   function gerarRelatorioDenuncia() {
     const achados = [];
     if (Number(concentracao) > 50) achados.push('- CONCENTRAÇÃO DE FORNECEDORES: Top 3 fornecedores concentram ' + concentracao + '% dos gastos totais.');
@@ -359,6 +380,66 @@ export default function PoliticoPage({ user }) {
               <div>
                 <span style={{ fontSize: 14 }}>{f}</span>
                 {i < 3 && <span style={{ marginLeft: 8, background: 'rgba(233,69,96,0.12)', color: 'var(--accent-red)', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700 }}>TOP {i + 1}</span>}
+              </div>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>{fmt(val)}</span>
+            </div>
+          ))}
+        </Section>
+      )}
+
+            {/* ========== DISTRIBUIÇÃO DAS EMENDAS (Issue #15) ========== */}
+      {(emendas.length > 0 || emendasTotal > 0) && (tipoEmendasSorted.length > 0 || anoEmendasSorted.length > 0) && (
+        <Section title="Distribuição das Emendas" icon="📊" id="emendas-distribuicao">
+          {tipoEmendasSorted.length > 0 && (
+            <>
+              <h4 style={{ margin: '0 0 12px', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 600 }}>Por Tipo de Emenda</h4>
+              {tipoEmendasSorted.map(([tipo, val]) => (
+                <div key={tipo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 13 }}>{tipo}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>{fmt(val)}</span>
+                </div>
+              ))}
+            </>
+          )}
+          {anoEmendasSorted.length > 0 && (
+            <>
+              <h4 style={{ margin: '20px 0 12px', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 600 }}>Por Ano</h4>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {anoEmendasSorted.map(([ano, val]) => (
+                  <div key={ano} style={{ flex: '1 1 120px', padding: '14px', background: 'var(--bg-elevated)', borderRadius: 8, textAlign: 'center' }}>
+                    <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent-green)' }}>{ano}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{fmt(val)}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Section>
+      )}
+
+      {/* ========== DESTINOS PRINCIPAIS (Issue #15) ========== */}
+      {destinosSorted.length > 0 && (
+        <Section title="Destinos Principais" icon="📍" id="destinos">
+          {destinosSorted.map(([destino, val], i) => (
+            <div key={destino} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 8, marginBottom: 6 }}>
+              <div>
+                <span style={{ fontSize: 14 }}>{destino}</span>
+                {i < 3 && <span style={{ marginLeft: 8, background: 'rgba(76,202,163,0.12)', color: 'var(--accent-green)', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600 }}>TOP {i + 1}</span>}
+              </div>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>{fmt(val)}</span>
+            </div>
+          ))}
+        </Section>
+      )}
+
+      {/* ========== MAIORES FAVORECIDOS/BENEFICIÁRIOS (Issue #15) ========== */}
+      {beneficiariosSorted.length > 0 && (
+        <Section title="Maiores Favorecidos" icon="👥" id="beneficiarios">
+          {beneficiariosSorted.map(([benef, val], i) => (
+            <div key={benef} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 8, marginBottom: 6 }}>
+              <div>
+                <span style={{ fontSize: 14 }}>{benef}</span>
+                {i < 3 && <span style={{ marginLeft: 8, background: 'rgba(255,193,7,0.12)', color: 'var(--accent-gold)', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600 }}>TOP {i + 1}</span>}
               </div>
               <span style={{ fontWeight: 700, fontSize: 14 }}>{fmt(val)}</span>
             </div>
