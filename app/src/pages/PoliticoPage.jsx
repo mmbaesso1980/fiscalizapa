@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { doc, getDoc, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import GastosChart from "../components/GastosChart";
@@ -97,8 +97,8 @@ export default function PoliticoPage({ user }) {
       gList.sort((a, b) => getVal(b) - getVal(a));
       setGastos(gList);
       
-      const eSnap = await getDocs(collection(db, col, id, "emendas"));
-      setEmendas(eSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const eSnap = await getDocs(query(collection(db, "emendas"), where("parlamentarId", "==", id))); const eSubSnap = await getDocs(collection(db, col, id, "emendas"));
+      const eMerged = [...eSnap.docs.map(d => ({ id: d.id, ...d.data() })), ...eSubSnap.docs.map(d => ({ id: d.id, ...d.data() }))]; setEmendas(eMerged);
       
       try {
         const sSnap = await getDocs(collection(db, col, id, "sessoes"));
