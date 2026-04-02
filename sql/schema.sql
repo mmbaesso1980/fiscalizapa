@@ -240,4 +240,123 @@ SELECT
   COUNT(*) AS num_notas
 FROM gastos_ceap g
 GROUP BY g.politico_id, g.tipo_despesa
+
+  -- ==========================================
+-- EMENDAS DOCUMENTOS DE DESPESA (encaminhamento)
+-- Fase 2.2 - Rastreamento do caminho da emenda
+-- ==========================================
+CREATE TABLE IF NOT EXISTS emendas_documentos (
+    id                  BIGSERIAL PRIMARY KEY,
+    codigo_emenda       VARCHAR(20) NOT NULL,
+    ano_emenda          SMALLINT,
+    codigo_autor        VARCHAR(20),
+    nome_autor          VARCHAR(200),
+    numero_emenda       VARCHAR(20),
+    tipo_emenda         VARCHAR(100),
+    fase_despesa        VARCHAR(20) NOT NULL, -- EMPENHO, LIQUIDACAO, PAGAMENTO
+    data_documento      DATE,
+    codigo_documento    VARCHAR(50),
+    valor_empenhado     NUMERIC(14,2) DEFAULT 0,
+    valor_pago          NUMERIC(14,2) DEFAULT 0,
+    codigo_favorecido   VARCHAR(20),
+    nome_favorecido     VARCHAR(300),
+    tipo_favorecido     VARCHAR(50),
+    uf_favorecido       VARCHAR(2),
+    municipio_favorecido VARCHAR(200),
+    localidade_aplicacao VARCHAR(200),
+    uf_aplicacao        VARCHAR(2),
+    municipio_aplicacao VARCHAR(200),
+    codigo_ibge_municipio VARCHAR(10),
+    codigo_ug           VARCHAR(20),
+    nome_ug             VARCHAR(300),
+    codigo_orgao        VARCHAR(20),
+    nome_orgao          VARCHAR(300),
+    codigo_orgao_superior VARCHAR(20),
+    nome_orgao_superior VARCHAR(300),
+    codigo_funcao       VARCHAR(10),
+    nome_funcao         VARCHAR(100),
+    codigo_subfuncao    VARCHAR(10),
+    nome_subfuncao      VARCHAR(100),
+    codigo_programa     VARCHAR(10),
+    nome_programa       VARCHAR(200),
+    codigo_acao         VARCHAR(10),
+    nome_acao           VARCHAR(200),
+    grupo_despesa       VARCHAR(100),
+    elemento_despesa    VARCHAR(200),
+    modalidade_aplicacao VARCHAR(200),
+    possui_convenio     BOOLEAN DEFAULT FALSE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(codigo_emenda, codigo_documento, fase_despesa)
+);
+CREATE INDEX idx_emendas_docs_emenda ON emendas_documentos(codigo_emenda);
+CREATE INDEX idx_emendas_docs_autor ON emendas_documentos(codigo_autor);
+CREATE INDEX idx_emendas_docs_fase ON emendas_documentos(fase_despesa);
+CREATE INDEX idx_emendas_docs_favorecido ON emendas_documentos(codigo_favorecido);
+CREATE INDEX idx_emendas_docs_data ON emendas_documentos(data_documento);
+CREATE INDEX idx_emendas_docs_ano ON emendas_documentos(ano_emenda);
+CREATE INDEX idx_emendas_docs_uf ON emendas_documentos(uf_aplicacao);
+
+-- ==========================================
+-- EMENDAS CONVENIOS (vinculo emenda-convenio)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS emendas_convenios (
+    id                  BIGSERIAL PRIMARY KEY,
+    codigo_emenda       VARCHAR(20) NOT NULL,
+    numero_convenio     VARCHAR(50),
+    convenente          VARCHAR(300),
+    objeto_convenio     TEXT,
+    valor_convenio      NUMERIC(14,2) DEFAULT 0,
+    data_publicacao     DATE,
+    codigo_funcao       VARCHAR(10),
+    nome_funcao         VARCHAR(100),
+    nome_subfuncao      VARCHAR(100),
+    localidade_gasto    VARCHAR(200),
+    tipo_emenda         VARCHAR(100),
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(codigo_emenda, numero_convenio)
+);
+CREATE INDEX idx_emendas_conv_emenda ON emendas_convenios(codigo_emenda);
+CREATE INDEX idx_emendas_conv_convenio ON emendas_convenios(numero_convenio);
+
+-- ==========================================
+-- VIEW: Encaminhamento completo da emenda
+-- ==========================================
+CREATE OR REPLACE VIEW v_emenda_encaminhamento AS
+SELECT
+    ed.codigo_emenda,
+    ed.ano_emenda,
+    ed.nome_autor,
+    ed.tipo_emenda,
+    ed.fase_despesa,
+    ed.data_documento,
+    ed.valor_empenhado,
+    ed.valor_pago,
+    ed.nome_favorecido,
+    ed.tipo_favorecido,
+    ed.uf_aplicacao,
+    ed.municipio_aplicacao,
+    ed.nome_orgao,
+    ed.nome_funcao,
+    ed.grupo_despesa,
+    ed.possui_convenio
+FROM emendas_documentos ed
+ORDER BY ed.codigo_emenda, ed.data_documento;
+
+-- VIEW: Resumo por emenda (totais por fase)
+CREATE OR REPLACE VIEW v_emenda_resumo_fases AS
+SELECT
+    codigo_emenda,
+    nome_autor,
+    tipo_emenda,
+    ano_emenda,
+    SUM(CASE WHEN fase_despesa = 'Empenho' THEN valor_empenhado ELSE 0 END) AS total_empenhado,
+    SUM(CASE WHEN fase_despesa = 'Pagamento' THEN valor_pago ELSE 0 END) AS total_pago,
+    COUNT(DISTINCT CASE WHEN fase_despesa = 'Empenho' THEN codigo_documento END) AS num_empenhos,
+    COUNT(DISTINCT CASE WHEN fase_despesa = 'Liquidação' THEN codigo_documento END) AS num_liquidacoes,
+    COUNT(DISTINCT CASE WHEN fase_despesa = 'Pagamento' THEN codigo_documento END) AS num_pagamentos,
+    COUNT(DISTINCT nome_favorecido) AS num_favorecidos,
+    MIN(data_documento) AS primeira_data,
+    MAX(data_documento) AS ultima_data
+FROM emendas_documentos
+GROUP BY codigo_emenda, nome_autor, tipo_emenda, ano_emenda;
 ORDER BY total_valor DESC;
