@@ -10,6 +10,7 @@ import ProjetosSection from "../components/ProjetosSection";
 import VerbaGabineteSection from "../components/VerbaGabineteSection";
 import NepotismoCard from "../components/NepotismoCard";
 import EmendasAba from "../components/EmendasAba";
+import EncaminhamentoEmendas from "../components/EncaminhamentoEmendas";
 import useFeatureFlags from "../hooks/useFeatureFlags";
 import ScorePilaresCard from "../components/ScorePilaresCard";
 
@@ -506,7 +507,10 @@ export default function PoliticoPage({ user }) {
       <Section title="Presença Parlamentar" icon="✅" id="presenca">
         <PresencaSection colecao={col} politicoId={id} sessoes={sessoes} />
       </Section>
+      {/* ========== ENCAMINHAMENTO DAS EMENDAS (Issue #15) ========== */}
+      <EncaminhamentoEmendas politicoId={id} nomeAutor={pol.nome} />
 
+      
       {/* ========== PROPOSICOES ========== */}
       <Section title="Proposições Legislativas" icon="📜" id="projetos">
         <ProjetosSection colecao={col} politicoId={id} />
