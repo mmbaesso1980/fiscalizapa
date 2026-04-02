@@ -2028,3 +2028,40 @@ Gere relatorio com: RESUMO EXECUTIVO, ANALISE CEAP, PRESENCA, INDICIOS, RECOMEND
     return { analysis };
   }
 );
+
+
+  // ============================================
+// ENCAMINHAMENTO DE EMENDAS - Rastreio completo
+// ============================================
+exports.getEmendasEncaminhamento = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new Error('Authentication required');
+    checkRateLimit(uid);
+    const politicoId = sanitizeString(request.data.politicoId || '', 100);
+    const nomeAutor = sanitizeString(request.data.nomeAutor || '', 200);
+    const ano = Number(request.data.ano) || null;
+    const lim = Math.min(Number(request.data.limit) || 50, 200);
+    if (!politicoId && !nomeAutor) throw new Error('politicoId ou nomeAutor obrigatorio');
+    const client = await pool.connect();
+    try {
+      const where = [];
+      const params = [];
+      let idx = 1;
+      if (nomeAutor) { where.push('nome_autor ILIKE $' + idx); params.push('%' + nomeAutor + '%'); idx++; }
+      if (politicoId) { where.push('nome_autor IN (SELECT nome_urna FROM politicos WHERE id_politico = $' + idx + ')'); params.push(Number(politicoId)); idx++; }
+      if (ano) { where.push('ano_emenda = $' + idx); params.push(ano); idx++; }
+      const mainSql = 'SELECT codigo_emenda, ano_emenda, tipo_emenda, nome_autor, localidade_gasto, codigo_funcao, codigo_subfuncao, nome_favorecido, valor_empenhado, valor_liquidado, valor_pago, valor_resto_pago, fase_despesa, numero_convenio, nome_programa_convenio, situacao_convenio, valor_repasse_convenio FROM emendas_documentos WHERE ' + where.join(' AND ') + ' ORDER BY valor_pago DESC NULLS LAST LIMIT $' + idx;
+      params.push(lim);
+      const result = await client.query(mainSql, params);
+      const resumoParams = params.slice(0, -1);
+      const resumoSql = 'SELECT COUNT(*) as total, COUNT(DISTINCT codigo_emenda) as emendas_unicas, SUM(valor_empenhado) as total_empenhado, SUM(valor_liquidado) as total_liquidado, SUM(valor_pago) as total_pago, COUNT(DISTINCT nome_favorecido) as favorecidos, COUNT(DISTINCT fase_despesa) as fases_distintas FROM emendas_documentos WHERE ' + where.join(' AND ');
+      const resumo = await client.query(resumoSql, resumoParams);
+      const fasesSql = 'SELECT fase_despesa, COUNT(*) as qtd, SUM(valor_pago) as valor FROM emendas_documentos WHERE ' + where.join(' AND ') + ' GROUP BY fase_despesa ORDER BY valor DESC';
+      let fases = [];
+      try { fases = (await client.query(fasesSql, resumoParams)).rows; } catch(e) {}
+      return { documentos: result.rows, resumo: resumo.rows[0] || {}, fases, total: result.rows.length };
+    } finally { client.release(); }
+  }
+);
