@@ -18,6 +18,14 @@ function fmt(v) {
   return "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 }
 
+function parseBRL(v) {
+  if (!v) return 0;
+  if (typeof v === 'number') return v;
+  const s = String(v).replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
 function riskBadge(score) {
   if (!score || score < 30) return { label: "Baixo risco", cls: "risk-badge-low" };
   if (score < 60) return { label: "Risco médio", cls: "risk-badge-medium" };
@@ -116,7 +124,7 @@ export default function PoliticoPage({ user }) {
   }, [col, id]);
 
   const totalGastos = gastos.reduce((a, g) => a + getVal(g), 0);
-  const totalEmendas = emendas.reduce((a, e) => a + (e.valorEmpenhado || e.valor || 0), 0);
+  const totalEmendas = emendas.reduce((a, e) => a + (parseBRL(e.valorEmpenhado || e.valor)), 0);
   const totalVerbasGab = verbasGabinete.reduce((a, v) => a + (v.valor || v.remuneracao || 0), 0);
   
   const porCategoria = {};
@@ -154,7 +162,7 @@ export default function PoliticoPage({ user }) {
     const ano = e.ano || 'N/A';
     const destino = e.localidade || e.municipioNome || e.municipio || e.uf_destino || e.uf || 'Não informado';
     const benef = e.beneficiario || e.nome_recebedor || e.nomeRecebedor || 'Não informado';
-    const val = e.valorEmpenhado || e.valor_empenhado || e.valor || 0;
+    const val = parseBRL(e.valorEmpenhado || e.valor_empenhado || e.valor);
     emendasPorTipo[tipo] = (emendasPorTipo[tipo] || 0) + val;
     emendasPorAno[ano] = (emendasPorAno[ano] || 0) + val;
     emendasPorDestino[destino] = (emendasPorDestino[destino] || 0) + val;
@@ -477,7 +485,7 @@ export default function PoliticoPage({ user }) {
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{e.municipioNome || e.municipio || 'N/A'} - {e.uf || ''}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.objetoResumo || e.beneficiario || ''} | {e.status || ''}</div>
                 </div>
-                <span style={{ fontWeight: 700, color: 'var(--accent-gold)' }}>{fmt(e.valorEmpenhado || e.valor)}</span>
+                <span style={{ fontWeight: 700, color: 'var(--accent-gold)' }}>{fmt(parseBRL(e.valorEmpenhado || e.valor))}</span>
               </div>
             </div>
           ))
