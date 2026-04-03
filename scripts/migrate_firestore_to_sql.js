@@ -28,7 +28,21 @@ const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || '',
 });
-
+function parseMoney(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (typeof v === 'string') {
+    const s = v
+      .replace(/\s/g, '')
+      .replace(/^R\$\s?/, '')
+      .replace(/\./g, '')
+      .replace(',', '.');
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
 let stats = { politicos: 0, gastos: 0, emendas: 0, presenca: 0, proposicoes: 0, users: 0 };
 
 // ==========================================
@@ -96,10 +110,12 @@ async function migrateGastos(colName, firestoreId, politicoId) {
           g.tipoDespesa || g.descricao || g.tipo || '',
           g.nomeFornecedor || g.fornecedorNome || g.fornecedor || '',
           g.cnpjCpfFornecedor || g.cnpjCpf || g.cnpj || '',
-          parseFloat(g.valorDocumento) || 0,
-          parseFloat(g.valorLiquido) || parseFloat(g.valorDocumento) || parseFloat(g.valor) || 0,
+          parseMoney(g.valorDocumento),
+parseMoney(g.valorLiquido) || parseMoney(g.valorDocumento) || parseMoney(g.valor),
           g.urlDocumento || g.url || '',
-          g.dataDocumento || null,
+         (g.dataDocumento && g.dataDocumento.length >= 10)
+  ? g.dataDocumento.substring(0, 10)
+  : null,
           g.numDocumento || g.codDocumento || ''
         ]
       );
@@ -125,39 +141,75 @@ async function migrateEmendas() {
     const codigo = e.codigo || e.codigoEmenda || `${pid}_${e.ano || 0}_${edoc.id}`;
 
     try {
-      await pool.query(
-        `INSERT INTO emendas (codigo_emenda, politico_id, autor_nome, autor_partido, autor_uf,
-          ano, tipo_emenda, localidade, uf_destino, funcao, subfuncao, programa,
-          valor_empenhado, valor_liquidado, valor_pago, taxa_execucao,
-          criticidade, alertas, idh_local, is_show)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-        ON CONFLICT (codigo_emenda) DO UPDATE SET
-          valor_empenhado=EXCLUDED.valor_empenhado, valor_liquidado=EXCLUDED.valor_liquidado,
-          valor_pago=EXCLUDED.valor_pago, taxa_execucao=EXCLUDED.taxa_execucao,
-          criticidade=EXCLUDED.criticidade, alertas=EXCLUDED.alertas`,
-        [
-          codigo,
-          pid || null,
-          e.autorNome || e.nomeAutor || '',
-          e.autorPartido || e.partidoAutor || '',
-          e.autorUf || e.ufAutor || '',
-          e.ano || new Date().getFullYear(),
-          e.tipo || e.tipoEmenda || '',
-          e.localidade || e.municipio || '',
-          e.uf || e.ufDestino || '',
-          e.funcao || '',
-          e.subfuncao || '',
-          e.programa || '',
-          parseFloat(e.valorEmpenhado) || 0,
-          parseFloat(e.valorLiquidado) || 0,
-          parseFloat(e.valorPago) || 0,
-          parseInt(e.taxaExecucao) || 0,
-          e.criticidade || 'BAIXA',
-          e.alertas ? (Array.isArray(e.alertas) ? e.alertas : [e.alertas]) : [],
-          parseFloat(e.idhLocal) || null,
-          e.isShow || false
-        ]
-      );
+    await pool.query(
+  `INSERT INTO emendas (
+      codigo_emenda,
+      politico_id,
+      autor_nome,
+      autor_partido,
+      autor_uf,
+      ano,
+      tipo_emenda,
+      localidade,
+      uf_destino,
+      funcao,
+      subfuncao,
+      programa,
+      valor_empenhado,
+      valor_liquidado,
+      valor_pago,
+      taxa_execucao,
+      criticidade,
+      alertas,
+      idh_local,
+      is_show,
+      beneficiario,
+      cnpj_recebedor,
+      nome_recebedor
+    )
+    VALUES (
+      $1,$2,$3,$4,$5,
+      $6,$7,$8,$9,$10,
+      $11,$12,$13,$14,$15,
+      $16,$17,$18,$19,$20,
+      $21,$22,$23
+    )
+    ON CONFLICT (codigo_emenda) DO UPDATE SET
+      valor_empenhado = EXCLUDED.valor_empenhado,
+      valor_liquidado = EXCLUDED.valor_liquidado,
+      valor_pago      = EXCLUDED.valor_pago,
+      taxa_execucao   = EXCLUDED.taxa_execucao,
+      criticidade     = EXCLUDED.criticidade,
+      alertas         = EXCLUDED.alertas,
+      beneficiario    = EXCLUDED.beneficiario,
+      cnpj_recebedor  = EXCLUDED.cnpj_recebedor,
+      nome_recebedor  = EXCLUDED.nome_recebedor`,
+  [
+    e.codigo || e.codigoEmenda || doc.id,
+    parseInt(e.parlamentarId, 10) || null,
+    e.autorNome || '',
+    e.autorPartido || '',
+    e.autorUf || '',
+    e.ano || null,
+    e.tipo || e.tipoEmenda || '',
+    e.localidade || '',
+    e.uf || e.uf_destino || e.autorUf || '',
+    e.funcao || '',
+    e.subfuncao || '',
+    e.programa || '',
+    parseMoney(e.valorEmpenhado),
+    parseMoney(e.valorLiquidado),
+    parseMoney(e.valorPago),
+    e.taxaExecucao || 0,
+    e.criticidade || 'BAIXA',
+    e.alertas || [],
+    e.idhLocal || null,
+    e.isShow === true,
+    e.beneficiario || e.nomeFavorecido || '',
+    e.cnpjRecebedor || e.codigoFavorecido || '',
+    e.nomeRecebedor || e.nomeFavorecido || '',
+  ]
+);
       stats.emendas++;
     } catch (err) {
       if (!err.message.includes('violates foreign key')) {
