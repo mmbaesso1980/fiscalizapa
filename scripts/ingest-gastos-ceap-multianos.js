@@ -5,6 +5,72 @@
  *
  * Uso: cd functions && node ../scripts/ingest-gastos-ceap-multianos.js
  */
+async function main() {
+  console.log("=== INGEST GASTOS CEAP MULTI-ANO ===");
+  const snap = await db.collection("deputados_federais").get();
+  const deps = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  console.log(`${deps.length} deputados.`);
+
+  let totalGastos = 0;
+  for (const dep of deps) {
+    let depTotal = 0;
+    for (const ano of ANOS) {
+      const gastos = await fetchAllGastos(dep.id, ano);
+      if (!gastos.length) continue;
+
+      let batch = db.batch();
+      let batchCount = 0;
+
+      for (const g of gastos) {
+        const docId = `${dep.id}_${ano}_${g.codDocumento || g.numDocumento || Math.random().toString(36).substr(2,8)}`;
+        const ref = db.collection("deputados_federais").doc(dep.id).collection("gastos").doc(docId);
+
+        batch.set(ref, {
+          ano: ano,
+          mes: g.numMes || g.mes || 0,
+          tipoDespesa: g.tipoDespesa || '',
+          descricao: g.descricao || g.tipoDespesa || '',
+          nomeFornecedor: g.nomeFornecedor || '',
+          cnpjCpfFornecedor: g.cnpjCpfFornecedor || '',
+          valorDocumento: g.valorDocumento || 0,
+          valorLiquido: g.valorLiquido || g.valorDocumento || 0,
+          valorGlosa: g.valorGlosa || 0,
+          urlDocumento: g.urlDocumento || '',
+          dataDocumento: (g.dataDocumento && g.dataDocumento.length >= 10)
+            ? g.dataDocumento.substring(0, 10)
+            : '',
+          numDocumento: g.numDocumento || '',
+          codDocumento: g.codDocumento || 0,
+          parcela: g.parcela || 0,
+          ingestedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        batchCount++;
+
+        if (batchCount >= 490) {
+          await batch.commit();
+          batch = db.batch();     // ← recria o batch
+          batchCount = 0;
+        }
+      }
+
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+
+      depTotal += gastos.length;
+      await sleep(200);
+    }
+
+    if (depTotal > 0) {
+      console.log(` ${dep.nome || dep.id}: ${depTotal} gastos`);
+      totalGastos += depTotal;
+    }
+  }
+
+  console.log(`\nTotal: ${totalGastos} gastos ingeridos.`);
+  process.exit(0);
+}
 const admin = require("firebase-admin");
 const fetch = require("node-fetch");
 
