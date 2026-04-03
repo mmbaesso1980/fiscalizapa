@@ -51,7 +51,20 @@ async function fetchAll(nome, ano) {
   }
   return all;
 }
+function extrairUF(localidade) {
+  if (!localidade) return '';
+  // "CIDADE (UF)"
+  const matchParen = localidade.match(/\(([A-Z]{2})\)/);
+  if (matchParen) return matchParen[1];
 
+  // "CIDADE - UF"
+  const matchDash = localidade.match(/[-–]\s*([A-Z]{2})$/);
+  if (matchDash) return matchDash[1];
+
+  const clean = localidade.trim().toUpperCase();
+  if (/^[A-Z]{2}$/.test(clean)) return clean;
+  return '';
+}
 function analisar(e) {
   const alertas = [];
   const emp = e.valorEmpenhado || 0;
@@ -61,8 +74,8 @@ function analisar(e) {
   if (emp > 0 && pag === 0) alertas.push(`SEM PAGAMENTO.`);
   if (emp > 5000000) alertas.push(`VALOR ELEVADO: R$ ${(emp/1e6).toFixed(1)}M.`);
   const loc = e.localidadeDoGasto || '';
-  const uf = loc.substring(0, 2).toUpperCase();
-  const idh = IDH_UF[uf];
+const uf = extrairUF(loc);
+const idh = IDH_UF[uf];
   if (idh && idh < 0.67) alertas.push(`REGIAO VULNERAVEL: IDH ${idh.toFixed(3)} (${uf}).`);
   const tipo = (e.tipoEmenda || '').toUpperCase();
   if (tipo.includes('RELATOR')) alertas.push(`EMENDA DE RELATOR (RP9).`);
@@ -122,17 +135,18 @@ async function main() {
         parlamentarId: dep.id, autorId: dep.id, autorNome: dep.nome,
         autorPartido: dep.partido || '', autorUf: dep.uf || '',
         codigo: e.codigoEmenda || '', ano: e.ano || e.anoConsulta,
-        tipo: e.tipoEmenda || '', localidade: e.localidadeDoGasto || '',
+        tipo: e.tipoEmenda || '', 
         uf: a.ufLocal, funcao: e.nomeFuncao || e.codigoFuncao || '',
         subfuncao: e.nomeSubfuncao || e.codigoSubfuncao || '',
         programa: e.nomePrograma || '',
+          beneficiario: e.nomeFavorecido || e.beneficiario || '',
+  cnpjRecebedor: e.codigoFavorecido || '',
+  nomeRecebedor: e.nomeFavorecido || '',
         valorEmpenhado: e.valorEmpenhado || 0,
         valorLiquidado: e.valorLiquidado || 0,
         valorPago: e.valorPago || 0,
         taxaExecucao: a.taxaExecucao, alertas: a.alertas,
         criticidade: a.criticidade, idhLocal: a.idhLocal, isShow: a.isShow,
-        ingestedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
       sumEmp += e.valorEmpenhado || 0;
       sumPag += e.valorPago || 0;
       alertCount += a.alertas.length;
