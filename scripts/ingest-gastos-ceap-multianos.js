@@ -12,7 +12,7 @@ if (!admin.apps.length) admin.initializeApp({ projectId: "fiscallizapa" });
 const db = admin.firestore();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-const ANOS = [2023, 2024, 2025 2026];
+const ANOS = [2023, 2024, 2025, 2026];
 
 async function fetchGastosCamara(depId, ano, pagina) {
   const url = `https://dadosabertos.camara.leg.br/api/v2/deputados/${depId}/despesas?ano=${ano}&pagina=${pagina}&itens=100&ordem=DESC&ordenarPor=dataDocumento`;
@@ -69,7 +69,9 @@ async function main() {
           valorLiquido: g.valorLiquido || g.valorDocumento || 0,
           valorGlosa: g.valorGlosa || 0,
           urlDocumento: g.urlDocumento || '',
-          dataDocumento: g.dataDocumento || '',
+          dataDocumento: (g.dataDocumento && g.dataDocumento.length >= 10)
+  ? g.dataDocumento.substring(0, 10)
+  : null,
           numDocumento: g.numDocumento || '',
           codDocumento: g.codDocumento || 0,
           parcela: g.parcela || 0,
