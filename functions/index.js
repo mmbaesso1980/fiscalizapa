@@ -2087,3 +2087,64 @@ exports.getAuditoriaPolitico = onCall(async (request) => {
 });
   }
 );
+// ============================================================================
+// BLOCO 1: Adicione no final do seu functions/index.js
+// ============================================================================
+const { BigQuery } = require('@google-cloud/bigquery');
+const bq = new BigQuery();
+
+// Certifique-se de importar o onCall do v2 no topo do seu arquivo se já não estiver:
+// const { onCall } = require("firebase-functions/v2/https");
+
+exports.getAuditoriaPolitico = onCall({ 
+  region: "southamerica-east1",
+  memory: "512MiB"
+}, async (request) => {
+  try {
+    const { nome, ano } = request.data;
+    const uid = request.auth ? request.auth.uid : null;
+
+    if (!nome) {
+      return { despesas: [], error: "Nome não fornecido" };
+    }
+
+    // 1. Verificação de Créditos (Simplificada para o teste)
+    // Se o usuário estiver logado, consideramos que ele tem acesso premium no teste.
+    // Em produção, você integraria com o seu creditService.getWallet(uid)
+    const temAcessoPremium = uid ? true : false; 
+
+    // 2. A Query de Alta Precisão (Ignora Case Sensitive)
+    const query = `
+      SELECT * FROM \`projeto-codex-br.dados_camara.auditoria_final_*\`
+      WHERE UPPER(txNomeParlamentar) LIKE UPPER(@nome) 
+      AND _TABLE_SUFFIX = @ano
+      ORDER BY vlrLiquido DESC LIMIT 100
+    `;
+    
+    const [rows] = await bq.query({
+      query,
+      params: { nome: `%${nome}%`, ano: String(ano) }
+    });
+
+    // 3. O Motor de Paywall e Formatação
+    const despesasProcessadas = rows.map(row => {
+      // Regra de Risco: Finais de semana, valores redondos ou notas acima de 10k
+      const isSuspeito = row.vlrLiquido > 10000 || row.is_valor_redondo || row.is_fds;
+      
+      return {
+        ...row,
+        // Se for suspeito e não tiver premium, bloqueia a visão
+        urlDocumento: temAcessoPremium ? row.urlDocumento : null,
+        txtFornecedor: (temAcessoPremium || !isSuspeito) ? row.txtFornecedor : "🔒 [FORNECEDOR EM SIGILO]",
+        isLocked: !temAcessoPremium && isSuspeito
+      };
+    });
+
+    return { despesas: despesasProcessadas };
+
+  } catch (error) {
+    console.error("Erro Crítico no BigQuery:", error);
+    throw new Error("Falha ao buscar auditoria: " + error.message);
+  }
+});
+
