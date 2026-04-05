@@ -9,6 +9,12 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import GastosChart from "../components/GastosChart";
 import EmendasAba from "../components/EmendasAba";
 import ScorePilaresCard from "../components/ScorePilaresCard";
+import PresencaSection from "../components/PresencaSection";
+import ProjetosSection from "../components/ProjetosSection";
+import AlertasFretamento from "../components/AlertasFretamento";
+import NepotismoCard from "../components/NepotismoCard";
+import VerbaGabineteSection from "../components/VerbaGabineteSection";
+import EncaminhamentoEmendas from "../components/EncaminhamentoEmendas";
 
 // Funções de formatação
 function fmt(v) {
