@@ -49,19 +49,22 @@ function riskBadge(score) {
 }
 
 function getVal(g) {
-  return g.valorLiquido || g.valor || g.valorDocumento || 0;
+  // Agora ele reconhece o vlrLiquido do BigQuery
+  return g.vlrLiquido || g.valorLiquido || g.valor || g.valorDocumento || 0;
 }
 
 function getTipo(g) {
-  return g.tipoDespesa || g.tipo || g.descricao || g.categoria || "Outros";
+  // Agora ele reconhece o txtDescricao do BigQuery
+  return g.txtDescricao || g.tipoDespesa || g.tipo || g.descricao || g.categoria || "Outros";
 }
 
 function getFornecedor(g) {
-  return g.fornecedorNome || g.nomeFornecedor || g.fornecedor || "Desconhecido";
+  // Agora ele reconhece o txtFornecedor do BigQuery
+  return g.txtFornecedor || g.fornecedorNome || g.nomeFornecedor || g.fornecedor || "Desconhecido";
 }
 
 function getCnpj(g) {
-  return g.cnpjCpf || g.cnpjCpfFornecedor || g.cnpj || "";
+  return g.txtCNPJCPF || g.cnpjCpf || g.cnpjCpfFornecedor || g.cnpj || "";
 }
 
 function simpleMarkdown(text) {
@@ -208,29 +211,32 @@ export default function PoliticoPage({ user }) {
     async function load() {
       setLoading(true);
 
+      let nomeDoPolitico = ""; // Criamos a variável para guardar o nome com segurança
+
       const snap = await getDoc(doc(db, col, id));
       if (snap.exists()) {
-        setPol({ id: snap.id, ...snap.data() });
-        if (snap.data().analise) setAnalysis(snap.data().analise);
+        const data = snap.data();
+        nomeDoPolitico = data.nome; // Salvamos o nome antes de chamar o BigQuery
+        setPol({ id: snap.id, ...data });
+        if (data.analise) setAnalysis(data.analise);
       }
 
-     // COLOQUE ISTO:
-try {
-  const getAuditoria = httpsCallable(functions, "getAuditoriaPolitico");
-  
-  // Chamando nossa ponte do BigQuery
-  // polData.nome é o nome que acabou de ser carregado do Firestore
-  const result = await getAuditoria({ 
-    nome: polData.nome, 
-    ano: 2024 
-  });
+      // Chamando nossa ponte do BigQuery (Agora com o nome correto)
+      if (nomeDoPolitico) {
+        try {
+          const getAuditoria = httpsCallable(functions, "getAuditoriaPolitico");
+          const result = await getAuditoria({ 
+            nome: nomeDoPolitico, 
+            ano: 2024 
+          });
 
-  if (result.data && result.data.despesas) {
-    setGastos(result.data.despesas); // Agora 'gastos' contém os dados limpos do BigQuery
-  }
-} catch (auditError) {
-  console.error("Erro na auditoria BigQuery:", auditError);
-}
+          if (result.data && result.data.despesas) {
+            setGastos(result.data.despesas); // Popula os gráficos com os dados limpos
+          }
+        } catch (auditError) {
+          console.error("Erro na auditoria BigQuery:", auditError);
+        }
+      }
 
       const eSnap = await getDocs(
         query(collection(db, "emendas"), where("parlamentarId", "==", id))
