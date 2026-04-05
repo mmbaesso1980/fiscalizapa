@@ -221,7 +221,7 @@ export default function PoliticoPage({ user }) {
         if (data.analise) setAnalysis(data.analise);
       }
 
-      // Chamando nossa ponte do BigQuery (Agora com o nome correto)
+// Chamando nossa ponte do BigQuery (Agora com o nome correto e tradutor)
       if (nomeDoPolitico) {
         try {
           const getAuditoria = httpsCallable(functions, "getAuditoriaPolitico");
@@ -230,14 +230,28 @@ export default function PoliticoPage({ user }) {
             ano: 2024 
           });
 
-          if (result.data && result.data.despesas) {
-            setGastos(result.data.despesas); // Popula os gráficos com os dados limpos
+          if (result.data && result.data.despesas && result.data.despesas.length > 0) {
+            // O TRADUTOR UNIVERSAL: Converte o BigQuery para o formato que seu site já ama
+            const gastosTraduzidos = result.data.despesas.map(g => ({
+              id: g.urlDocumento || Math.random().toString(),
+              valorLiquido: g.vlrLiquido || 0,
+              tipoDespesa: g.txtDescricao || "Sem Categoria",
+              fornecedorNome: g.txtFornecedor || "Desconhecido",
+              dataDocumento: g.datEmissao || "",
+              urlDocumento: g.urlDocumento || "",
+              cnpjCpf: g.txtCNPJCPF || "",
+              isLocked: g.isLocked // Para o futuro Paywall
+            }));
+            
+            setGastos(gastosTraduzidos);
+            console.log("Dados do BigQuery carregados com sucesso!", gastosTraduzidos);
+          } else {
+            console.log("BigQuery retornou vazio para:", nomeDoPolitico);
           }
         } catch (auditError) {
           console.error("Erro na auditoria BigQuery:", auditError);
         }
       }
-
       const eSnap = await getDocs(
         query(collection(db, "emendas"), where("parlamentarId", "==", id))
       );
