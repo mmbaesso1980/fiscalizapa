@@ -1,10 +1,11 @@
+cd ~/fiscalizapa/app
+cat << 'EOF' > src/pages/PoliticoPage.jsx
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
-// Nossos Componentes
 import GastosChart from "../components/GastosChart";
 import EmendasAba from "../components/EmendasAba";
 import ScorePilaresCard from "../components/ScorePilaresCard";
@@ -15,7 +16,6 @@ import NepotismoCard from "../components/NepotismoCard";
 import VerbaGabineteSection from "../components/VerbaGabineteSection";
 import EncaminhamentoEmendas from "../components/EncaminhamentoEmendas";
 
-// Funções de formatação
 function fmt(v) {
   const n = Number(v || 0);
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -38,7 +38,6 @@ export default function PoliticoPage({ user }) {
       setLoading(true);
       let nomeDoPolitico = "";
 
-      // 1. Busca os dados básicos do Firestore
       const snap = await getDoc(doc(db, col, id));
       if (snap.exists()) {
         const data = snap.data();
@@ -46,7 +45,6 @@ export default function PoliticoPage({ user }) {
         setPol({ id: snap.id, ...data });
       }
 
-      // 2. Busca a Auditoria Forense no BigQuery
       if (nomeDoPolitico) {
         try {
           const fns = getFunctions(undefined, "southamerica-east1");
@@ -77,7 +75,6 @@ export default function PoliticoPage({ user }) {
         }
       }
 
-      // 3. Busca Emendas
       try {
         const eSnap = await getDocs(query(collection(db, "emendas"), where("parlamentarId", "==", id)));
         setEmendas(eSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -106,7 +103,6 @@ export default function PoliticoPage({ user }) {
   return (
     <div className="min-h-screen bg-[#0B0B0F] text-[#e0e0e0] font-sans pb-20">
       
-      {/* HEADER */}
       <div className="border-b border-[#c9a84c]/20 bg-[#12121a] pt-10 pb-8 px-6 mb-8 relative overflow-hidden">
         <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'linear-gradient(#c9a84c 1px, transparent 1px)', backgroundSize: '100% 4px' }}></div>
         
@@ -138,7 +134,6 @@ export default function PoliticoPage({ user }) {
         </div>
       </div>
 
-      {/* DASHBOARDS */}
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <div className="lg:col-span-2 space-y-8">
@@ -298,3 +293,4 @@ export default function PoliticoPage({ user }) {
     </div>
   );
 }
+EOF
