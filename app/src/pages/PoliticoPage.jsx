@@ -1,11 +1,10 @@
-// ============================================================================
-// BLOCO 2: Topo e Lógica do app/src/pages/PoliticoPage.jsx
-// ============================================================================
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
+
+// Nossos Componentes
 import GastosChart from "../components/GastosChart";
 import EmendasAba from "../components/EmendasAba";
 import ScorePilaresCard from "../components/ScorePilaresCard";
@@ -47,7 +46,7 @@ export default function PoliticoPage({ user }) {
         setPol({ id: snap.id, ...data });
       }
 
-      // 2. Busca a Auditoria Forense no BigQuery (Garantindo a Região)
+      // 2. Busca a Auditoria Forense no BigQuery
       if (nomeDoPolitico) {
         try {
           const fns = getFunctions(undefined, "southamerica-east1");
@@ -59,7 +58,6 @@ export default function PoliticoPage({ user }) {
           });
 
           if (result.data && result.data.despesas && result.data.despesas.length > 0) {
-            // O TRADUTOR: Padroniza para o React
             const gastosTraduzidos = result.data.despesas.map(g => ({
               id: g.urlDocumento || Math.random().toString(),
               valorLiquido: g.vlrLiquido || 0,
@@ -79,7 +77,7 @@ export default function PoliticoPage({ user }) {
         }
       }
 
-      // 3. Busca Emendas (Mantendo a sua lógica original)
+      // 3. Busca Emendas
       try {
         const eSnap = await getDocs(query(collection(db, "emendas"), where("parlamentarId", "==", id)));
         setEmendas(eSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -104,16 +102,12 @@ export default function PoliticoPage({ user }) {
   }
 
   if (!pol) return <div className="p-10 text-white text-center">Dossiê não encontrado.</div>;
-// ============================================================================
-// BLOCO 3: Renderização (Visual SaaS Bloomberg)
-// ============================================================================
 
   return (
     <div className="min-h-screen bg-[#0B0B0F] text-[#e0e0e0] font-sans pb-20">
       
-      {/* HEADER: Terminal Profile */}
+      {/* HEADER */}
       <div className="border-b border-[#c9a84c]/20 bg-[#12121a] pt-10 pb-8 px-6 mb-8 relative overflow-hidden">
-        {/* Efeito de Scanner Fundo */}
         <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'linear-gradient(#c9a84c 1px, transparent 1px)', backgroundSize: '100% 4px' }}></div>
         
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-6 relative z-10">
@@ -144,13 +138,11 @@ export default function PoliticoPage({ user }) {
         </div>
       </div>
 
-      {/* MAIN GRID: Dashboards */}
+      {/* DASHBOARDS */}
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* COLUNA ESQUERDA (Maior): Dados Financeiros */}
         <div className="lg:col-span-2 space-y-8">
           
-          {/* Cards de Resumo */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-[#12121a] border border-[#c9a84c]/30 rounded-xl p-5 shadow-lg">
               <div className="text-[#8a8a9e] text-xs uppercase tracking-widest mb-1">Gasto CEAP Auditado</div>
@@ -166,13 +158,11 @@ export default function PoliticoPage({ user }) {
             </div>
           </div>
 
-          {/* TABELA DE GASTOS COM PAYWALL */}
           <div className="bg-[#12121a] border border-gray-800 rounded-xl p-6 shadow-lg relative">
             <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
               <h3 className="text-xl text-[#c9a84c] font-space font-bold flex items-center gap-2">
                 <span>🔍</span> Dossiê de Notas Fiscais
               </h3>
-              <span className="text-xs text-gray-500 uppercase">Últimos Lançamentos</span>
             </div>
 
             <div className="space-y-3">
@@ -217,15 +207,8 @@ export default function PoliticoPage({ user }) {
                 ))
               )}
             </div>
-            
-            {gastos.length > 15 && (
-              <button className="w-full mt-6 py-3 border border-gray-700 text-gray-400 rounded-lg text-sm hover:bg-gray-800 transition-colors">
-                Carregar Histórico Completo
-              </button>
-            )}
           </div>
           
-          {/* Gráfico Original Mantido (Renderizado no novo tema) */}
           {gastos.length > 0 && (
             <div className="bg-[#12121a] border border-gray-800 rounded-xl p-6">
                <GastosChart data={gastos} />
@@ -234,33 +217,24 @@ export default function PoliticoPage({ user }) {
 
         </div>
 
-        {/* COLUNA DIREITA: Inteligência e Emendas */}
         <div className="space-y-8">
           
-          {/* Score original mantido */}
           {pol.scorePilares && (
             <div className="bg-[#12121a] rounded-xl border border-gray-800 overflow-hidden">
               <ScorePilaresCard scorePilares={pol.scorePilares} />
             </div>
           )}
 
-          {/* Aba de Emendas */}
           <div className="bg-[#12121a] rounded-xl border border-gray-800 p-6">
             <h3 className="text-lg text-white font-bold mb-4 border-b border-gray-800 pb-2">Rastro de Emendas</h3>
             <EmendasAba deputadoId={id} colecao={col} nomeDeputado={pol.nome} />
           </div>
-
-{/* ============================================================================
-// BLOCO 4: Secções de Inteligência, Alertas e Fecho do Componente
-// ============================================================================ */}
           
         </div>
       </div>
 
-      {/* LINHA INFERIOR FULL-WIDTH: Radares de Auditoria */}
       <div className="max-w-6xl mx-auto px-6 mt-8 space-y-8">
         
-        {/* Painel de Assiduidade e Produção */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="bg-[#12121a] rounded-xl border border-gray-800 p-6 shadow-lg">
             <h3 className="text-lg text-white font-bold mb-4 border-b border-gray-800 pb-2 flex items-center gap-2">
@@ -277,7 +251,6 @@ export default function PoliticoPage({ user }) {
           </div>
         </div>
 
-        {/* Radares de Anomalia Forense */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {gastos.length > 0 && (
             <div className="bg-[#12121a] rounded-xl border border-red-900/30 p-6 shadow-lg relative overflow-hidden">
@@ -299,7 +272,6 @@ export default function PoliticoPage({ user }) {
           </div>
         </div>
 
-        {/* Rastreio Financeiro (Gabinete e Emendas) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
           <div className="bg-[#12121a] rounded-xl border border-gray-800 p-6 shadow-lg">
             <h3 className="text-lg text-white font-bold mb-4 border-b border-gray-800 pb-2 flex items-center gap-2">
@@ -316,7 +288,7 @@ export default function PoliticoPage({ user }) {
           </div>
         </div>
         
-   <div className="text-center pb-10">
+        <div className="text-center pb-10">
            <Link to="/" className="inline-block py-3 px-8 rounded-lg font-bold text-black bg-[#c9a84c] hover:bg-white transition-colors">
               ← Retornar ao Terminal Central
            </Link>
