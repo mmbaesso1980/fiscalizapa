@@ -4,7 +4,10 @@
 @tailwind components;
 @tailwind utilities;
 
-
+:root {
+  --bg-primary: #fafaf8;
+  /* (deixe o restante das suas variáveis de cor que já estavam aqui para baixo intocadas) */
+}
 :root {
   --bg-primary: #fafaf8;
   --bg-secondary: #f2f0eb;
