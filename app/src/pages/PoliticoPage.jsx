@@ -185,7 +185,7 @@ function Section({ title, icon, children, id }) {
 export default function PoliticoPage({ user }) {
   const { colecao, id } = useParams();
   const [pol, setPol] = useState(null);
-  const [gastos, setGastos] = useState([]);
+  const [gastos, setGastos] = useState([]); // Vamos manter o nome 'gastos' para não quebrar os componentes abaixo
   const [emendas, setEmendas] = useState([]);
   const [sessoes, setSessoes] = useState([]);
   const [verbasGabinete, setVerbasGabinete] = useState([]);
@@ -214,10 +214,23 @@ export default function PoliticoPage({ user }) {
         if (snap.data().analise) setAnalysis(snap.data().analise);
       }
 
-      const gSnap = await getDocs(collection(db, col, id, "gastos"));
-      const gList = gSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      gList.sort((a, b) => getVal(b) - getVal(a));
-      setGastos(gList);
+     // COLOQUE ISTO:
+try {
+  const getAuditoria = httpsCallable(functions, "getAuditoriaPolitico");
+  
+  // Chamando nossa ponte do BigQuery
+  // polData.nome é o nome que acabou de ser carregado do Firestore
+  const result = await getAuditoria({ 
+    nome: polData.nome, 
+    ano: 2024 
+  });
+
+  if (result.data && result.data.despesas) {
+    setGastos(result.data.despesas); // Agora 'gastos' contém os dados limpos do BigQuery
+  }
+} catch (auditError) {
+  console.error("Erro na auditoria BigQuery:", auditError);
+}
 
       const eSnap = await getDocs(
         query(collection(db, "emendas"), where("parlamentarId", "==", id))
