@@ -5,7 +5,10 @@ const admin = require("firebase-admin");
 if (!admin.apps.length) admin.initializeApp();
 // force redeploy 2026-03-29 webhook secret fix
 const db = admin.firestore();
-
+const query = `
+    SELECT * FROM \`projeto-codex-br.dados_camara.auditoria_final_*\`
+    WHERE UPPER(txNomeParlamentar) LIKE UPPER(@nome) AND _TABLE_SUFFIX = @ano
+    ORDER BY vlrLiquido DESC LIMIT 50`;
 const { defineSecret } = require("firebase-functions/params");
 const geminiKey = defineSecret("GEMINI_KEY");
 const stripeKey = defineSecret("STRIPE_SECRET");
