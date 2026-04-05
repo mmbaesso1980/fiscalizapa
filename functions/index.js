@@ -2063,5 +2063,24 @@ exports.getEmendasEncaminhamento = onCall(
       try { fases = (await client.query(fasesSql, resumoParams)).rows; } catch(e) {}
       return { documentos: result.rows, resumo: resumo.rows[0] || {}, fases, total: result.rows.length };
     } finally { client.release(); }
+    const { BigQuery } = require('@google-cloud/bigquery');
+const bq = new BigQuery();
+
+exports.getAuditoriaPolitico = onCall(async (request) => {
+  const { nome, ano } = request.data;
+  
+  // Query otimizada no BigQuery (Custo quase zero)
+  const query = `
+    SELECT * FROM \`projeto-codex-br.dados_camara.auditoria_final_*\`
+    WHERE txNomeParlamentar LIKE @nome AND _TABLE_SUFFIX = @ano
+    ORDER BY vlrLiquido DESC LIMIT 50`;
+  
+  const [rows] = await bq.query({
+    query,
+    params: { nome: `%${nome}%`, ano: String(ano) }
+  });
+
+  return { despesas: rows };
+});
   }
 );
