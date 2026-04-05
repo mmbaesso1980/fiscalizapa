@@ -310,7 +310,7 @@ export default function PoliticoPage({ user }) {
           </div>
         </div>
         
-        <div className="text-center pb-10">
+   <div className="text-center pb-10">
            <Link to="/" className="inline-block py-3 px-8 rounded-lg font-bold text-black bg-[#c9a84c] hover:bg-white transition-colors">
               ← Retornar ao Terminal Central
            </Link>
@@ -319,6 +319,4 @@ export default function PoliticoPage({ user }) {
       </div>
     </div>
   );
-}
-
 }
