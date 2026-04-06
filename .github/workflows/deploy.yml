@@ -42,13 +42,9 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
 
       - name: Install functions dependencies
-        run: |
-          rm -f package-lock.json
-          npm install --legacy-peer-deps
-          npm install pg
+        run: npm install --legacy-peer-deps
         working-directory: functions
 
-      # --- NOVO: Criar ficheiro .env para as Functions com os dados do SQL ---
       - name: Create .env for Functions
         run: |
           echo "DB_HOST=${{ secrets.DB_HOST }}" > .env
