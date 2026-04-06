@@ -291,4 +291,4 @@ export default function PoliticoPage({ user }) {
     </div>
   );
 }
-EOF
+
