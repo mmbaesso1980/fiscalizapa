@@ -3,15 +3,15 @@
  * Esquemas e Usurpações Sociopolíticas
  *
  * Backend mínimo v1.0 — Firebase Cloud Functions
- * Núcleo: BigQuery (projeto-codex-br / US) + Firestore + Auth + Stripe
+ * Núcleo: BigQuery (projeto-codex-br / us-central1) + Firestore + Auth + Stripe
  *
  * ARQUITETURA DE PROJETOS:
  *   fiscalizapa-e3fd4  → Firebase (Auth, Firestore, Storage, Functions) — southamerica-east1
- *   projeto-codex-br   → BigQuery dataset dados_camara — location US (economia)
+ *   projeto-codex-br   → BigQuery dataset dados_camara — us-central1 (Iowa) — economia
  *
  * As Functions rodam em southamerica-east1 (latência baixa para usuários BR),
- * mas consultam o BigQuery em US. A latência extra (~150ms) é aceitável para
- * queries analíticas e compensa muito no custo de armazenamento BigQuery.
+ * mas consultam o BigQuery em us-central1. A latência extra (~150ms) é aceitável
+ * para queries analíticas e compensa muito no custo de armazenamento BigQuery.
  */
 
 'use strict';
@@ -26,12 +26,12 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 admin.initializeApp();
 const db = admin.firestore();
 
-// BigQuery aponta para projeto-codex-br, dataset em US
+// BigQuery aponta para projeto-codex-br, dataset em us-central1 (Iowa)
 const bq = new BigQuery({ projectId: 'projeto-codex-br' });
 const gcs = new Storage();
 
 const DATASET = 'dados_camara';
-const BQ_LOCATION = 'US'; // projeto-codex-br está em US para economia
+const BQ_LOCATION = 'us-central1'; // Iowa — onde o dataset dados_camara está armazenado
 const REGION = 'southamerica-east1'; // Functions ficam perto dos usuários BR
 const OPTS = { region: REGION };
 
