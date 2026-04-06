@@ -1,5 +1,3 @@
-cd ~/fiscalizapa/app
-cat << 'EOF' > src/pages/PoliticoPage.jsx
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
