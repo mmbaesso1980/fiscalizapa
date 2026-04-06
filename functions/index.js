@@ -3,7 +3,15 @@
  * Esquemas e Usurpações Sociopolíticas
  *
  * Backend mínimo v1.0 — Firebase Cloud Functions
- * Núcleo: BigQuery + Cloud Storage + Auth + Stripe
+ * Núcleo: BigQuery (projeto-codex-br / US) + Firestore + Auth + Stripe
+ *
+ * ARQUITETURA DE PROJETOS:
+ *   fiscalizapa-e3fd4  → Firebase (Auth, Firestore, Storage, Functions) — southamerica-east1
+ *   projeto-codex-br   → BigQuery dataset dados_camara — location US (economia)
+ *
+ * As Functions rodam em southamerica-east1 (latência baixa para usuários BR),
+ * mas consultam o BigQuery em US. A latência extra (~150ms) é aceitável para
+ * queries analíticas e compensa muito no custo de armazenamento BigQuery.
  */
 
 'use strict';
@@ -17,11 +25,14 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// BigQuery aponta para projeto-codex-br, dataset em US
 const bq = new BigQuery({ projectId: 'projeto-codex-br' });
 const gcs = new Storage();
 
 const DATASET = 'dados_camara';
-const REGION = 'southamerica-east1';
+const BQ_LOCATION = 'US'; // projeto-codex-br está em US para economia
+const REGION = 'southamerica-east1'; // Functions ficam perto dos usuários BR
 const OPTS = { region: REGION };
 
 // ─────────────────────────────────────────────
@@ -31,7 +42,10 @@ exports.health = onRequest(OPTS, (req, res) => {
   res.json({
     status: 'ok',
     version: '1.0.0',
-    project: 'fiscalizapa-e3fd4',
+    firebase_project: 'fiscalizapa-e3fd4',
+    bigquery_project: 'projeto-codex-br',
+    bigquery_location: BQ_LOCATION,
+    functions_region: REGION,
     timestamp: new Date().toISOString(),
     engine: 'ASMODEUS v1'
   });
@@ -44,9 +58,9 @@ exports.bigQueryPing = onRequest(OPTS, async (req, res) => {
   try {
     const [rows] = await bq.query({
       query: `SELECT COUNT(*) as total FROM \`projeto-codex-br.${DATASET}.auditoria_completa_2023\` LIMIT 1`,
-      location: 'southamerica-east1'
+      location: BQ_LOCATION
     });
-    res.json({ status: 'ok', totalRows: rows[0]?.total ?? 0 });
+    res.json({ status: 'ok', totalRows: rows[0]?.total ?? 0, location: BQ_LOCATION });
   } catch (e) {
     res.status(500).json({ status: 'error', message: e.message });
   }
@@ -76,7 +90,6 @@ exports.runQuery = onCall(OPTS, async (req) => {
   const { table, where, limit = 50, offset = 0 } = req.data || {};
   if (!table) throw new HttpsError('invalid-argument', 'Parâmetro table obrigatório.');
 
-  // Whitelist de tabelas permitidas ao frontend
   const ALLOWED = [
     'auditoria_completa_2023',
     'emendas_parlamentares',
@@ -99,7 +112,7 @@ exports.runQuery = onCall(OPTS, async (req) => {
     OFFSET ${safeOffset}
   `;
 
-  const [rows] = await bq.query({ query, location: 'southamerica-east1' });
+  const [rows] = await bq.query({ query, location: BQ_LOCATION });
   return { rows, count: rows.length };
 });
 
@@ -222,12 +235,11 @@ exports.getPerfilParlamentar = onCall(OPTS, async (req) => {
     LIMIT 1
   `;
 
-  const [rows] = await bq.query({ query, location: 'southamerica-east1' });
+  const [rows] = await bq.query({ query, location: BQ_LOCATION });
   if (!rows.length) throw new HttpsError('not-found', 'Parlamentar não encontrado.');
 
   const base = rows[0];
 
-  // Dados premium só para assinantes
   if (plan !== 'premium') {
     const { nome, partido, estado, totalGastos, notaTransparencia } = base;
     return { nome, partido, estado, totalGastos, notaTransparencia, premium: false };
@@ -237,7 +249,7 @@ exports.getPerfilParlamentar = onCall(OPTS, async (req) => {
 });
 
 // ─────────────────────────────────────────────
-// 10. RANKING SEMANAL (scheduled — toda segunda 03:00)
+// 10. RANKING SEMANAL (scheduled — toda segunda 03:00 Belém)
 // ─────────────────────────────────────────────
 exports.atualizarRankingSemanal = onSchedule(
   { schedule: 'every monday 03:00', timeZone: 'America/Belem', ...OPTS },
@@ -249,7 +261,7 @@ exports.atualizarRankingSemanal = onSchedule(
       ORDER BY notaTransparencia DESC
       LIMIT 513
     `;
-    const [rows] = await bq.query({ query, location: 'southamerica-east1' });
+    const [rows] = await bq.query({ query, location: BQ_LOCATION });
     const batch = db.batch();
     rows.forEach((r, i) => {
       batch.set(db.doc(`rankings/federal/parlamentares/${r.idCamara}`), {
