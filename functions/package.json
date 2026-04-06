@@ -1,9 +1,9 @@
 {
   "name": "fiscalizapa-functions",
   "version": "1.0.0",
-  "description": "ASMODEUS - Backend mínimo estável",
+  "description": "ASMODEUS - Backend m\u00ednimo est\u00e1vel (Transpar\u00eanciaBR)",
   "engines": {
-    "node": "22"
+    "node": "24"
   },
   "main": "index.js",
   "scripts": {
