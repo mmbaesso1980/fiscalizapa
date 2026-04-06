@@ -9,9 +9,8 @@
  *   fiscalizapa-e3fd4  → Firebase (Auth, Firestore, Storage, Functions) — southamerica-east1
  *   projeto-codex-br   → BigQuery dataset dados_camara — us-central1 (Iowa) — economia
  *
- * As Functions rodam em southamerica-east1 (latência baixa para usuários BR),
- * mas consultam o BigQuery em us-central1. A latência extra (~150ms) é aceitável
- * para queries analíticas e compensa muito no custo de armazenamento BigQuery.
+ * TransparênciaBR = interface/produto (o que o usuário vê)
+ * ASMODEUS        = cérebro investigativo + database
  */
 
 'use strict';
@@ -21,12 +20,11 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
 const { BigQuery } = require('@google-cloud/bigquery');
 const { Storage } = require('@google-cloud/storage');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const Stripe = require('stripe');
 
 admin.initializeApp();
 const db = admin.firestore();
 
-// BigQuery aponta para projeto-codex-br, dataset em us-central1 (Iowa)
 const bq = new BigQuery({ projectId: 'projeto-codex-br' });
 const gcs = new Storage();
 
@@ -34,6 +32,19 @@ const DATASET = 'dados_camara';
 const BQ_LOCATION = 'us-central1'; // Iowa — onde o dataset dados_camara está armazenado
 const REGION = 'southamerica-east1'; // Functions ficam perto dos usuários BR
 const OPTS = { region: REGION };
+
+// Stripe inicializado lazy — evita crash quando STRIPE_SECRET_KEY não está
+// disponível em tempo de análise estática (firebase deploy --only functions)
+let _stripe = null;
+const getStripe = () => {
+  if (!_stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new HttpsError('internal', 'STRIPE_SECRET_KEY não configurado.');
+    }
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  }
+  return _stripe;
+};
 
 // ─────────────────────────────────────────────
 // 1. HEALTH CHECK
@@ -160,6 +171,7 @@ exports.createCheckoutSession = onCall(OPTS, async (req) => {
   const { priceId, successUrl, cancelUrl } = req.data || {};
   if (!priceId) throw new HttpsError('invalid-argument', 'priceId obrigatório.');
 
+  const stripe = getStripe();
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     payment_method_types: ['card'],
@@ -178,6 +190,7 @@ exports.createCheckoutSession = onCall(OPTS, async (req) => {
 exports.stripeWebhook = onRequest(
   { ...OPTS, invoker: 'public' },
   async (req, res) => {
+    const stripe = getStripe();
     const sig = req.headers['stripe-signature'];
     let event;
     try {
