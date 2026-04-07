@@ -5,6 +5,9 @@
  * e grava em subcoleção:
  *   deputados_federais/{id}/gastos/{docId}
  *
+ * ✅ docId é DETERMINÍSTICO — re-executar o script nunca duplica dados.
+ *    Chave: depId + ano + codDocumento (ou numDocumento + data + valor)
+ *
  * Uso (na raiz do repo):
  *   cd scripts
  *   node ingest-gastos-ceap-multianos.js
@@ -21,7 +24,7 @@ const db = admin.firestore();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // Ajuste aqui se quiser menos anos
-const ANOS = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
+const ANOS = [2023, 2024, 2025, 2026];
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -42,13 +45,25 @@ function normalizeDataDocumento(raw) {
   return raw;
 }
 
+/**
+ * ✅ ID DETERMINÍSTICO — gerado a partir de campos únicos do documento.
+ * Mesma despesa = mesmo ID = set() sobrescreve sem duplicar.
+ *
+ * Prioridade:
+ *  1. codDocumento (inteiro único da API)
+ *  2. numDocumento + data + valor (fallback para notas sem código)
+ */
 function montarDocId(depId, ano, g) {
-  const base =
-    g.codDocumento ||
-    g.numDocumento ||
-    `${normalizeDataDocumento(g.dataDocumento)}_${safeNumber(g.valorDocumento, 0)}`;
-  const rand = Math.random().toString(36).slice(2, 10);
-  return `${depId}_${ano}_${base}_${rand}`;
+  const cod = g.codDocumento ? String(g.codDocumento) : null;
+  if (cod && cod !== "0") {
+    return `${depId}_${ano}_cod${cod}`;
+  }
+
+  // fallback determinístico: num + data + valor (sem random)
+  const num  = (g.numDocumento || "sem-num").replace(/[^a-zA-Z0-9-]/g, "");
+  const data = normalizeDataDocumento(g.dataDocumento).replace(/-/g, "");
+  const val  = String(safeNumber(g.valorDocumento, 0)).replace(".", "");
+  return `${depId}_${ano}_${num}_${data}_${val}`;
 }
 
 // -----------------------------------------------------------------------------
@@ -109,7 +124,7 @@ async function fetchAllGastos(depId, ano) {
 // -----------------------------------------------------------------------------
 
 async function main() {
-  console.log("=== INGEST GASTOS CEAP MULTI-ANO ===");
+  console.log("=== INGEST GASTOS CEAP MULTI-ANO (IDs determinísticos) ===");
 
   const snap = await db.collection("deputados_federais").get();
   const deps = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -143,6 +158,7 @@ async function main() {
       let writtenForYear = 0;
 
       for (const g of gastos) {
+        // ✅ ID determinístico — re-run seguro, nunca duplica
         const docId = montarDocId(depId, ano, g);
         const ref = db
           .collection("deputados_federais")
@@ -169,7 +185,8 @@ async function main() {
           fonte: "camara_dados_abertos_ceap_multi_ano",
         };
 
-        batch.set(ref, docData, { merge: true });
+        // set() sem merge para garantir overwrite limpo
+        batch.set(ref, docData);
         batchCount++;
         writtenForYear++;
 
@@ -178,7 +195,7 @@ async function main() {
           console.log(
             `   - Commit parcial (${writtenForYear} gastos ano ${ano}, últimos 490).`
           );
-          batch = db.batch(); // batch novo depois do commit
+          batch = db.batch();
           batchCount = 0;
         }
       }
