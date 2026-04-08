@@ -1,36 +1,81 @@
+import { Link } from "react-router-dom";
+
+const APIS = [
+  { nome: 'Camara dos Deputados',       url: 'dadosabertos.camara.leg.br/api/v2',  desc: 'CEAP, deputados, votacoes, despesas' },
+  { nome: 'Portal da Transparencia CGU',url: 'api.portaldatransparencia.gov.br',   desc: 'Emendas, contratos, licitacoes' },
+  { nome: 'Querido Diario',             url: 'queridodiario.ok.org.br/api',        desc: 'Publicacoes em diarios oficiais' },
+  { nome: 'TSE',                        url: 'dadosabertos.tse.jus.br',            desc: 'Doadores, financiamento eleitoral' },
+  { nome: 'IBGE',                       url: 'servicodados.ibge.gov.br/api',       desc: 'Indicadores socioeconomicos' },
+];
+
+const FLAGS = [
+  { nome: 'Pico mensal anormal',       desc: 'Gasto em um mes supera 3x a media do deputado no mandato.' },
+  { nome: 'Concentracao em fornecedor',desc: 'Mais de 40% das despesas CEAP em um unico CNPJ.' },
+  { nome: 'Recorrencia suspeita',      desc: 'Mesmo fornecedor aparece mais de 20x em 12 meses.' },
+  { nome: 'CNAE incompativel',         desc: 'Atividade da empresa nao corresponde ao tipo de despesa.' },
+  { nome: 'Distancia geografica',      desc: 'Nota emitida fora do estado de atuacao do deputado.' },
+  { nome: 'Fracionamento',             desc: 'Varios documentos de valores proximos ao limite diario.' },
+  { nome: 'Empresa recem-criada',      desc: 'CNPJ com menos de 6 meses na data da nota.' },
+  { nome: 'Valor medio elevado',       desc: 'Valor medio por documento acima de 2 desvios do grupo.' },
+];
+
 export default function MetodologiaPage() {
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px' }}>
-      <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '24px', color: 'var(--text-primary)' }}>Metodologia</h1>
+    <div style={{ minHeight: '100vh', background: '#FAFAF8' }}>
+      <div style={{ maxWidth: 760, margin: '0 auto', padding: '40px 24px' }}>
 
-      <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '28px', border: '1px solid var(--border-light)', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--accent-green)', marginBottom: '12px' }}>Fontes de Dados</h2>
-        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '14px' }}>Todos os dados são obtidos de fontes públicas oficiais: API da Câmara dos Deputados (dadosabertos.camara.leg.br), Portal da Transparência e dados eleitorais do TSE. Os dados de despesas parlamentares (CEAP) são atualizados diariamente.</p>
-      </div>
+        <Link to="/" style={{ fontSize: 13, color: '#AAA', textDecoration: 'none' }}>&larr; Voltar</Link>
+        <h1 style={{ fontSize: 26, fontWeight: 700, color: '#2D2D2D', margin: '16px 0 8px' }}>Metodologia &amp; Fontes</h1>
+        <p style={{ fontSize: 15, color: '#666', lineHeight: 1.7, marginBottom: 36 }}>
+          O score de transparencia e calculado automaticamente pelo motor ASMODEUS, combinando dados de
+          multiplas fontes oficiais. Nao ha julgamento politico: apenas matematica aplicada a dados publicos.
+        </p>
 
-      <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '28px', border: '1px solid var(--border-light)', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--accent-green)', marginBottom: '12px' }}>Índice TransparenciaBR (ITB)</h2>
-        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '14px' }}>O índice (0–100) avalia o desempenho parlamentar com base em 5 pilares: <strong>economia (40%)</strong> — eficiência no uso da cota parlamentar e verba de gabinete; <strong>processos (25%)</strong> — histórico judicial e processos graves; <strong>presença (20%)</strong> — participação em sessões plenárias; <strong>proposições (10%)</strong> — projetos de lei apresentados; <strong>defesas (5%)</strong> — atuação em comissões. Normalizado em escala de 0 a 100. <strong>Score alto = melhor desempenho.</strong></p>
-      </div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#2D2D2D', marginBottom: 14 }}>Como funciona o score</h2>
+        <div style={{ background: '#fff', borderRadius: 14, padding: '24px', border: '1px solid #EDEBE8', marginBottom: 36 }}>
+          <ul style={{ margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { peso: '40%', dim: 'CEAP',                 desc: 'Volume, concentracao, anomalias e recorrencia nas despesas de cota parlamentar.' },
+              { peso: '25%', dim: 'Emendas',               desc: 'Diversificacao, execucao orcamentaria e beneficiarios.' },
+              { peso: '20%', dim: 'Atividade parlamentar', desc: 'Presencas, votacoes, projetos apresentados.' },
+              { peso: '15%', dim: 'Fornecedores',          desc: 'Concentracao, CNAE, tempo de existencia, localidade.' },
+            ].map((d, i) => (
+              <li key={i} style={{ fontSize: 14, color: '#2D2D2D', listStyle: 'none', padding: '10px 14px', background: '#FAFAF8', borderRadius: 8 }}>
+                <span style={{ fontWeight: 700 }}>{d.peso} - {d.dim}:</span>{' '}<span style={{ color: '#666' }}>{d.desc}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-      <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '28px', border: '1px solid var(--border-light)', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--accent-green)', marginBottom: '12px' }}>Score de Risco</h2>
-        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '14px' }}>Separado do índice, o score de risco (0–100) é calculado na página individual de cada político com base em: concentração de gastos em poucos fornecedores, variação dos gastos em relação à média do grupo, padrões atípicos de despesas e análise de emendas parlamentares. <strong>Score alto indica maior necessidade de fiscalização.</strong></p>
-      </div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#2D2D2D', marginBottom: 14 }}>Fontes de dados</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 36 }}>
+          {APIS.map((api, i) => (
+            <div key={i} style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #EDEBE8', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>&#128202;</span>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#2D2D2D' }}>{api.nome}</div>
+                <div style={{ fontSize: 12, color: '#AAA', marginTop: 2 }}>{api.desc}</div>
+                <div style={{ fontSize: 11, color: '#CCC', marginTop: 4, fontFamily: 'monospace' }}>{api.url}</div>
+              </div>
+            </div>
+          ))}
+        </div>
 
-      <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '28px', border: '1px solid var(--border-light)', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--accent-green)', marginBottom: '12px' }}>Análise com IA</h2>
-        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '14px' }}>A análise por inteligência artificial utiliza o modelo Gemini do Google para examinar padrões de gastos, identificar anomalias e gerar relatórios técnicos. A IA é apartidária e baseada exclusivamente nos dados públicos disponibilizados.</p>
-      </div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#2D2D2D', marginBottom: 14 }}>Flags CEAP</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 10, marginBottom: 36 }}>
+          {FLAGS.map((f, i) => (
+            <div key={i} style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #EDEBE8' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#2D2D2D', marginBottom: 4 }}>&#9888;&#65039; {f.nome}</div>
+              <div style={{ fontSize: 12, color: '#777', lineHeight: 1.6 }}>{f.desc}</div>
+            </div>
+          ))}
+        </div>
 
-      <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '28px', border: '1px solid var(--border-light)', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--accent-green)', marginBottom: '12px' }}>Princípios</h2>
-        <ul style={{ color: 'var(--text-secondary)', lineHeight: 2, fontSize: '14px', paddingLeft: '20px' }}>
-          <li>Apartidarismo total — não há viés político</li>
-          <li>Dados públicos e verificáveis</li>
-          <li>Metodologia aberta e transparente</li>
-          <li>Código aberto no GitHub</li>
-        </ul>
+        <div style={{ background: 'linear-gradient(135deg,#FBE8C4,#D6EDF5)', borderRadius: 14, padding: '20px 24px', textAlign: 'center' }}>
+          <p style={{ fontSize: 14, color: '#2D2D2D', marginBottom: 12 }}>Metodologia aberta. Quer contribuir ou reportar um erro?</p>
+          <a href="mailto:contato@transparenciabr.com.br" style={{ padding: '10px 20px', borderRadius: 100, background: '#2D2D2D', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Entrar em contato</a>
+        </div>
+
       </div>
     </div>
   );
