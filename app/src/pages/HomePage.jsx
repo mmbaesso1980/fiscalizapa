@@ -31,20 +31,21 @@ function RankBall({ rank }) {
   );
 }
 
-// ─── Formata moeda BR ─────────────────────────────────────────────────────────
-function fmtBRL(val) {
-  const num = parseFloat(String(val || '').replace(/\./g, '').replace(',', '.'));
-  if (isNaN(num) || num === 0) return '–';
-  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+// ─── Formata score ─────────────────────────────────────────────────────────
+function fmtScore(val) {
+  const num = parseFloat(val);
+  if (isNaN(num)) return '–';
+  return num.toFixed(2);
 }
 
 // ─── Card de linha do ranking ─────────────────────────────────────────────────
 function DeputadoCard({ dep }) {
-  const color = getRankColor(dep.rank);
+  const color = getRankColor(dep.rank_externo || dep.rank || 1, 513);
   const soft  = color.replace('rgb', 'rgba').replace(')', ',0.08)');
-  const id    = dep.id_camara || dep.id;
+  const nome  = dep.nome || '–';
+  const slug  = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g,'_').toUpperCase();
   return (
-    <Link to={`/politico/deputados_federais/${id}`} style={{ textDecoration: 'none', display: 'block' }}>
+    <Link to={`/politico/ranking_externo/${slug}`} style={{ textDecoration: 'none', display: 'block' }}>
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 12,
@@ -56,16 +57,16 @@ function DeputadoCard({ dep }) {
         onMouseEnter={e => { e.currentTarget.style.transform = 'translateX(3px)'; e.currentTarget.style.boxShadow = `0 4px 16px ${color}22`; }}
         onMouseLeave={e => { e.currentTarget.style.transform = 'translateX(0)'; e.currentTarget.style.boxShadow = 'none'; }}
       >
-        <RankBall rank={dep.rank} />
+        <RankBall rank={dep.rank_externo || dep.rank || 1} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#2D2D2D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {dep.nome}
+            {nome}
           </div>
-          <div style={{ fontSize: 11, color: '#999' }}>{dep.partido} · {dep.uf}</div>
+          <div style={{ fontSize: 11, color: '#999' }}>{dep.partido || '–'} · {dep.uf || '–'}</div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color }}>{dep.score}</div>
-          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>CEAP {fmtBRL(dep.gastosCeapTotal)}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color }}>{fmtScore(dep.score || dep.nota_ranking_org)}</div>
+          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>ranking.org.br</div>
         </div>
       </div>
     </Link>
@@ -87,37 +88,18 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   useEffect(() => {
     async function fetchRanking() {
       try {
-        const col = collection(db, 'deputados_federais');
+        // ── Lê de ranking_externo (seed ranking.org.br 2025) ──────────────
+        const col = collection(db, 'ranking_externo');
 
         // Top 10: maior score
-        const qTop = query(col, orderBy('score', 'desc'), limit(10));
+        const qTop    = query(col, orderBy('score', 'desc'), limit(10));
         const snapTop = await getDocs(qTop);
-        const topData = snapTop.docs.map((doc, i) => ({
-          id: doc.id,
-          id_camara: doc.id,
-          rank: i + 1,
-          nome: doc.data().nome || doc.data().nomeCompleto || doc.id,
-          partido: doc.data().partido || '–',
-          uf: doc.data().uf || '–',
-          score: doc.data().score || doc.data().indice_transparenciabr || 0,
-          gastosCeapTotal: doc.data().gastosCeapTotal || doc.data().totalGasto || 0,
-        }));
-        setTop10(topData);
+        setTop10(snapTop.docs.map((doc, i) => ({ id: doc.id, rank: i + 1, ...doc.data() })));
 
         // Bottom 10: menor score
-        const qBot = query(col, orderBy('score', 'asc'), limit(10));
+        const qBot    = query(col, orderBy('score', 'asc'), limit(10));
         const snapBot = await getDocs(qBot);
-        const botData = snapBot.docs.map((doc, i) => ({
-          id: doc.id,
-          id_camara: doc.id,
-          rank: 513 - i,
-          nome: doc.data().nome || doc.data().nomeCompleto || doc.id,
-          partido: doc.data().partido || '–',
-          uf: doc.data().uf || '–',
-          score: doc.data().score || doc.data().indice_transparenciabr || 0,
-          gastosCeapTotal: doc.data().gastosCeapTotal || doc.data().totalGasto || 0,
-        }));
-        setBottom10(botData);
+        setBottom10(snapBot.docs.map((doc, i) => ({ id: doc.id, rank: 513 - i, ...doc.data() })));
       } catch (err) {
         console.error('Erro ao buscar ranking:', err);
       } finally {
@@ -183,7 +165,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       <section id="ranking-section" style={{ maxWidth: 900, margin: '0 auto 64px', padding: '0 24px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2D2D2D' }}>Ranking de Transparência Parlamentar</h2>
-          {/* FONTE CORRETA — ranking de terceiros até o nosso índice estar pronto */}
           <a
             href="https://ranking.org.br/ranking/politicos"
             target="_blank"
@@ -227,7 +208,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         )}
       </section>
 
-      {/* AVISO DE METODOLOGIA — banner sutil */}
+      {/* AVISO DE METODOLOGIA */}
       <section style={{ maxWidth: 900, margin: '-40px auto 56px', padding: '0 24px' }}>
         <div style={{ background: '#FBF7E8', border: '1px solid #F0E4A0', borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 16 }}>⚡</span>
@@ -245,10 +226,10 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         <p style={{ fontSize: 14, color: '#AAA', marginBottom: 24 }}>Pague por aquilo que precisa. Sem assinatura obrigatória.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16 }}>
           {[
-            { icon: '📋', title: 'Dossiê CEAP Básico',     price: 'R$ 9,90',          desc: 'Resumo de gastos, top fornecedores e 5 flags principais.',                            badge: 'Popular'  },
-            { icon: '🔥', title: 'Dossiê CEAP Matador',    price: 'R$ 39,90',         desc: 'Análise forense completa com todos os recibos, gráficos e PDF para denúncia.',       badge: 'Premium'  },
-            { icon: '💬', title: 'Pergunta ao Agente IA',  price: 'R$ 2,00/pergunta', desc: 'Consulte o agente IA com dados parlamentares. Resposta baseada em dados oficiais.',  badge: 'IA'       },
-            { icon: '📦', title: 'Módulos avulsos',        price: 'Emendas, Gabinete',desc: 'Emendas R$14,90 · Gabinete R$14,90 · Super Relatório R$79,90.',                      badge: 'Modular'  },
+            { icon: '📋', title: 'Dossiê CEAP Básico',     price: 'R$ 9,90',          desc: 'Resumo de gastos, top fornecedores e 5 flags principais.',                           badge: 'Popular'  },
+            { icon: '🔥', title: 'Dossiê CEAP Matador',    price: 'R$ 39,90',         desc: 'Análise forense completa com todos os recibos, gráficos e PDF para denúncia.',      badge: 'Premium'  },
+            { icon: '💬', title: 'Pergunta ao Agente IA',  price: 'R$ 2,00/pergunta', desc: 'Consulte o agente IA com dados parlamentares. Resposta baseada em dados oficiais.', badge: 'IA'       },
+            { icon: '📦', title: 'Módulos avulsos',        price: 'Emendas, Gabinete',desc: 'Emendas R$14,90 · Gabinete R$14,90 · Super Relatório R$79,90.',                     badge: 'Modular'  },
           ].map((p, i) => (
             <div key={i}
               style={{ background: '#fff', borderRadius: 14, padding: '22px 18px', border: '1px solid #EDEBE8', position: 'relative', transition: 'box-shadow 0.2s' }}
