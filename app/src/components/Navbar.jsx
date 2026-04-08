@@ -2,29 +2,28 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import LoginModal from "./LoginModal";
 
-const LogoSVG = () => (
-  <svg width="36" height="36" viewBox="0 0 100 100" className="logo-glow">
+const LogoOrb = ({ size = 32 }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
     <defs>
-      <linearGradient id="portalGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-        <stop offset="0%" stopColor="#3d6b5e" />
-        <stop offset="50%" stopColor="#c9a84c" />
-        <stop offset="100%" stopColor="#e8d48b" />
+      <linearGradient id="orbA" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#FBD87F" />
+        <stop offset="35%" stopColor="#F7B98B" />
+        <stop offset="65%" stopColor="#A8D8B0" />
+        <stop offset="100%" stopColor="#9ECFE8" />
       </linearGradient>
-      <linearGradient id="lightBeam" x1="50%" y1="100%" x2="50%" y2="0%">
-        <stop offset="0%" stopColor="#c9a84c" stopOpacity="0" />
-        <stop offset="50%" stopColor="#c9a84c" stopOpacity="0.8" />
-        <stop offset="100%" stopColor="#e8d48b" stopOpacity="0" />
+      <linearGradient id="orbB" x1="100%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#FBD87F" stopOpacity="0.7" />
+        <stop offset="50%" stopColor="#F7B98B" stopOpacity="0.5" />
+        <stop offset="100%" stopColor="#9ECFE8" stopOpacity="0.7" />
+      </linearGradient>
+      <linearGradient id="orbC" x1="0%" y1="100%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#A8D8B0" stopOpacity="0.6" />
+        <stop offset="100%" stopColor="#F7B98B" stopOpacity="0.4" />
       </linearGradient>
     </defs>
-    <rect x="20" y="10" width="8" height="80" rx="4" fill="url(#portalGrad)" opacity="0.9" />
-    <rect x="72" y="10" width="8" height="80" rx="4" fill="url(#portalGrad)" opacity="0.9" />
-    <rect x="20" y="10" width="60" height="6" rx="3" fill="url(#portalGrad)" opacity="0.7" />
-    <rect x="42" y="25" width="16" height="55" rx="2" fill="url(#lightBeam)">
-      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="3s" repeatCount="indefinite" />
-    </rect>
-    <circle cx="50" cy="48" r="5" fill="#c9a84c" opacity="0.6">
-      <animate attributeName="r" values="4;6;4" dur="3s" repeatCount="indefinite" />
-    </circle>
+    <path d="M50 8 A42 42 0 1 1 49.9 8" stroke="url(#orbA)" strokeWidth="14" fill="none" strokeLinecap="round" />
+    <path d="M50 16 A34 34 0 1 0 49.9 16" stroke="url(#orbB)" strokeWidth="10" fill="none" strokeLinecap="round" />
+    <path d="M50 26 A24 24 0 1 1 49.9 26" stroke="url(#orbC)" strokeWidth="7" fill="none" strokeLinecap="round" />
   </svg>
 );
 
@@ -36,9 +35,7 @@ export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, r
 
   useEffect(() => {
     function handleClickOutside(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDropdownOpen(false);
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setDropdownOpen(false);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -50,94 +47,61 @@ export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, r
   return (
     <nav style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '10px 24px', background: 'var(--bg-nav, #fff)',
-      borderBottom: '1px solid var(--border-light, #e5e5e5)', position: 'sticky', top: 0, zIndex: 100
+      padding: '0 24px', height: 60, background: '#FFFFFF',
+      borderBottom: '1px solid #EDEBE8', position: 'sticky', top: 0, zIndex: 100,
+      boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
     }}>
-      {/* Left: Logo */}
-      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-        <LogoSVG />
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>TransparenciaBR</span>
-        &nbsp;
-        <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontStyle: 'italic' }}>Fiscaliza com dados</span>
+      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
+        <LogoOrb size={30} />
+        <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 15, color: '#2D2D2D', letterSpacing: '-0.3px' }}>transparenciabr</span>
       </Link>
 
-      {/* Center: Navigation links */}
-      <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-        {user ? (
-          <>
-            <Link to="/dashboard" style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', textDecoration: 'none' }}>Painel</Link>
-            <Link to="/creditos" style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', textDecoration: 'none' }}>Creditos</Link>
-          </>
-        ) : null}
-        <Link to="/metodologia" style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', textDecoration: 'none' }}>Metodologia</Link>
+      <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
+        <Link to="/ranking" style={navLink}>Ranking</Link>
+        <Link to="/metodologia" style={navLink}>Metodologia</Link>
+        {user && <Link to="/emendas" style={navLink}>Emendas</Link>}
+        {user && <Link to="/comparador" style={navLink}>Comparar</Link>}
       </div>
 
-      {/* Right: User area or login */}
-      {user ? (
-        <div ref={dropdownRef} style={{ position: 'relative' }}>
-          <button onClick={() => setDropdownOpen(!dropdownOpen)} style={{
-            display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent',
-            border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: '8px', transition: 'background 0.2s'
-          }}>
-            {user.photoURL ? (
-              <img src={user.photoURL} alt={firstName} style={{ width: 32, height: 32, borderRadius: '50%' }} />
-            ) : (
-              <div style={{
-                width: 32, height: 32, borderRadius: '50%', background: '#3d6b5e',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontWeight: 700, fontSize: 14
-              }}>{initial}</div>
-            )}
-            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{firstName}</span>
-            <span style={{
-              fontSize: 11, fontWeight: 600, background: '#e8d48b', color: '#333',
-              padding: '2px 8px', borderRadius: 12
-            }}>{credits !== null ? credits : '...'}</span>
-          </button>
-          {dropdownOpen && (
-            <div style={{
-              position: 'absolute', right: 0, top: '100%', marginTop: 8,
-              background: 'var(--bg-card, #fff)', borderRadius: 10,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.12)', minWidth: 200, overflow: 'hidden',
-              border: '1px solid var(--border-light, #e5e5e5)', zIndex: 200
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {user ? (
+          <div ref={dropdownRef} style={{ position: 'relative' }}>
+            <button onClick={() => setDropdownOpen(!dropdownOpen)} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'transparent', border: '1px solid #EDEBE8',
+              borderRadius: 100, cursor: 'pointer', padding: '4px 10px 4px 6px'
             }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{user.displayName || 'Usuario'}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{user.email}</div>
+              {user.photoURL
+                ? <img src={user.photoURL} alt={firstName} style={{ width: 26, height: 26, borderRadius: '50%' }} />
+                : <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg,#A8D8B0,#9ECFE8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 12 }}>{initial}</div>
+              }
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#2D2D2D' }}>{firstName}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, background: 'linear-gradient(90deg,#FBD87F,#F7B98B)', color: '#7A4F1E', padding: '2px 8px', borderRadius: 12 }}>
+                {credits !== null ? credits : '—'} cr
+              </span>
+            </button>
+            {dropdownOpen && (
+              <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: '#fff', borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.12)', minWidth: 210, border: '1px solid #EDEBE8', zIndex: 200, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid #F5F3F0' }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: '#2D2D2D' }}>{user.displayName || 'Usuario'}</div>
+                  <div style={{ fontSize: 12, color: '#888' }}>{user.email}</div>
+                </div>
+                <button onClick={() => { setDropdownOpen(false); navigate('/creditos'); }} style={dropItem}>💳 Comprar Creditos</button>
+                <button onClick={() => { setDropdownOpen(false); navigate('/dashboard'); }} style={dropItem}>⚡ Meu Painel</button>
+                <button onClick={() => { setDropdownOpen(false); logout(); }} style={{ ...dropItem, color: '#C0392B', borderTop: '1px solid #F5F3F0' }}>← Sair</button>
               </div>
-              <button onClick={() => { setDropdownOpen(false); navigate('/creditos'); }} style={{
-                display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px',
-                fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)',
-                background: 'transparent', border: 'none', cursor: 'pointer', transition: 'background 0.15s'
-              }} onMouseEnter={(e) => e.target.style.background = 'var(--bg-hover, #f5f5f3)'}
-                 onMouseLeave={(e) => e.target.style.background = 'transparent'}>Comprar Creditos</button>
-              <button onClick={() => { setDropdownOpen(false); logout(); }} style={{
-                display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px',
-                fontSize: '13px', fontWeight: 500, color: '#c0392b',
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                borderTop: '1px solid var(--border-light)', transition: 'background 0.15s'
-              }} onMouseEnter={(e) => e.target.style.background = 'var(--bg-hover, #f5f5f3)'}
-                 onMouseLeave={(e) => e.target.style.background = 'transparent'}>Sair</button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <>
-          <button onClick={() => setShowLogin(true)} style={{
-            padding: '8px 20px', borderRadius: 8, border: 'none',
-            background: '#3d6b5e', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer'
-          }}>Entrar</button>
-          {showLogin && (
-            <LoginModal
-              onClose={() => setShowLogin(false)}
-              onGoogle={login}
-              onGitHub={loginWithGitHub}
-              onEmail={loginWithEmail}
-              onRegister={registerWithEmail}
-            />
-          )}
-        </>
-      )}
+            )}
+          </div>
+        ) : (
+          <>
+            <button onClick={() => setShowLogin(true)} style={{ padding: '8px 18px', borderRadius: 100, border: 'none', background: '#2D2D2D', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Entrar</button>
+            {showLogin && <LoginModal onClose={() => setShowLogin(false)} onGoogle={login} onGitHub={loginWithGitHub} onEmail={loginWithEmail} onRegister={registerWithEmail} />}
+          </>
+        )}
+      </div>
     </nav>
   );
 }
+
+const navLink = { fontSize: 13, fontWeight: 500, color: '#5A5A6E', textDecoration: 'none' };
+const dropItem = { display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', fontSize: 13, fontWeight: 500, color: '#2D2D2D', background: 'transparent', border: 'none', cursor: 'pointer' };
