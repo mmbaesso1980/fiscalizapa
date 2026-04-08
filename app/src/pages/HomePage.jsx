@@ -12,12 +12,11 @@ function getRankColor(rank, total = 513) {
   return `rgb(${r},${g},${b})`;
 }
 
-// ─── Bolinha com gradiente radial 3D (igual ao transparencia UK) ─────────────
+// ─── Bolinha com gradiente radial 3D premium ──────────────────────────────────
 function RankBall({ rank }) {
   const color = getRankColor(rank);
-  // Cor de borda: 20% mais escura via mix com preto
   const [r, g, b] = color.match(/\d+/g).map(Number);
-  const borderColor = `rgb(${Math.round(r*0.8)},${Math.round(g*0.8)},${Math.round(b*0.8)})`;
+  const borderColor = `rgb(${Math.round(r*0.78)},${Math.round(g*0.78)},${Math.round(b*0.78)})`;
   return (
     <span style={{
       width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
@@ -34,8 +33,8 @@ function RankBall({ rank }) {
 
 // ─── Formata moeda BR ─────────────────────────────────────────────────────────
 function fmtBRL(val) {
-  const num = parseFloat(String(val).replace(',', '.'));
-  if (isNaN(num)) return '–';
+  const num = parseFloat(String(val || '').replace(/\./g, '').replace(',', '.'));
+  if (isNaN(num) || num === 0) return '–';
   return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
@@ -45,7 +44,7 @@ function DeputadoCard({ dep }) {
   const soft  = color.replace('rgb', 'rgba').replace(')', ',0.08)');
   const id    = dep.id_camara || dep.id;
   return (
-    <Link to={`/politico/deputados/${id}`} style={{ textDecoration: 'none', display: 'block' }}>
+    <Link to={`/politico/deputados_federais/${id}`} style={{ textDecoration: 'none', display: 'block' }}>
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 12,
@@ -105,7 +104,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         }));
         setTop10(topData);
 
-        // Bottom 10: menor score — buscamos os últimos 10 em ordem crescente
+        // Bottom 10: menor score
         const qBot = query(col, orderBy('score', 'asc'), limit(10));
         const snapBot = await getDocs(qBot);
         const botData = snapBot.docs.map((doc, i) => ({
@@ -184,7 +183,17 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       <section id="ranking-section" style={{ maxWidth: 900, margin: '0 auto 64px', padding: '0 24px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2D2D2D' }}>Ranking de Transparência Parlamentar</h2>
-          <span style={{ fontSize: 12, color: '#CCC', fontStyle: 'italic' }}>Fonte: Dados Abertos da Câmara dos Deputados</span>
+          {/* FONTE CORRETA — ranking de terceiros até o nosso índice estar pronto */}
+          <a
+            href="https://ranking.org.br/ranking/politicos"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic', textDecoration: 'none', transition: 'color 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#2D2D2D'}
+            onMouseLeave={e => e.currentTarget.style.color = '#AAA'}
+          >
+            Índice: ranking.org.br ↗
+          </a>
         </div>
 
         {loading ? (
@@ -216,6 +225,18 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
             </div>
           </div>
         )}
+      </section>
+
+      {/* AVISO DE METODOLOGIA — banner sutil */}
+      <section style={{ maxWidth: 900, margin: '-40px auto 56px', padding: '0 24px' }}>
+        <div style={{ background: '#FBF7E8', border: '1px solid #F0E4A0', borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 16 }}>⚡</span>
+          <p style={{ fontSize: 12, color: '#7A6A20', margin: 0, lineHeight: 1.6 }}>
+            <strong>Índice temporário:</strong> O ranking exibido é baseado no{' '}
+            <a href="https://ranking.org.br/ranking/politicos" target="_blank" rel="noopener noreferrer" style={{ color: '#7A6A20', fontWeight: 600 }}>ranking.org.br</a>.
+            Em breve, substituiremos pelo nosso próprio índice com análise forense de CEAP, emendas e atividade parlamentar.
+          </p>
+        </div>
       </section>
 
       {/* PRODUTOS */}
