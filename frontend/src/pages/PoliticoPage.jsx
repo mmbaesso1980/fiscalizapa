@@ -129,7 +129,11 @@ export default function PoliticoPage() {
           promises.push((async () => {
             try {
               const getAuditoriaPolitico = httpsCallable(functions, "getAuditoriaPolitico");
-              const result = await getAuditoriaPolitico({ nome: nomeDoPolitico, ano: 2024 });
+              const result = await getAuditoriaPolitico({
+                nome: nomeDoPolitico,
+                idCamara: data?.idCamara ?? null,
+                ano: 2024,
+              });
               const despesas = safeArray(result?.data?.despesas).map(normalizeDespesa);
               if (isMounted) setGastos(despesas);
             } catch (error) {

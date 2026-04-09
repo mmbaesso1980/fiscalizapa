@@ -47,7 +47,7 @@ function calcEconomiaScore(p) {
  * Menos processos/risco = melhor score
  */
 function calcProcessosScore(p) {
-  const r = p.score || p.riskScore || 0;
+  const r = p.riskScore || 0; // NÃO usar p.score (é o score geral)
   if (r === 0) return 60; // sem processos conhecidos = neutro
   return Math.max(0, Math.min(100, 100 - r * 1.8));
 }
@@ -88,7 +88,7 @@ function calcDefesasScore(p) {
 export function calcularScoreBrutoTransparenciaBR(p) {
   const g = p.totalGastos || 0;
   const d = p.totalDespesas || 0;
-  const r = p.score || p.riskScore || 0;
+  const r = p.riskScore || 0; // NÃO usar p.score aqui (é o score geral, não risk)
 
   // Se nao tem dados nenhum, retorna score baixo
   if (g === 0 && d === 0 && r === 0) return 25;
@@ -110,10 +110,22 @@ export function calcularScoreBrutoTransparenciaBR(p) {
 
 /**
  * Normaliza scores da lista usando deputado referencia como referencia (=100)
+ * Quando o backend já fornece `score` no Firestore, usa diretamente.
+ * Fallback: calcula localmente via pilares.
  * @param {Array} deputados - lista de objetos de deputados
  * @returns {Array} lista com campo `idx` normalizado
  */
 export function normalizarScoresPorKim(deputados) {
+  // Se a maioria dos deputados já tem score do backend, use-o diretamente
+  const comScore = deputados.filter(p => p.score != null && p.score > 0).length;
+  if (comScore > deputados.length * 0.5) {
+    return deputados.map(p => ({
+      ...p,
+      idx: Math.round(p.score ?? p.indice_transparenciabr ?? 0),
+    }));
+  }
+
+  // Fallback: cálculo local (quando não há dados do backend)
   const kim = deputados.find(p => Number(p.idCamara) === KIM_ID);
   const kimRaw = kim ? calcularScoreBrutoTransparenciaBR(kim) : 70;
   const fator = kimRaw > 0 ? 100 / kimRaw : 1;

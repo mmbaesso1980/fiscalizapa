@@ -23,6 +23,7 @@ const AdminDashboard   = lazy(() => import("./pages/AdminDashboard"));
 const MapaPage         = lazy(() => import("./pages/MapaPage"));
 const PerfilPage       = lazy(() => import("./pages/PerfilPage"));
 const HealthMap        = lazy(() => import("./pages/HealthMap"));
+const NotFoundPage     = lazy(() => import("./pages/NotFoundPage"));
 
 export default function App() {
   const { user, loading, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits, isAdmin } = useAuth();
@@ -78,10 +79,12 @@ export default function App() {
                 <Route path="/comparador" element={<ComparadorPage />} />
                 <Route path="/dossie/:id" element={<DossiePage />} />
                 {isAdmin && <Route path="/admin" element={<AdminDashboard />} />}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<NotFoundPage />} />
               </>
             ) : (
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <>
+                <Route path="*" element={<NotFoundPage />} />
+              </>
             )}
           </Routes>
         </Suspense>

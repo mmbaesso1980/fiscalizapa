@@ -168,7 +168,7 @@ export default function DashboardPage({ user }) {
               color:showMap?'#fff':'var(--text-secondary)'
             }}>Mapa</button>
           </div>
-          {showMap && <MapaBrasil onSelectState={s=>setUf(s||"")} politicoCounts={counts} />}
+          {showMap && <MapaBrasil onEstadoSelect={s=>setUf(s||"")} politicoCounts={counts} />}
 
           {!loading && !busca && !uf && !partido && top10.length > 0 && (
             <div>

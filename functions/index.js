@@ -21,6 +21,7 @@ const admin = require('firebase-admin');
 const { BigQuery } = require('@google-cloud/bigquery');
 const { Storage } = require('@google-cloud/storage');
 const Stripe = require('stripe');
+const https = require('https');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -259,6 +260,71 @@ exports.getPerfilParlamentar = onCall(OPTS, async (req) => {
   }
 
   return { ...base, premium: true };
+});
+
+// ─────────────────────────────────────────────
+// 9b. AUDITORIA POLITICO — CEAP (despesas individuais)
+//     Proxy para a API aberta da Câmara Federal.
+//     Frontend nunca acessa APIs externas diretamente.
+// ─────────────────────────────────────────────
+function fetchJson(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'Accept': 'application/json' } }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error('JSON parse error: ' + e.message)); }
+      });
+    }).on('error', reject);
+  });
+}
+
+exports.getAuditoriaPolitico = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+
+  const { nome, idCamara, ano = new Date().getFullYear() - 1 } = req.data || {};
+  if (!idCamara && !nome) throw new HttpsError('invalid-argument', 'idCamara ou nome obrigatório.');
+
+  let deputadoId = idCamara;
+
+  // Se não tiver idCamara, busca pelo nome
+  if (!deputadoId && nome) {
+    try {
+      const searchUrl = `https://dadosabertos.camara.leg.br/api/v2/deputados?nome=${encodeURIComponent(nome)}&ordem=ASC&ordenarPor=nome`;
+      const searchRes = await fetchJson(searchUrl);
+      const dep = searchRes?.dados?.[0];
+      if (dep?.id) deputadoId = dep.id;
+    } catch (e) {
+      console.error('Erro ao buscar deputado por nome:', e.message);
+    }
+  }
+
+  if (!deputadoId) {
+    return { despesas: [], fonte: 'camara', aviso: 'Deputado não localizado na API da Câmara.' };
+  }
+
+  try {
+    // Busca até 3 páginas de despesas (300 registros)
+    const pagePromises = [1, 2, 3].map(p =>
+      fetchJson(`https://dadosabertos.camara.leg.br/api/v2/deputados/${deputadoId}/despesas?ano=${ano}&pagina=${p}&itens=100&ordem=DESC&ordenarPor=dataDocumento`)
+        .catch(() => ({ dados: [] }))
+    );
+    const pages = await Promise.all(pagePromises);
+    const despesas = pages.flatMap(p => p?.dados ?? []);
+
+    return {
+      despesas,
+      total: despesas.length,
+      deputadoId,
+      ano,
+      fonte: 'camara_api_v2',
+    };
+  } catch (e) {
+    console.error('Erro ao buscar despesas CEAP:', e.message);
+    return { despesas: [], fonte: 'camara', erro: e.message };
+  }
 });
 
 // ─────────────────────────────────────────────

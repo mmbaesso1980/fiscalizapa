@@ -2,6 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import SocialContext from "../components/SocialContext";
 
 function fmt(v) {
     if (!v || v === "0,00" || v === "0.00") return "R$ 0,00";
@@ -147,13 +148,21 @@ export default function EmendaPage() {
           )}
         </div>
 
+        {/* IDH como contexto social (não como alerta de erro) */}
+        {(emenda.idhLocal || emenda.localidade) && (
+          <SocialContext
+            idh={emenda.idhLocal}
+            localidade={emenda.localidade}
+            uf={emenda.uf}
+          />
+        )}
+
         {/* Detalhes Card */}
         <div style={card}>
           <h2 style={sectionTitle}>Detalhes</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 24px' }}>
             {[
               ["Localidade", emenda.localidade],
-              ["IDH Local", emenda.idhLocal],
               ["Função", emenda.funcao],
               ["Subfunção", emenda.subfuncao],
               ["Programa", emenda.programa],
