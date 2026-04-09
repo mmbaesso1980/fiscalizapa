@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import LoginModal from "./LoginModal";
+import CreditWallet from "./CreditWallet";
+import GlobalSearch from "./GlobalSearch";
+import { AuditSealCompact } from "./AuditSeal";
 
 const LogoOrb = ({ size = 32 }) => (
   <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
@@ -27,7 +30,7 @@ const LogoOrb = ({ size = 32 }) => (
   </svg>
 );
 
-export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits }) {
+export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits, isAdmin }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const dropdownRef = useRef(null);
@@ -56,12 +59,17 @@ export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, r
         <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 15, color: '#2D2D2D', letterSpacing: '-0.3px' }}>transparenciabr</span>
       </Link>
 
-      <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
         <Link to="/ranking" style={navLink}>Ranking</Link>
+        <Link to="/alertas" style={navLink}>Alertas</Link>
+        <Link to="/mapa"    style={navLink}>Mapa</Link>
         <Link to="/metodologia" style={navLink}>Metodologia</Link>
         {user && <Link to="/emendas" style={navLink}>Emendas</Link>}
         {user && <Link to="/comparador" style={navLink}>Comparar</Link>}
       </div>
+
+      {/* Busca global */}
+      <GlobalSearch />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {user ? (
@@ -76,9 +84,8 @@ export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, r
                 : <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg,#A8D8B0,#9ECFE8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 12 }}>{initial}</div>
               }
               <span style={{ fontSize: 13, fontWeight: 500, color: '#2D2D2D' }}>{firstName}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, background: 'linear-gradient(90deg,#FBD87F,#F7B98B)', color: '#7A4F1E', padding: '2px 8px', borderRadius: 12 }}>
-                {credits !== null ? credits : '—'} cr
-              </span>
+              <AuditSealCompact />
+              <CreditWallet credits={credits} compact />
             </button>
             {dropdownOpen && (
               <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: '#fff', borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.12)', minWidth: 210, border: '1px solid #EDEBE8', zIndex: 200, overflow: 'hidden' }}>
@@ -86,8 +93,12 @@ export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, r
                   <div style={{ fontWeight: 600, fontSize: 14, color: '#2D2D2D' }}>{user.displayName || 'Usuario'}</div>
                   <div style={{ fontSize: 12, color: '#888' }}>{user.email}</div>
                 </div>
-                <button onClick={() => { setDropdownOpen(false); navigate('/creditos'); }} style={dropItem}>💳 Comprar Creditos</button>
-                <button onClick={() => { setDropdownOpen(false); navigate('/dashboard'); }} style={dropItem}>⚡ Meu Painel</button>
+                        <button onClick={() => { setDropdownOpen(false); navigate('/perfil'); }} style={dropItem}>🗄️ Meu Cofre</button>
+                        <button onClick={() => { setDropdownOpen(false); navigate('/creditos'); }} style={dropItem}>💳 Comprar Créditos</button>
+                        <button onClick={() => { setDropdownOpen(false); navigate('/dashboard'); }} style={dropItem}>⚡ Meu Painel</button>
+                {isAdmin && (
+                  <button onClick={() => { setDropdownOpen(false); navigate('/admin'); }} style={{ ...dropItem, color: '#C82538', fontWeight: 700 }}>☠️ Sala do Trono</button>
+                )}
                 <button onClick={() => { setDropdownOpen(false); logout(); }} style={{ ...dropItem, color: '#C0392B', borderTop: '1px solid #F5F3F0' }}>← Sair</button>
               </div>
             )}

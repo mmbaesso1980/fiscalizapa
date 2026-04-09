@@ -1,8 +1,10 @@
 #!/bin/bash
 # apply_schema.sh - Aplica o schema no Cloud SQL
-# Uso: bash sql/apply_schema.sh
+# Uso (na raiz do repositório): bash engines/sql/apply_schema.sh
 
 set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 PROJECT_ID="fiscallizapa"
 INSTANCE="transparenciabr-db"
@@ -17,13 +19,13 @@ echo "Banco: $DB"
 # Opcao 1: Via Cloud SQL Proxy (local)
 # cloud-sql-proxy $PROJECT_ID:southamerica-east1:$INSTANCE &
 # sleep 3
-# PGPASSWORD=$DB_PASSWORD psql -h 127.0.0.1 -U $USER -d $DB -f sql/schema.sql
+# PGPASSWORD=$DB_PASSWORD psql -h 127.0.0.1 -U $USER -d $DB -f "$SCRIPT_DIR/schema.sql"
 
 # Opcao 2: Via gcloud (Cloud Shell)
 echo "Conectando via gcloud sql connect..."
 echo "IMPORTANTE: Quando solicitado, digite a senha do usuario postgres"
 echo ""
-gcloud sql connect $INSTANCE --user=$USER --database=$DB --project=$PROJECT_ID < sql/schema.sql
+gcloud sql connect $INSTANCE --user=$USER --database=$DB --project=$PROJECT_ID < "$SCRIPT_DIR/schema.sql"
 
 echo ""
 echo "=== Schema aplicado com sucesso! ==="

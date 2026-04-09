@@ -6,7 +6,7 @@
  *
  * Uso:
  *   cd functions && npm install pg csv-parse iconv-lite
- *   node ../scripts/ingest_emendas_docs.js ../data/emendas_docs_2024.csv
+ *   node ../engines/scripts/ingest_emendas_docs.js ../data/emendas_docs_2024.csv
  *
  * Os CSVs usam separador ";" e encoding latin1 (ISO-8859-1).
  * Baixe em: https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares-documentos
@@ -225,7 +225,7 @@ async function main() {
     console.log('\nBaixe os CSVs em:');
     console.log('  https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares-documentos');
     console.log('\nExemplo:');
-    console.log('  node ../scripts/ingest_emendas_docs.js ../data/*.csv');
+    console.log('  node ../engines/scripts/ingest_emendas_docs.js ../data/*.csv');
     process.exit(1);
   }
   
@@ -235,7 +235,7 @@ async function main() {
     console.log(`Banco conectado. Registros existentes: ${res.rows[0].count}`);
   } catch (e) {
     if (e.message.includes('does not exist')) {
-      console.log('Tabela nao existe. Rode: psql -f sql/schema.sql');
+      console.log('Tabela nao existe. Rode: psql -f engines/sql/schema.sql');
       process.exit(1);
     }
     console.error('Erro conexao:', e.message);

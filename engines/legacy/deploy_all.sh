@@ -40,7 +40,7 @@ echo ">>> Cloud Functions deployadas com sucesso!"
 # 4. Build do frontend React
 echo ""
 echo ">>> Build do frontend React..."
-cd app
+cd frontend
 npm install
 npm run build
 cd ..

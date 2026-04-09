@@ -7,7 +7,7 @@
  * Uso:
  *   npm install playwright firebase-admin
  *   npx playwright install chromium
- *   node scripts/ingest-ranking-org.mjs
+ *   node engines/scripts/ingest-ranking-org.mjs
  *
  * Variáveis de ambiente necessárias:
  *   FIREBASE_PROJECT_ID
@@ -15,8 +15,12 @@
  *   FIREBASE_PRIVATE_KEY
  */
 
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { chromium } from 'playwright';
 import admin from 'firebase-admin';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── Firebase Admin ──────────────────────────────────────────────────────────
 const serviceAccount = {
@@ -199,7 +203,7 @@ async function gravarFirestore(politicos) {
 // ─── Backup JSON local ────────────────────────────────────────────────────────
 async function salvarBackupJSON(politicos) {
   const { writeFileSync } = await import('fs');
-  const path = `./scripts/ranking-backup-${new Date().toISOString().slice(0,10)}.json`;
+  const path = join(__dirname, `ranking-backup-${new Date().toISOString().slice(0,10)}.json`);
   writeFileSync(path, JSON.stringify(politicos, null, 2), 'utf-8');
   console.log(`\n💾 Backup: ${path}`);
 }

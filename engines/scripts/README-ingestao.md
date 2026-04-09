@@ -28,7 +28,7 @@ A chave privada vem do arquivo JSON do Service Account do Firebase Console
 ## Rodar
 
 ```bash
-node scripts/ingest-ranking-org.mjs
+node engines/scripts/ingest-ranking-org.mjs
 ```
 
 ## O que acontece
@@ -36,7 +36,7 @@ node scripts/ingest-ranking-org.mjs
 1. Playwright abre ranking.org.br no Chromium headless
 2. Aplica filtro "Deputado Federal" automaticamente
 3. Pagina todos os resultados com delay gentil (1.2s/página)
-4. Salva backup JSON em `scripts/ranking-backup-YYYY-MM-DD.json`
+4. Salva backup JSON em `engines/scripts/ranking-backup-YYYY-MM-DD.json`
 5. Limpa `ranking_externo` no Firestore
 6. Ingere todos os deputados com: rank, nome, partido, uf, nota, fonte, timestamp
 

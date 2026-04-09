@@ -4,7 +4,7 @@
  * API: https://dadosabertos.camara.leg.br/api/v2/deputados/{id}/funcionarios
  * Grava em: deputados_federais/{id}/verbas_gabinete/{nome_hash}
  *
- * Uso: cd functions && node ../scripts/ingest-verbas-gabinete.js
+ * Uso: cd functions && node ../engines/scripts/ingest-verbas-gabinete.js
  */
 const admin = require("firebase-admin");
 const fetch = require("node-fetch");

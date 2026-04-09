@@ -8,7 +8,7 @@
  * Alternativa: rodar via Node com firebase-admin (ver README-ingestao.md)
  */
 
-const SEED_URL = 'https://raw.githubusercontent.com/mmbaesso1980/fiscalizapa/main/scripts/ranking-seed-2025.json';
+const SEED_URL = 'https://raw.githubusercontent.com/mmbaesso1980/fiscalizapa/main/engines/scripts/ranking-seed-2025.json';
 
 async function loadSeedToFirestore() {
   const { getFirestore, collection, doc, setDoc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.x.x/firebase-firestore.js')

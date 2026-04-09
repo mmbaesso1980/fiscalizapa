@@ -4,7 +4,7 @@
  *
  * Uso:
  *   cd functions && npm install pg
- *   node ../scripts/migrate_firestore_to_sql.js
+ *   node ../engines/scripts/migrate_firestore_to_sql.js
  *
  * Requer:
  *   - GOOGLE_APPLICATION_CREDENTIALS configurado

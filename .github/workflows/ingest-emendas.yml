@@ -20,7 +20,10 @@ jobs:
       - name: Write service account key
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa-key.json
 
+      # NODE_PATH: o script está em engines/scripts; o Node resolve pacotes a partir daí,
+      # então apontamos para as dependências já instaladas em functions/.
       - name: Run emendas ingestion v4
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
-        run: cd functions && node run-ingest-emendas-v4.js
+          NODE_PATH: ${{ github.workspace }}/functions/node_modules
+        run: node engines/scripts/run-ingest-emendas-v4.js

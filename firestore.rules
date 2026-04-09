@@ -1,113 +1,291 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// A.S.M.O.D.E.U.S. — Firestore Security Rules v2.1
+// Projeto: fiscallizapa
+// Última atualização: 08/04/2026 (Protocolo Hotpage Elite)
+//
+// Modelo de segurança:
+//   • Firebase Admin SDK (backend Python) → bypassa TODAS as regras
+//   • Custom Claims (request.auth.token.admin == true) → privilégios de admin
+//     do cliente (Kill Switch, config/sistema)
+//   • Clientes autenticados → acesso granular por coleção/campo
+//   • Leitura pública → coleções forenses e de alertas
+//
+// Convenção de funções auxiliares:
+//   isAuth()     → usuário autenticado (token válido, não expirado)
+//   isOwner(uid) → usuário é o próprio dono do documento
+//   isAdmin()    → Custom Claim `admin: true` (definido via Admin SDK)
+//   fieldsDiff() → retorna conjunto de campos que mudaram num update
+// ─────────────────────────────────────────────────────────────────────────────
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Politicos - leitura publica
-    match /deputados/{docId} {
-      allow read: if true;
+
+    // ── Funções auxiliares ───────────────────────────────────────────────────
+
+    // Usuário possui token de auth válido
+    function isAuth() {
+      return request.auth != null
+          && request.auth.uid != null
+          && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // O usuário autenticado é o dono da conta referenciada
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // Admin via Firebase Custom Claims
+    // Definido pelo seeder: auth.set_custom_user_claims(uid, {"admin": True})
+    function isAdmin() {
+      return isAuth() && request.auth.token.get('admin', false) == true;
+    }
+
+    // Conjunto de campos alterados num update
+    function fieldsDiff() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Verifica se o update toca em campos críticos de segurança (imutáveis pelo cliente)
+    // Inclui dossies_gratuitos_restantes: cliente só pode DECREMENTAR (via isValidQuotaDeduction)
+    function touchesCriticalFields() {
+      return fieldsDiff().hasAny([
+        'creditos', 'isAdmin', 'role', 'uid', 'criadoEm',
+        'dossies_gratuitos_restantes'   // cota → só decrementar via função específica
+      ]);
+    }
+
+    // Regra para deduções de créditos pelo cliente (runTransaction):
+    //   • Apenas diminuir (nunca aumentar)
+    //   • Resultado >= 0 (sem saldo negativo)
+    //   • Apenas os campos creditos + atualizadoEm mudam
+    function isValidCreditDeduction() {
+      let only_creditos = fieldsDiff().hasOnly(['creditos', 'atualizadoEm']);
+      let is_decrease   = request.resource.data.creditos < resource.data.creditos;
+      let no_negative   = request.resource.data.creditos >= 0;
+      return only_creditos && is_decrease && no_negative;
+    }
+
+    // Regra para consumo de 1 cota diária gratuita pelo cliente (useQuota() runTransaction):
+    //   • Apenas o campo dossies_gratuitos_restantes pode mudar
+    //   • Resultado deve ser menor que o atual (nunca aumentar via cliente)
+    //   • Resultado >= 0 (sem cota negativa)
+    function isValidQuotaDeduction() {
+      let only_quota  = fieldsDiff().hasOnly(['dossies_gratuitos_restantes', 'atualizadoEm']);
+      let is_decrease = request.resource.data.dossies_gratuitos_restantes
+                        < resource.data.dossies_gratuitos_restantes;
+      let no_negative = request.resource.data.dossies_gratuitos_restantes >= 0;
+      return only_quota && is_decrease && no_negative;
+    }
+
+    // Valida estrutura de novo documento de usuário no signup
+    function isValidUserCreate() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['email', 'creditos', 'isAdmin'])
+          && d.creditos  is  number
+          && d.creditos  <= 10        // máximo 10 créditos no signup gratuito
+          && d.creditos  >= 0
+          && d.isAdmin   == false     // jamais admin via signup
+          && (d.get('role', 'user') == 'user')
+          && d.get('dossies_gratuitos_restantes', 2) <= 2; // máximo 2 cotas no signup
+    }
+
+    // Valida campos de um novo dossiê desbloqueado
+    // creditsGastos >= 0 permite desbloqueio via cota diária gratuita (0 créditos gastos)
+    function isValidDossieCreate() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['politicoId', 'desbloqueadoEm', 'creditsGastos'])
+          && d.politicoId    is  string
+          && d.politicoId.size() > 0
+          && d.creditsGastos is  number
+          && d.creditsGastos >= 0     // 0 = desbloqueio básico via cota diária
+          && d.creditsGastos <= 500;  // sanity cap (200 normal, 500 máximo)
+    }
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // usuarios/{uid}
+    // ────────────────────────────────────────────────────────────────────────
+    match /usuarios/{uid} {
+
+      // Leitura: o próprio usuário ou admin
+      allow read: if isOwner(uid) || isAdmin();
+
+      // Criação: o próprio usuário, apenas com estrutura válida de signup
+      // O hook useAuth.js chama ensureUserDoc() que satisfaz isValidUserCreate()
+      allow create: if isOwner(uid) && isValidUserCreate();
+
+      // Atualização: modalidades permitidas
+      //   A) O próprio usuário altera campos não-críticos (displayName, photoURL, etc.)
+      //   B) O próprio usuário realiza uma dedução de créditos (via runTransaction)
+      //   C) O próprio usuário consome 1 cota diária gratuita (via runTransaction)
+      //   D) Admin via Custom Claims pode alterar tudo
+      allow update: if isAdmin()
+                    || (isOwner(uid) && !touchesCriticalFields())
+                    || (isOwner(uid) && isValidCreditDeduction())
+                    || (isOwner(uid) && isValidQuotaDeduction());
+
+      // Deleção: proibida via cliente (apenas Admin SDK pode deletar contas)
+      allow delete: if false;
+
+      // ── Subcoleção: dossies_desbloqueados/{dossieId} ─────────────────────
+      match /dossies_desbloqueados/{dossieId} {
+
+        // Leitura: apenas o dono da conta (PerfilPage.jsx)
+        allow read: if isOwner(uid);
+
+        // Criação: o próprio usuário, com estrutura válida
+        // Criado em DossiePage.jsx após deductCredits() confirmar débito
+        allow create: if isOwner(uid) && isValidDossieCreate();
+
+        // Update/delete proibidos: a compra é permanente e imutável
+        allow update: if false;
+        allow delete:  if false;
+      }
+    }
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // alertas_bodes
+    // Leitura pública: BrazilHeatmap, AlertDashboard, MapaPage
+    // Escrita: SOMENTE Firebase Admin SDK (05_sync_bodes.py)
+    // ────────────────────────────────────────────────────────────────────────
+    match /alertas_bodes/{alertaId} {
+      allow read:  if true;
+      allow write: if false; // Admin SDK bypassa esta regra
+    }
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // config/{docId}  (inclui config/sistema — Kill Switch)
+    // Leitura pública: AdminDashboard onSnapshot, apiPausada check
+    // Escrita: apenas admin com Custom Claims (Kill Switch no AdminDashboard)
+    // ────────────────────────────────────────────────────────────────────────
+    match /config/{docId} {
+      allow read:  if true;
+      allow write: if isAdmin();
+    }
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // deputados_federais  (dados públicos da Câmara)
+    // ────────────────────────────────────────────────────────────────────────
+    match /deputados_federais/{docId} {
+      allow read:  if true;
       allow write: if false;
       match /{sub=**} { allow read: if true; allow write: if false; }
     }
-    match /deputados_federais/{docId} {
-      allow read: if true;
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Coleções de políticos — leitura pública, sem escrita via cliente
+    // ────────────────────────────────────────────────────────────────────────
+    match /deputados/{docId} {
+      allow read:  if true;
       allow write: if false;
       match /{sub=**} { allow read: if true; allow write: if false; }
     }
     match /senadores/{docId} {
-      allow read: if true;
+      allow read:  if true;
       allow write: if false;
       match /{sub=**} { allow read: if true; allow write: if false; }
     }
     match /governadores/{docId} {
-      allow read: if true;
+      allow read:  if true;
       allow write: if false;
       match /{sub=**} { allow read: if true; allow write: if false; }
     }
     match /deputados_distritais/{docId} {
-      allow read: if true;
+      allow read:  if true;
       allow write: if false;
       match /{sub=**} { allow read: if true; allow write: if false; }
     }
-    // Denuncias - leitura publica, escrita autenticada
+    match /politicians/{docId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // diarios_atos — saída do 10_universal_crawler.py (DOU, DOE, DOM)
+    // DossiePage.jsx lê para exibir "Últimas Menções em Diários Oficiais"
+    // ────────────────────────────────────────────────────────────────────────
+    match /diarios_atos/{docId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // crawler_activity — log em tempo real do 10_universal_crawler.py
+    // DataPulse.jsx (AdminDashboard) lê via onSnapshot
+    // ────────────────────────────────────────────────────────────────────────
+    match /crawler_activity/{docId} {
+      allow read:  if isAdmin() || isAuth();  // admin dashboard + devs autenticados
+      allow write: if false;                  // escrita exclusiva pelo Admin SDK
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Coleções de dados forenses — leitura pública, escrita via backend
+    // ────────────────────────────────────────────────────────────────────────
+    match /emendas/{docId}                         { allow read: if true; allow write: if false; }
+    match /fornecedores/{docId}                    { allow read: if true; allow write: if false; }
+    match /fornecedores_publicos/{docId}           { allow read: if true; allow write: if false; }
+    match /pessoas_parente/{docId}                 { allow read: if true; allow write: if false; }
+    match /relacoes_pessoa_parlamentar/{docId}     { allow read: if true; allow write: if false; }
+    match /relacoes_parlamentar_fornecedor/{docId} { allow read: if true; allow write: if false; }
+    match /relacoes_pessoa_fornecedor/{docId}      { allow read: if true; allow write: if false; }
+    match /municipio_compras/{docId}               { allow read: if true; allow write: if false; }
+    match /presencas/{docId}                       { allow read: if true; allow write: if false; }
+    match /proposicoes/{docId}                     { allow read: if true; allow write: if false; }
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // denuncias — criação por usuários autenticados, leitura pública
+    // ────────────────────────────────────────────────────────────────────────
     match /denuncias/{docId} {
-      allow read: if true;
-      allow create: if request.auth != null;
+      allow read:  if true;
+      allow create: if isAuth()
+                    && request.resource.data.keys().hasAll(['texto', 'criadoEm'])
+                    && request.resource.data.texto is string
+                    && request.resource.data.texto.size() >= 10
+                    && request.resource.data.texto.size() <= 5000;
       allow update, delete: if false;
     }
-    // Users
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Legacy: users/{userId} — coleção antiga, preservada para compatibilidade
+    // ────────────────────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isAuth() && request.auth.uid == userId;
     }
-    // Fornecedores - leitura publica
-    match /fornecedores/{docId} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // Purchases - apenas leitura pelo próprio usuário
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Legacy: purchases, chats, analyses — somente leitura pelo dono
+    // ────────────────────────────────────────────────────────────────────────
     match /purchases/{docId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read:  if isAuth() && resource.data.userId == request.auth.uid;
       allow write: if false;
     }
-    // Chats - apenas leitura pelo próprio usuário
     match /chats/{docId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read:  if isAuth() && resource.data.userId == request.auth.uid;
       allow write: if false;
     }
-    // Analyses - apenas leitura pelo próprio usuário
     match /analyses/{docId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read:  if isAuth() && resource.data.userId == request.auth.uid;
       allow write: if false;
     }
-    // Presencas - leitura pública, escrita via Cloud Function
-    match /presencas/{docId} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // Proposicoes - leitura pública
-    match /proposicoes/{docId} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // Politicians (collection usada pela ingestão)
-    match /politicians/{docId} {
-      allow read: if true;
-      allow write: if false;
-    }
-        // === NOVAS COLECOES (nepotismo/emendas) - leitura publica, escrita via Cloud Functions ===
-            match /config/{docId} {
-                    allow read: if true;
-                          allow write: if false;
-                              }
-                                  match /pessoas_parente/{docId} {
-                                          allow read: if true;
-                                                allow write: if false;
-                                                    }
-                                                        match /relacoes_pessoa_parlamentar/{docId} {
-                                                                allow read: if true;
-                                                                      allow write: if false;
-                                                                          }
-                                                                              match /emendas/{docId} {
-                                                                                      allow read: if true;
-                                                                                            allow write: if false;
-                                                                                                }
-                                                                                                    match /fornecedores_publicos/{docId} {
-                                                                                                            allow read: if true;
-                                                                                                                  allow write: if false;
-                                                                                                                      }
-                                                                                                                          match /relacoes_parlamentar_fornecedor/{docId} {
-                                                                                                                                  allow read: if true;
-                                                                                                                                        allow write: if false;
-                                                                                                                                            }
-                                                                                                                                                match /municipio_compras/{docId} {
-                                                                                                                                                        allow read: if true;
-                                                                                                                                                              allow write: if false;
-                                                                                                                                                                  }
-                                                                                                                                                                      match /relacoes_pessoa_fornecedor/{docId} {
-                                                                                                                                                                              allow read: if true;
-                                                                                                                                                                                    allow write: if false;
-                                                                                                                                                                                        }
-    // REGRA DEFAULT: negar tudo que não foi explicitamente permitido
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // REGRA DEFAULT — nega tudo que não foi explicitamente coberto acima
+    // Esta regra é a última linha de defesa: impede vazamento por coleções
+    // que venham a ser criadas sem regra correspondente.
+    // ────────────────────────────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }
+
   }
 }

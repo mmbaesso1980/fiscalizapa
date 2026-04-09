@@ -5,7 +5,7 @@
  * 2. valores string -> converte pra number
  * 3. municipioNome ausente -> extrai de localidade
  *
- * Uso: cd functions && node ../scripts/fix-emendas-firestore.js
+ * Uso: cd functions && node ../engines/scripts/fix-emendas-firestore.js
  */
 const admin = require("firebase-admin");
 if (!admin.apps.length) admin.initializeApp({ projectId: "fiscallizapa" });

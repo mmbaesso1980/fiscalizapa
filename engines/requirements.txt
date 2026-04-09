@@ -1,0 +1,9 @@
+google-cloud-bigquery>=3.25.0
+firebase-admin>=6.5.0
+pandas>=2.2.0
+# Necessário para client.load_table_from_dataframe (BigQuery + pandas)
+pyarrow>=15.0.0
+# Document AI — OCR de notas fiscais e documentos (CEAP)
+google-cloud-documentai>=2.24.0
+# Gemini AI — Tradução forense em linguagem natural
+google-generativeai>=0.8.0

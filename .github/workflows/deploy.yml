@@ -22,11 +22,11 @@ jobs:
 
       - name: Install app dependencies
         run: npm install --legacy-peer-deps
-        working-directory: app
+        working-directory: frontend
 
       - name: Build React app
         run: npm run build
-        working-directory: app
+        working-directory: frontend
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
