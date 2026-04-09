@@ -1,0 +1,208 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# A.S.M.O.D.E.U.S. — Pipeline Autônomo Noturno
+# Executa toda madrugada às 03:00 UTC (00:00 BRT)
+#
+# Ordem de execução (dependência em cascata):
+#   1. 03_ingest_emendas.py    → Baixa emendas do Portal da Transparência → BQ
+#   2. 04_apply_views.py       → Recria views forenses (Ficha Limpa) no BQ
+#   3. 05_sync_bodes.py        → Sincroniza bodes BQ → Firestore
+#   4. 07_gemini_translator.py → Traduz alertas em linguagem natural (Gemini)
+#   5. 08_web_call.py          → Notifica usuários sobre alertas de alto risco
+#   6. 12_reset_quotes.py      → Reseta cotas gratuitas diárias de todos usuários
+#
+# Secrets necessários no repositório GitHub (Settings → Secrets → Actions):
+#   GCP_CREDENTIALS   → JSON da conta de serviço GCP (base64 ou raw JSON)
+#   GEMINI_API_KEY    → Chave da API do Google AI Studio
+#
+# Para disparar manualmente:
+#   workflow_dispatch com input opcional `dry_run: true`
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: ASMODEUS — Pipeline Noturno Autônomo
+
+on:
+  schedule:
+    # Toda madrugada às 03:00 UTC (meia-noite em Brasília, BRT = UTC-3)
+    - cron: "0 3 * * *"
+
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Executar em modo dry-run (sem gravar dados)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      engines_only:
+        description: "Executar apenas engines específicas (ex: '03 04')"
+        required: false
+        default: ""
+        type: string
+
+env:
+  PYTHON_VERSION: "3.11"
+  ENGINES_DIR:    "engines"
+  # Injetado via secret
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+jobs:
+  asmodeus-pipeline:
+    name: "Motor A.S.M.O.D.E.U.S."
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      # ────────────────────────────────────────────────────────────────────────
+      # 1. Checkout do repositório
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "📥 Checkout do repositório"
+        uses: actions/checkout@v4
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 2. Configurar Python + cache de pip
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "🐍 Configurar Python ${{ env.PYTHON_VERSION }}"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: "${{ env.ENGINES_DIR }}/requirements.txt"
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 3. Instalar dependências Python
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "📦 Instalar dependências"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ${{ env.ENGINES_DIR }}/requirements.txt
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 4. Autenticação GCP (BigQuery + Firestore)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "🔐 Configurar credenciais GCP"
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        run: |
+          echo "Criando arquivo de credenciais GCP..."
+          # Suporta tanto JSON raw quanto base64
+          if echo "$GCP_CREDENTIALS" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+            echo "$GCP_CREDENTIALS" > /tmp/gcp-credentials.json
+          else
+            echo "$GCP_CREDENTIALS" | base64 --decode > /tmp/gcp-credentials.json
+          fi
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json" >> $GITHUB_ENV
+          echo "FIRESTORE_SA_KEY=/tmp/gcp-credentials.json" >> $GITHUB_ENV
+          echo "✓ Credenciais GCP configuradas"
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 5. Determinar modo de execução (dry-run ou produção)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "⚙️ Configurar modo de execução"
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "DRY_RUN_FLAG=--dry-run" >> $GITHUB_ENV
+            echo "🔶 MODO DRY-RUN ATIVADO — nenhum dado será gravado"
+          else
+            echo "DRY_RUN_FLAG=" >> $GITHUB_ENV
+            echo "✅ MODO PRODUÇÃO — dados serão gravados"
+          fi
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 6. ENGINE 03 — Ingestão de Emendas Parlamentares
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "🏛️ ENGINE 03 — Ingestão de Emendas (Portal da Transparência → BigQuery)"
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " ENGINE 03 · $(date '+%H:%M:%S UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          python ${{ env.ENGINES_DIR }}/03_ingest_emendas.py ${{ env.DRY_RUN_FLAG }}
+        continue-on-error: false   # Bloqueia o pipeline se falhar
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 7. ENGINE 04 — Aplicar Views Forenses (Ficha Limpa)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "🔬 ENGINE 04 — Aplicar Views Forenses (Ficha Limpa → BigQuery)"
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " ENGINE 04 · $(date '+%H:%M:%S UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          python ${{ env.ENGINES_DIR }}/04_apply_views.py
+        continue-on-error: false
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 8. ENGINE 05 — Sincronizar Bodes (BigQuery → Firestore)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "🐐 ENGINE 05 — Sincronizar Bodes (BigQuery → Firestore)"
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " ENGINE 05 · $(date '+%H:%M:%S UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          python ${{ env.ENGINES_DIR }}/05_sync_bodes.py ${{ env.DRY_RUN_FLAG }}
+        continue-on-error: false
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 9. ENGINE 07 — Oráculo Gemini (Tradução Forense)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "🔮 ENGINE 07 — Tradutor Forense Gemini"
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " ENGINE 07 · $(date '+%H:%M:%S UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          python ${{ env.ENGINES_DIR }}/07_gemini_translator.py \
+            --limit 150 \
+            ${{ env.DRY_RUN_FLAG }}
+        continue-on-error: true   # Gemini pode ter quota esgotada; não bloqueia o pipeline
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 10. ENGINE 08 — Web Call (Notificação de Alertas)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "🚨 ENGINE 08 — Motor de Notificação (Web Call)"
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " ENGINE 08 · $(date '+%H:%M:%S UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          python ${{ env.ENGINES_DIR }}/08_web_call.py \
+            --hours 26 \
+            --min-sev ALTA \
+            ${{ env.DRY_RUN_FLAG }}
+        continue-on-error: true   # Notificações são best-effort
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 11. ENGINE 12 — Reset de Cotas Diárias (Freemium)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "🔄 ENGINE 12 — Reset de Cotas Gratuitas (Firestore)"
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " ENGINE 12 · $(date '+%H:%M:%S UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          python ${{ env.ENGINES_DIR }}/12_reset_quotes.py \
+            --quota 2 \
+            ${{ env.DRY_RUN_FLAG }}
+        continue-on-error: true   # Não bloqueia pipeline se Firestore estiver lento
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 12. Relatório final
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "📊 Relatório de execução"
+        if: always()
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════╗"
+          echo "║      A.S.M.O.D.E.U.S. — Pipeline Concluído          ║"
+          echo "╠══════════════════════════════════════════════════════╣"
+          echo "║  Data:    $(date '+%d/%m/%Y %H:%M:%S UTC')             ║"
+          echo "║  Branch:  ${{ github.ref_name }}                                   ║"
+          echo "║  Trigger: ${{ github.event_name }}                              ║"
+          echo "╚══════════════════════════════════════════════════════╝"
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 12. Limpar credenciais da memória
+      # ────────────────────────────────────────────────────────────────────────
+      - name: "🧹 Limpar credenciais"
+        if: always()
+        run: |
+          rm -f /tmp/gcp-credentials.json
+          echo "✓ Credenciais removidas"

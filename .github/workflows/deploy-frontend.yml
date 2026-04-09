@@ -1,0 +1,202 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# A.S.M.O.D.E.U.S. — Deploy Contínuo do Frontend (Firebase Hosting)
+#
+# Trigger:  push para a branch `main`
+# Função:   Build do Vite (frontend/) → Deploy para Firebase Hosting
+# Projeto:  fiscallizapa  (lido de .firebaserc)
+# Dist:     frontend/dist  (definido em firebase.json > hosting.public)
+#
+# Secrets necessários (Settings → Secrets → Actions):
+#   FIREBASE_SERVICE_ACCOUNT   → JSON completo da service account GCP
+#                                 com role "Firebase Hosting Admin"
+#
+# Variável de ambiente opcional:
+#   VITE_FIREBASE_* → Injetadas como env vars para substituir .env de build
+#
+# Para criar a service account:
+#   gcloud iam service-accounts create github-deploy \
+#     --project fiscallizapa
+#   gcloud projects add-iam-policy-binding fiscallizapa \
+#     --member="serviceAccount:github-deploy@fiscallizapa.iam.gserviceaccount.com" \
+#     --role="roles/firebasehosting.admin"
+#   gcloud iam service-accounts keys create /tmp/sa.json \
+#     --iam-account=github-deploy@fiscallizapa.iam.gserviceaccount.com
+#   cat /tmp/sa.json  → copie e cole como secret FIREBASE_SERVICE_ACCOUNT
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy — Frontend (Firebase Hosting)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Dispara apenas se arquivos do frontend ou configuração mudarem
+      - "frontend/**"
+      - "firebase.json"
+      - "firestore.rules"
+      - ".github/workflows/deploy-frontend.yml"
+
+  # Permite disparo manual pelo GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Ambiente de deploy"
+        required: false
+        default: "production"
+        type: choice
+        options:
+          - production
+          - preview
+
+env:
+  NODE_VERSION:   "20"
+  FRONTEND_DIR:   "frontend"
+  FIREBASE_PROJECT: "fiscallizapa"
+
+jobs:
+  build-and-deploy:
+    name: "Build Vite → Deploy Firebase Hosting"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Permissões mínimas necessárias
+    permissions:
+      contents:      read
+      deployments:   write
+      pull-requests: write   # necessário para PR preview comments
+
+    steps:
+      # ──────────────────────────────────────────────────────────────────────
+      # 1. Checkout
+      # ──────────────────────────────────────────────────────────────────────
+      - name: "📥 Checkout do repositório"
+        uses: actions/checkout@v4
+
+      # ──────────────────────────────────────────────────────────────────────
+      # 2. Setup Node.js com cache automático do npm
+      # ──────────────────────────────────────────────────────────────────────
+      - name: "⬢ Setup Node.js ${{ env.NODE_VERSION }}"
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache:         "npm"
+          cache-dependency-path: "${{ env.FRONTEND_DIR }}/package-lock.json"
+
+      # ──────────────────────────────────────────────────────────────────────
+      # 3. Instalar dependências (npm ci — instalação limpa e determinística)
+      # ──────────────────────────────────────────────────────────────────────
+      - name: "📦 Instalar dependências"
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          echo "Node: $(node --version)"
+          echo "npm:  $(npm --version)"
+          # npm ci usa package-lock.json para builds reproduzíveis
+          npm ci --prefer-offline --no-audit --no-fund
+
+      # ──────────────────────────────────────────────────────────────────────
+      # 4. Lint (não bloqueia o deploy, mas reporta erros)
+      # ──────────────────────────────────────────────────────────────────────
+      - name: "🔍 Lint"
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm run lint -- --max-warnings=0
+        continue-on-error: true   # avisos não bloqueiam o deploy
+
+      # ──────────────────────────────────────────────────────────────────────
+      # 5. Build Vite (produção)
+      # Variáveis VITE_* precisam ser injetadas aqui para aparecer no bundle.
+      # Adicione secrets adicionais conforme necessário (ex: VITE_STRIPE_PK).
+      # ──────────────────────────────────────────────────────────────────────
+      - name: "🏗️ Build Vite (produção)"
+        working-directory: ${{ env.FRONTEND_DIR }}
+        env:
+          NODE_ENV: production
+          # Adicione aqui secrets de variáveis de ambiente do Vite:
+          # VITE_FIREBASE_API_KEY:        ${{ secrets.VITE_FIREBASE_API_KEY }}
+          # VITE_FIREBASE_PROJECT_ID:     ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          # VITE_STRIPE_PUBLISHABLE_KEY:  ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
+        run: |
+          npm run build
+          echo "Build concluído. Conteúdo de dist/:"
+          ls -lah dist/
+          echo "Tamanho total:"
+          du -sh dist/
+
+      # ──────────────────────────────────────────────────────────────────────
+      # 6. Verificar artefato de build
+      # ──────────────────────────────────────────────────────────────────────
+      - name: "✅ Verificar artefato de build"
+        run: |
+          if [ ! -f "${{ env.FRONTEND_DIR }}/dist/index.html" ]; then
+            echo "ERRO: dist/index.html não encontrado — build falhou silenciosamente"
+            exit 1
+          fi
+          echo "✓ dist/index.html encontrado"
+          # Verificar tamanho mínimo razoável (> 1KB)
+          SIZE=$(stat -c%s "${{ env.FRONTEND_DIR }}/dist/index.html")
+          if [ "$SIZE" -lt 1024 ]; then
+            echo "AVISO: index.html parece muito pequeno (${SIZE} bytes)"
+          fi
+
+      # ──────────────────────────────────────────────────────────────────────
+      # 7. Deploy para Firebase Hosting (canal live = produção)
+      # A action oficial detecta automaticamente firebase.json na raiz.
+      # ──────────────────────────────────────────────────────────────────────
+      - name: "🚀 Deploy para Firebase Hosting (live)"
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken:              "${{ secrets.GITHUB_TOKEN }}"
+          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}"
+          channelId:              live
+          projectId:              ${{ env.FIREBASE_PROJECT }}
+          # entryPoint: raiz do projeto (onde fica firebase.json)
+          entryPoint:             "."
+
+      # ──────────────────────────────────────────────────────────────────────
+      # 8. Relatório pós-deploy
+      # ──────────────────────────────────────────────────────────────────────
+      - name: "📊 Relatório de deploy"
+        if: success()
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════╗"
+          echo "║        Deploy Firebase Hosting — Concluído           ║"
+          echo "╠══════════════════════════════════════════════════════╣"
+          echo "║  Projeto:  ${{ env.FIREBASE_PROJECT }}                       ║"
+          echo "║  URL:      https://${{ env.FIREBASE_PROJECT }}.web.app       ║"
+          echo "║  Branch:   ${{ github.ref_name }}                                  ║"
+          echo "║  Commit:   ${{ github.sha }}       ║"
+          echo "║  Data:     $(date '+%d/%m/%Y %H:%M:%S UTC')           ║"
+          echo "╚══════════════════════════════════════════════════════╝"
+
+      # ──────────────────────────────────────────────────────────────────────
+      # 9. Notificar em caso de falha
+      # ──────────────────────────────────────────────────────────────────────
+      - name: "❌ Notificar falha de deploy"
+        if: failure()
+        run: |
+          echo "DEPLOY FALHOU em $(date '+%d/%m/%Y %H:%M:%S UTC')"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Autor:  ${{ github.actor }}"
+          echo ""
+          echo "Ações recomendadas:"
+          echo "  1. Verifique os logs acima para identificar o erro"
+          echo "  2. Confirme que FIREBASE_SERVICE_ACCOUNT está configurado em Secrets"
+          echo "  3. Verifique permissões: roles/firebasehosting.admin na SA"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIGURAÇÃO ADICIONAL PARA PR PREVIEWS (OPCIONAL):
+#
+# Para habilitar preview automático em Pull Requests, adicione um segundo job:
+#
+#   pr-preview:
+#     if: github.event_name == 'pull_request'
+#     ...
+#     - uses: FirebaseExtended/action-hosting-deploy@v0
+#       with:
+#         channelId: "pr-${{ github.event.number }}"
+#         expires: 7d
+#
+# Isso cria uma URL temporária de preview por 7 dias para cada PR.
+# ─────────────────────────────────────────────────────────────────────────────

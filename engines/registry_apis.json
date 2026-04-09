@@ -1,0 +1,349 @@
+{
+  "_meta": {
+    "version":      "2.0.0",
+    "description":  "A.S.M.O.D.E.U.S. — Registro Central de APIs (O Mapa das 1.000 APIs)",
+    "total_active": 20,
+    "last_updated": "2026-04-08",
+    "schema_fields": ["id","name","type","url","headers","params","bq_table","bode_detection","rate_limit_ms","priority","active","tags","pagination","bode_keywords"]
+  },
+
+  "apis": [
+
+    {
+      "id":              "dou_rss_edicao1",
+      "name":            "Diário Oficial da União — Edição 1 (RSS)",
+      "type":            "rss",
+      "url":             "https://www.in.gov.br/servicos/rss/edicoes-do-diario-oficial-da-uniao",
+      "headers":         { "User-Agent": "ASMODEUS-Crawler/2.0 (auditoria publica)" },
+      "params":          { "secao": "do1" },
+      "bq_table":        "fiscalizapa.diarios_atos",
+      "firestore_col":   "alertas_bodes",
+      "bode_detection":  true,
+      "rate_limit_ms":   2000,
+      "priority":        1,
+      "active":          true,
+      "tags":            ["diario_oficial", "federal", "dou", "rss"],
+      "bode_keywords":   ["dispensa de licitação","inexigibilidade","nomeação","exoneração","aditivo","contrato emergencial","dispensa emergencial"]
+    },
+
+    {
+      "id":              "dou_rss_edicao2",
+      "name":            "Diário Oficial da União — Edição 2 Extra (RSS)",
+      "type":            "rss",
+      "url":             "https://www.in.gov.br/servicos/rss/edicoes-do-diario-oficial-da-uniao",
+      "headers":         { "User-Agent": "ASMODEUS-Crawler/2.0" },
+      "params":          { "secao": "do2" },
+      "bq_table":        "fiscalizapa.diarios_atos",
+      "firestore_col":   "alertas_bodes",
+      "bode_detection":  true,
+      "rate_limit_ms":   2000,
+      "priority":        2,
+      "active":          true,
+      "tags":            ["diario_oficial", "federal", "dou", "rss"],
+      "bode_keywords":   ["dispensa de licitação","nomeação","contrato"]
+    },
+
+    {
+      "id":              "transparencia_emendas",
+      "name":            "Portal da Transparência — Emendas Parlamentares",
+      "type":            "json_api",
+      "url":             "https://api.portaldatransparencia.gov.br/api-de-dados/emendas",
+      "headers":         { "chave-api-dados": "${TRANSPARENCIA_API_KEY}" },
+      "params":          { "pagina": 1, "quantidade": 500, "ano": "${CURRENT_YEAR}" },
+      "bq_table":        "fiscalizapa.emendas_parlamentares",
+      "firestore_col":   null,
+      "bode_detection":  false,
+      "rate_limit_ms":   1000,
+      "priority":        1,
+      "active":          true,
+      "tags":            ["emendas", "parlamentar", "transparencia"],
+      "pagination":      { "type": "page", "param": "pagina", "size_param": "quantidade", "page_size": 500 }
+    },
+
+    {
+      "id":              "transparencia_contratos",
+      "name":            "Portal da Transparência — Contratos Federais",
+      "type":            "json_api",
+      "url":             "https://api.portaldatransparencia.gov.br/api-de-dados/contratos",
+      "headers":         { "chave-api-dados": "${TRANSPARENCIA_API_KEY}" },
+      "params":          { "pagina": 1, "quantidade": 500 },
+      "bq_table":        "fiscalizapa.contratos_federais",
+      "firestore_col":   "alertas_bodes",
+      "bode_detection":  true,
+      "rate_limit_ms":   1000,
+      "priority":        1,
+      "active":          true,
+      "tags":            ["contratos", "federal", "transparencia"],
+      "pagination":      { "type": "page", "param": "pagina", "size_param": "quantidade", "page_size": 500 },
+      "bode_keywords":   ["dispensa","emergencial","aditivo","empresa fantasma","recém-constituída"]
+    },
+
+    {
+      "id":              "transparencia_despesas",
+      "name":            "Portal da Transparência — Despesas Federais",
+      "type":            "json_api",
+      "url":             "https://api.portaldatransparencia.gov.br/api-de-dados/despesas/por-orgao",
+      "headers":         { "chave-api-dados": "${TRANSPARENCIA_API_KEY}" },
+      "params":          { "ano": "${CURRENT_YEAR}", "pagina": 1, "quantidade": 500 },
+      "bq_table":        "fiscalizapa.despesas_federais",
+      "firestore_col":   null,
+      "bode_detection":  false,
+      "rate_limit_ms":   1000,
+      "priority":        2,
+      "active":          true,
+      "tags":            ["despesas", "orcamento", "federal"]
+    },
+
+    {
+      "id":              "transparencia_servidores",
+      "name":            "Portal da Transparência — Servidores Federais",
+      "type":            "json_api",
+      "url":             "https://api.portaldatransparencia.gov.br/api-de-dados/servidores",
+      "headers":         { "chave-api-dados": "${TRANSPARENCIA_API_KEY}" },
+      "params":          { "pagina": 1, "quantidade": 500 },
+      "bq_table":        "fiscalizapa.servidores_federais",
+      "firestore_col":   null,
+      "bode_detection":  false,
+      "rate_limit_ms":   1500,
+      "priority":        3,
+      "active":          true,
+      "tags":            ["servidores", "funcionalismo", "federal"]
+    },
+
+    {
+      "id":              "transparencia_cnep",
+      "name":            "CNEP — Cadastro Nacional de Empresas Punidas",
+      "type":            "json_api",
+      "url":             "https://api.portaldatransparencia.gov.br/api-de-dados/cnep",
+      "headers":         { "chave-api-dados": "${TRANSPARENCIA_API_KEY}" },
+      "params":          { "pagina": 1, "quantidade": 500 },
+      "bq_table":        "fiscalizapa.empresas_punidas",
+      "firestore_col":   "alertas_bodes",
+      "bode_detection":  false,
+      "rate_limit_ms":   1000,
+      "priority":        1,
+      "active":          true,
+      "tags":            ["cnep", "empresas", "sancoes", "transparencia"]
+    },
+
+    {
+      "id":              "transparencia_ceis",
+      "name":            "CEIS — Cadastro de Empresas Inidôneas e Suspensas",
+      "type":            "json_api",
+      "url":             "https://api.portaldatransparencia.gov.br/api-de-dados/ceis",
+      "headers":         { "chave-api-dados": "${TRANSPARENCIA_API_KEY}" },
+      "params":          { "pagina": 1, "quantidade": 500 },
+      "bq_table":        "fiscalizapa.empresas_inidôneas",
+      "firestore_col":   "alertas_bodes",
+      "bode_detection":  false,
+      "rate_limit_ms":   1000,
+      "priority":        1,
+      "active":          true,
+      "tags":            ["ceis", "empresas", "sancoes", "inidôneo"]
+    },
+
+    {
+      "id":              "compras_contratos",
+      "name":            "Compras.gov.br — Contratos SIASG",
+      "type":            "json_api",
+      "url":             "https://contratos.compras.gov.br/api/v1/contratos",
+      "headers":         { "Accept": "application/json" },
+      "params":          { "pagina": 1, "tamanhoPagina": 100, "anoContrato": "${CURRENT_YEAR}" },
+      "bq_table":        "fiscalizapa.contratos_siasg",
+      "firestore_col":   "alertas_bodes",
+      "bode_detection":  true,
+      "rate_limit_ms":   1500,
+      "priority":        1,
+      "active":          true,
+      "tags":            ["compras", "contratos", "siasg", "licitacao"],
+      "pagination":      { "type": "page", "param": "pagina", "size_param": "tamanhoPagina", "page_size": 100 },
+      "bode_keywords":   ["dispensa","inexigibilidade","emergencial","aditivo","supressão"]
+    },
+
+    {
+      "id":              "compras_licitacoes",
+      "name":            "Compras.gov.br — Licitações SIASG",
+      "type":            "json_api",
+      "url":             "https://compras.dados.gov.br/licitacoes/doc/licitacao.json",
+      "headers":         { "Accept": "application/json" },
+      "params":          { "_page": 1, "_pagesize": 100 },
+      "bq_table":        "fiscalizapa.licitacoes_siasg",
+      "firestore_col":   null,
+      "bode_detection":  false,
+      "rate_limit_ms":   1500,
+      "priority":        2,
+      "active":          true,
+      "tags":            ["compras", "licitacoes", "siasg"]
+    },
+
+    {
+      "id":              "camara_deputados",
+      "name":            "API da Câmara — Lista de Deputados",
+      "type":            "json_api",
+      "url":             "https://dadosabertos.camara.leg.br/api/v2/deputados",
+      "headers":         { "Accept": "application/json" },
+      "params":          { "pagina": 1, "itens": 100, "ordem": "ASC", "ordenarPor": "nome", "legislatura": 57 },
+      "bq_table":        "fiscalizapa.deputados_raw",
+      "firestore_col":   "deputados_federais",
+      "bode_detection":  false,
+      "rate_limit_ms":   500,
+      "priority":        1,
+      "active":          true,
+      "tags":            ["camara", "deputados", "mandatos"],
+      "pagination":      { "type": "page", "param": "pagina", "size_param": "itens", "page_size": 100 }
+    },
+
+    {
+      "id":              "camara_despesas_ceap",
+      "name":            "API da Câmara — Despesas CEAP por Deputado",
+      "type":            "json_api",
+      "url":             "https://dadosabertos.camara.leg.br/api/v2/deputados/{id}/despesas",
+      "headers":         { "Accept": "application/json" },
+      "params":          { "pagina": 1, "itens": 100, "ano": "${CURRENT_YEAR}" },
+      "bq_table":        "fiscalizapa.ceap_raw",
+      "firestore_col":   null,
+      "bode_detection":  true,
+      "rate_limit_ms":   800,
+      "priority":        1,
+      "active":          true,
+      "tags":            ["camara", "ceap", "despesas", "parlamentar"],
+      "pagination":      { "type": "page", "param": "pagina", "size_param": "itens", "page_size": 100 },
+      "bode_keywords":   ["empresa recém-constituída","CNPJ inativo","fornecedor suspeito","valor acima"]
+    },
+
+    {
+      "id":              "camara_proposicoes",
+      "name":            "API da Câmara — Proposições Legislativas",
+      "type":            "json_api",
+      "url":             "https://dadosabertos.camara.leg.br/api/v2/proposicoes",
+      "headers":         { "Accept": "application/json" },
+      "params":          { "pagina": 1, "itens": 100, "dataInicio": "${DATE_30_DAYS_AGO}", "siglaTipo": "PL" },
+      "bq_table":        "fiscalizapa.proposicoes_raw",
+      "firestore_col":   null,
+      "bode_detection":  false,
+      "rate_limit_ms":   500,
+      "priority":        3,
+      "active":          true,
+      "tags":            ["camara", "proposicoes", "legislativo"]
+    },
+
+    {
+      "id":              "bcb_cambio_usd",
+      "name":            "Banco Central — Câmbio Dólar (PTAX)",
+      "type":            "json_api",
+      "url":             "https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados",
+      "headers":         {},
+      "params":          { "formato": "json", "dataInicial": "${DATE_30_DAYS_AGO}", "dataFinal": "${TODAY}" },
+      "bq_table":        "fiscalizapa.contexto_economico",
+      "firestore_col":   null,
+      "bode_detection":  false,
+      "rate_limit_ms":   300,
+      "priority":        2,
+      "active":          true,
+      "tags":            ["bcb", "cambio", "dolar", "macroeconomia"],
+      "_series_code":    1
+    },
+
+    {
+      "id":              "bcb_cambio_eur",
+      "name":            "Banco Central — Câmbio Euro",
+      "type":            "json_api",
+      "url":             "https://api.bcb.gov.br/dados/serie/bcdata.sgs.21619/dados",
+      "headers":         {},
+      "params":          { "formato": "json", "dataInicial": "${DATE_30_DAYS_AGO}", "dataFinal": "${TODAY}" },
+      "bq_table":        "fiscalizapa.contexto_economico",
+      "firestore_col":   null,
+      "bode_detection":  false,
+      "rate_limit_ms":   300,
+      "priority":        2,
+      "active":          true,
+      "tags":            ["bcb", "cambio", "euro", "macroeconomia"],
+      "_series_code":    21619
+    },
+
+    {
+      "id":              "bcb_ipca",
+      "name":            "Banco Central — IPCA Acumulado 12 meses",
+      "type":            "json_api",
+      "url":             "https://api.bcb.gov.br/dados/serie/bcdata.sgs.13522/dados",
+      "headers":         {},
+      "params":          { "formato": "json", "dataInicial": "${DATE_365_DAYS_AGO}", "dataFinal": "${TODAY}" },
+      "bq_table":        "fiscalizapa.contexto_economico",
+      "firestore_col":   null,
+      "bode_detection":  false,
+      "rate_limit_ms":   300,
+      "priority":        3,
+      "active":          true,
+      "tags":            ["bcb", "ipca", "inflacao", "macroeconomia"],
+      "_series_code":    13522
+    },
+
+    {
+      "id":              "ibge_municipios",
+      "name":            "IBGE — Municípios do Brasil",
+      "type":            "json_api",
+      "url":             "https://servicodados.ibge.gov.br/api/v1/localidades/municipios",
+      "headers":         {},
+      "params":          {},
+      "bq_table":        "fiscalizapa.ibge_municipios",
+      "firestore_col":   null,
+      "bode_detection":  false,
+      "rate_limit_ms":   500,
+      "priority":        3,
+      "active":          true,
+      "tags":            ["ibge", "municipios", "geografia"]
+    },
+
+    {
+      "id":              "dou_sp_imesp_rss",
+      "name":            "Diário Oficial SP — IMESP (RSS Simulado)",
+      "type":            "rss",
+      "url":             "https://www.imprensaoficial.com.br/rss/publicacoes",
+      "headers":         { "User-Agent": "ASMODEUS-Crawler/2.0" },
+      "params":          { "secao": "poder_executivo" },
+      "bq_table":        "fiscalizapa.diarios_atos",
+      "firestore_col":   "alertas_bodes",
+      "bode_detection":  true,
+      "rate_limit_ms":   3000,
+      "priority":        2,
+      "active":          true,
+      "tags":            ["diario_oficial", "estadual", "sao_paulo", "rss"],
+      "bode_keywords":   ["dispensa","nomeação","exoneração","contrato","aditivo"]
+    },
+
+    {
+      "id":              "dou_rj_doerj_rss",
+      "name":            "Diário Oficial RJ — DOERJ (RSS Simulado)",
+      "type":            "rss",
+      "url":             "https://www.ioerj.com.br/portal/modules/conteudo/conteudo.php?conteudo=rss",
+      "headers":         { "User-Agent": "ASMODEUS-Crawler/2.0" },
+      "params":          {},
+      "bq_table":        "fiscalizapa.diarios_atos",
+      "firestore_col":   "alertas_bodes",
+      "bode_detection":  true,
+      "rate_limit_ms":   3000,
+      "priority":        2,
+      "active":          true,
+      "tags":            ["diario_oficial", "estadual", "rio_de_janeiro", "rss"],
+      "bode_keywords":   ["dispensa","nomeação","contrato","aditivo"]
+    },
+
+    {
+      "id":              "dou_pa_belem_rss",
+      "name":            "Diário Oficial Belém/PA (RSS Simulado)",
+      "type":            "rss",
+      "url":             "https://dom.belem.pa.gov.br/rss/edicoes",
+      "headers":         { "User-Agent": "ASMODEUS-Crawler/2.0" },
+      "params":          {},
+      "bq_table":        "fiscalizapa.diarios_atos",
+      "firestore_col":   "alertas_bodes",
+      "bode_detection":  true,
+      "rate_limit_ms":   3000,
+      "priority":        2,
+      "active":          true,
+      "tags":            ["diario_oficial", "municipal", "belem", "para", "rss"],
+      "bode_keywords":   ["dispensa","licitação","nomeação","aditivo"]
+    }
+
+  ]
+}
