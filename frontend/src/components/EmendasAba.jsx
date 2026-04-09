@@ -3,8 +3,14 @@ import { collection, query, where, getDocs, doc, getDoc } from "firebase/firesto
 import { db } from "../lib/firebase";
 
 function fmt(v) {
-  if (!v) return "R$ 0,00";
-  return "R$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+  const n = parseFloat(String(v ?? "").replace(/\./g, "").replace(",", "."));
+  if (isNaN(n) || n === 0) return "–";
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+}
+
+function safeNum(v) {
+  const n = parseFloat(String(v ?? "").replace(/\./g, "").replace(",", "."));
+  return isNaN(n) ? 0 : n;
 }
 
 export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
@@ -72,8 +78,8 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
     );
   }
 
-  const totalEmpenhado = emendas.reduce((s, e) => s + (e.valorEmpenhado || e.valor || 0), 0);
-  const totalPago = emendas.reduce((s, e) => s + (e.valorPago || 0), 0);
+  const totalEmpenhado = emendas.reduce((s, e) => s + safeNum(e.valorEmpenhado ?? e.valor), 0);
+  const totalPago      = emendas.reduce((s, e) => s + safeNum(e.valorPago), 0);
   const municipios = [...new Set(emendas.map(e => e.municipioNome).filter(Boolean))];
 
   return (
@@ -123,8 +129,14 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
                   {e.favorecido && <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>Favorecido: {e.favorecido}</p>}
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-gold)', fontSize: '15px' }}>{fmt(e.valorEmpenhado || e.valor)}</span>
-                  {e.valorPago > 0 && <p style={{ fontSize: '11px', color: 'var(--accent-green)', margin: '2px 0 0' }}>Pago: {fmt(e.valorPago)}</p>}
+                  <span style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-gold)', fontSize: '15px' }}>{fmt(e.valorEmpenhado ?? e.valor)}</span>
+                  {safeNum(e.valorPago) > 0 && <p style={{ fontSize: '11px', color: 'var(--accent-green)', margin: '2px 0 0' }}>Pago: {fmt(e.valorPago)}</p>}
+                  {(e.linkPortal || e.urlPortal) && (
+                    <a href={e.linkPortal || e.urlPortal} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginTop: 2 }}>
+                      🔗 Fonte ↗
+                    </a>
+                  )}
                 </div>
               </div>
               {/* Rastreamento expandido */}

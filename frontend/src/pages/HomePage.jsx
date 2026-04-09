@@ -42,9 +42,9 @@ function fmtScore(val) {
 function DeputadoCard({ dep }) {
   const color = getRankColor(dep.rank_externo || dep.rank || 1, 513);
   const soft  = color.replace('rgb', 'rgba').replace(')', ',0.08)');
-  const nome  = dep.nome || '–';
+  const nome  = dep.nome || dep.nomeCompleto || '–';
   return (
-    <Link to={`/politico/ranking_externo/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+    <Link to={`/politico/deputados_federais/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 12,
@@ -63,9 +63,9 @@ function DeputadoCard({ dep }) {
           </div>
           <div style={{ fontSize: 11, color: '#999' }}>{dep.partido || '–'} · {dep.uf || '–'}</div>
         </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color }}>{fmtScore(dep.score || dep.nota_ranking_org)}</div>
-          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>ranking.org.br</div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color }}>{fmtScore(dep.score ?? dep.indice_transparenciabr ?? dep.nota_ranking_org)}</div>
+          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>índice A.S.M.O.D.E.U.S.</div>
         </div>
       </div>
     </Link>
@@ -87,18 +87,32 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   useEffect(() => {
     async function fetchRanking() {
       try {
-        // ── Lê de ranking_externo (seed ranking.org.br 2025) ──────────────
-        const col = collection(db, 'ranking_externo');
+        // deputados_federais — mesmo dataset do RankingPage (campo: score)
+        const col = collection(db, 'deputados_federais');
 
         // Top 10: maior score
         const qTop    = query(col, orderBy('score', 'desc'), limit(10));
         const snapTop = await getDocs(qTop);
-        setTop10(snapTop.docs.map((doc, i) => ({ id: doc.id, rank: i + 1, ...doc.data() })));
+        const top = snapTop.docs.map((d, i) => ({
+          id: d.id, rank: i + 1,
+          score: parseFloat(d.data().score ?? d.data().indice_transparenciabr ?? 0),
+          ...d.data(),
+        }));
 
-        // Bottom 10: menor score
-        const qBot    = query(col, orderBy('score', 'asc'), limit(10));
+        // Bottom 10: menor score (pega 20 e filtra score > 0 para evitar dados vazios)
+        const qBot    = query(col, orderBy('score', 'asc'), limit(20));
         const snapBot = await getDocs(qBot);
-        setBottom10(snapBot.docs.map((doc, i) => ({ id: doc.id, rank: 513 - i, ...doc.data() })));
+        const botAll  = snapBot.docs.map(d => ({
+          id: d.id,
+          score: parseFloat(d.data().score ?? d.data().indice_transparenciabr ?? 0),
+          ...d.data(),
+        }));
+        const botFiltered = botAll.filter(d => d.score > 0).slice(0, 10);
+        const bottom = (botFiltered.length >= 5 ? botFiltered : botAll.slice(0, 10))
+          .map((d, i) => ({ ...d, rank: 513 - i }));
+
+        setTop10(top);
+        setBottom10(bottom);
       } catch (err) {
         console.error('Erro ao buscar ranking:', err);
       } finally {
@@ -165,14 +179,14 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2D2D2D' }}>Ranking de Transparência Parlamentar</h2>
           <a
-            href="https://ranking.org.br/ranking/politicos"
+            href="https://portaldatransparencia.gov.br"
             target="_blank"
             rel="noopener noreferrer"
             style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic', textDecoration: 'none', transition: 'color 0.15s' }}
             onMouseEnter={e => e.currentTarget.style.color = '#2D2D2D'}
             onMouseLeave={e => e.currentTarget.style.color = '#AAA'}
           >
-            Índice: ranking.org.br ↗
+            Fonte: Portal da Transparência ↗
           </a>
         </div>
 
@@ -212,9 +226,10 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         <div style={{ background: '#FBF7E8', border: '1px solid #F0E4A0', borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 16 }}>⚡</span>
           <p style={{ fontSize: 12, color: '#7A6A20', margin: 0, lineHeight: 1.6 }}>
-            <strong>Índice temporário:</strong> O ranking exibido é baseado no{' '}
-            <a href="https://ranking.org.br/ranking/politicos" target="_blank" rel="noopener noreferrer" style={{ color: '#7A6A20', fontWeight: 600 }}>ranking.org.br</a>.
-            Em breve, substituiremos pelo nosso próprio índice com análise forense de CEAP, emendas e atividade parlamentar.
+            <strong>Índice A.S.M.O.D.E.U.S.:</strong> Score calculado a partir de dados públicos da{' '}
+            <a href="https://www.camara.leg.br" target="_blank" rel="noopener noreferrer" style={{ color: '#7A6A20', fontWeight: 600 }}>Câmara dos Deputados</a>{' '}e{' '}
+            <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer" style={{ color: '#7A6A20', fontWeight: 600 }}>Portal da Transparência</a>.
+            Análise probabilística — pode conter imprecisões.
           </p>
         </div>
       </section>
