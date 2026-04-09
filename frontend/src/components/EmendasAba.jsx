@@ -6,12 +6,22 @@ import { normalizeUF } from "./SocialContext";
 // UF válidas brasileiras (2 chars)
 const UF_VALIDAS = new Set(["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"]);
 
-function safeUF(v) {
-  if (!v) return "";
-  const up = String(v).toUpperCase().trim();
+const FORCED_UF_BY_TEXTO = [
+  ["MATO GROSSO DO SUL", "MS"],
+  ["MATO GROSSO", "MT"],
+  ["MARANHAO", "MA"],
+];
+
+function safeUF(uf, estadoNome, municipioNome) {
+  const blob = [estadoNome, municipioNome, uf].filter(Boolean).join(" ").toUpperCase().normalize("NFD").replace(/\p{M}/gu, "");
+  for (const [needle, sig] of FORCED_UF_BY_TEXTO) {
+    if (blob.includes(needle)) return sig;
+  }
+  if (!uf) return "";
+  const up = String(uf).toUpperCase().trim();
   if (UF_VALIDAS.has(up)) return up;
-  // Tentar normalizar via mapa de estado
-  return normalizeUF(up) !== "–" ? normalizeUF(up) : up.slice(0, 2);
+  const n = normalizeUF(up, estadoNome);
+  return n !== "–" ? n : (up.length >= 2 ? up.slice(0, 2) : "");
 }
 
 function fmt(v) {
@@ -97,20 +107,20 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
   return (
     <div>
       {/* Summary cards */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '120px', padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginBottom: '20px' }}>
+        <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
           <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--accent-gold)' }}>{emendas.length}</div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>EMENDAS</div>
         </div>
-        <div style={{ flex: 1, minWidth: '120px', padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+        <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
           <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent-orange)' }}>{fmt(totalEmpenhado)}</div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>TOTAL EMPENHADO</div>
         </div>
-        <div style={{ flex: 1, minWidth: '120px', padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+        <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
           <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent-green)' }}>{fmt(totalPago)}</div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>TOTAL PAGO</div>
         </div>
-        <div style={{ flex: 1, minWidth: '120px', padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+        <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
           <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)' }}>{municipios.length}</div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>MUNICIPIOS</div>
         </div>
@@ -121,6 +131,7 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
         {emendas.map(e => {
           const isExpanded = expanded === e.id;
           const rast = rastreamento[e.id];
+          const ufLabel = safeUF(e.uf, e.estado || e.estadoNome, e.municipioNome);
           return (
             <div key={e.id} style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', overflow: 'hidden' }}>
               <div
@@ -132,7 +143,7 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
                 <div style={{ flex: 1 }}>
                   <p style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', margin: 0 }}>
                     {e.municipioNome || e.municipio || e.localidade || 'Município não informado'}
-                    {safeUF(e.uf) ? ` — ${safeUF(e.uf)}` : ''}
+                    {ufLabel ? ` — ${ufLabel}` : ''}
                   </p>
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
                     {e.objetoResumo || e.funcao || e.programa || ''}

@@ -484,6 +484,28 @@ function fetchJson(url) {
   });
 }
 
+/** CEAP: float em reais; evita concatenação no cliente; centavos inteiros enormes → /100 */
+function parseCamaraValorReais(raw) {
+  if (raw == null || raw === '') return 0;
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw)) return 0;
+    let n = raw;
+    if (Number.isInteger(n) && n >= 1_000_000_000) n /= 100;
+    return n;
+  }
+  let s = String(raw).trim().replace(/\s/g, '').replace(/R\$\s?/gi, '');
+  if (!s) return 0;
+  const hasComma = s.includes(',');
+  const dotCount = (s.match(/\./g) || []).length;
+  if (hasComma && dotCount > 0) s = s.replace(/\./g, '').replace(',', '.');
+  else if (hasComma) s = s.replace(',', '.');
+  else if (dotCount > 1) s = s.replace(/\./g, '');
+  let n = parseFloat(s);
+  if (!Number.isFinite(n)) return 0;
+  if (Number.isInteger(n) && n >= 1_000_000_000) n /= 100;
+  return n;
+}
+
 exports.getAuditoriaPolitico = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
@@ -516,7 +538,15 @@ exports.getAuditoriaPolitico = onCall(OPTS, async (req) => {
         .catch(() => ({ dados: [] }))
     );
     const pages = await Promise.all(pagePromises);
-    const despesas = pages.flatMap(p => p?.dados ?? []);
+    const despesas = (pages.flatMap(p => p?.dados ?? [])).map((d) => {
+      const vlr = d?.vlrLiquido ?? d?.valorLiquido ?? d?.valorDocumento ?? 0;
+      const reais = parseCamaraValorReais(vlr);
+      return {
+        ...d,
+        valorLiquido: reais,
+        vlrLiquido: reais,
+      };
+    });
 
     return {
       despesas,

@@ -14,10 +14,11 @@ import AlertasFretamento from "../components/AlertasFretamento";
 import NepotismoCard from "../components/NepotismoCard";
 import VerbaGabineteSection from "../components/VerbaGabineteSection";
 import EncaminhamentoEmendas from "../components/EncaminhamentoEmendas";
+import { parseCamaraValorReais } from "../utils/moneyCamara";
 
 function fmtMoney(value) {
-  const n = parseFloat(String(value ?? "").replace(/\./g, "").replace(",", ".")) || 0;
-  if (isNaN(n)) return "–";
+  const n = parseCamaraValorReais(value ?? 0);
+  if (!Number.isFinite(n)) return "–";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
 
@@ -26,11 +27,12 @@ function safeArray(value) {
 }
 
 function normalizeDespesa(item, index) {
+  const rawNome = item?.txtFornecedor || item?.fornecedorNome;
   return {
     id: item?.id || item?.urlDocumento || `${item?.txtFornecedor || "fornecedor"}-${item?.datEmissao || index}-${index}`,
-    valorLiquido: Number(item?.vlrLiquido || item?.valorLiquido || 0),
+    valorLiquido: parseCamaraValorReais(item?.vlrLiquido ?? item?.valorLiquido ?? 0),
     tipoDespesa: item?.txtDescricao || item?.tipoDespesa || "Sem categoria",
-    fornecedorNome: item?.txtFornecedor || item?.fornecedorNome || "Desconhecido",
+    fornecedorNome: rawNome && String(rawNome).trim() ? String(rawNome).trim() : null,
     dataDocumento: item?.datEmissao || item?.dataDocumento || "",
     urlDocumento: item?.urlDocumento || "",
     cnpjCpf: item?.txtCNPJCPF || item?.cnpjCpf || "",
@@ -166,7 +168,10 @@ export default function PoliticoPage() {
     return () => { isMounted = false; };
   }, [col, id]);
 
-  const totalGastos  = useMemo(() => gastos.reduce((acc, item) => acc + Number(item?.valorLiquido || 0), 0), [gastos]);
+  const totalGastos  = useMemo(
+    () => gastos.reduce((acc, item) => acc + parseCamaraValorReais(item?.valorLiquido ?? 0), 0),
+    [gastos],
+  );
   const totalEmendas = useMemo(() => emendas.reduce((acc, item) => acc + Number(item?.valorEmpenhado || 0), 0), [emendas]);
   const qtdNotas = gastos.length;
   const foto = getFotoPolitico(pol);
@@ -305,9 +310,13 @@ export default function PoliticoPage() {
                     onClick={() => { if (g.isLocked) navigate("/creditos"); }}
                   >
                     <div className={`min-w-0 ${g.isLocked ? "blur-[3px] select-none" : ""}`}>
-                      <p className={`font-bold text-sm truncate ${g.isLocked ? "text-red-500" : "text-[#2D2D2D]"}`}>
-                        {g.isLocked ? "FORNECEDOR EM SIGILO" : g.fornecedorNome}
-                      </p>
+                      {g.isLocked ? (
+                        <p className="font-bold text-sm truncate text-red-500">FORNECEDOR EM SIGILO</p>
+                      ) : g.fornecedorNome ? (
+                        <p className="font-bold text-sm truncate text-[#2D2D2D]">{g.fornecedorNome}</p>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">Fornecedor não informado (Dados da Câmara)</p>
+                      )}
                       <p className="text-xs text-[#9ca3af] mt-1">{g.tipoDespesa}</p>
                       <p className={`text-[11px] mt-1 font-semibold uppercase tracking-wide ${getStatusTone(g.analiseForense)}`}>{g.analiseForense}</p>
                     </div>

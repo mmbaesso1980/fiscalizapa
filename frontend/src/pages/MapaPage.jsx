@@ -7,7 +7,21 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import BrazilHeatmap from "../components/BrazilHeatmap";
+import BrazilHeatmap, { BRAZIL_HEATMAP_MOCK_COUNTS } from "../components/BrazilHeatmap";
+
+function buildIllustrativeAlertas(uf, count) {
+  const n = Math.min(Math.max(0, count), 20);
+  return Array.from({ length: n }, (_, i) => ({
+    id: `mapa-ilustrativo-${uf}-${i}`,
+    parlamentarNome: `Registro ilustrativo ${i + 1}`,
+    nome: `Registro ilustrativo ${i + 1}`,
+    tipoAlerta: "Modo demonstração",
+    tipo: "Modo demonstração",
+    criticidade: "BAIXA",
+    explicacao_oraculo:
+      "Sem documentos em alertas_bodes para esta UF: o mapa está em modo demonstração e esta lista replica o mesmo volume exibido no tooltip até o engine 05_sync_bodes.py popular dados reais.",
+  }));
+}
 
 const SEV_COLOR = {
   ALTA:  { color: "#C82538", bg: "rgba(200,37,56,0.08)"  },
@@ -48,6 +62,7 @@ export default function MapaPage() {
   const [selectedUF,  setSelectedUF ] = useState(null);
   const [alertas,     setAlertas    ] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
+  const [heatmapMock, setHeatmapMock ] = useState(false);
 
   useEffect(() => {
     if (!selectedUF) { setAlertas([]); return; }
@@ -62,7 +77,12 @@ export default function MapaPage() {
           limit(20),
         );
         const snap = await getDocs(q);
-        if (!cancelled) setAlertas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (!cancelled && rows.length === 0 && heatmapMock) {
+          const mockN = BRAZIL_HEATMAP_MOCK_COUNTS[selectedUF] ?? 0;
+          if (mockN > 0) rows = buildIllustrativeAlertas(selectedUF, mockN);
+        }
+        if (!cancelled) setAlertas(rows);
       } catch {
         // índice pode não existir — tenta sem orderBy
         try {
@@ -72,7 +92,12 @@ export default function MapaPage() {
             limit(20),
           );
           const snap2 = await getDocs(q2);
-          if (!cancelled) setAlertas(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
+          let rows2 = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
+          if (!cancelled && rows2.length === 0 && heatmapMock) {
+            const mockN = BRAZIL_HEATMAP_MOCK_COUNTS[selectedUF] ?? 0;
+            if (mockN > 0) rows2 = buildIllustrativeAlertas(selectedUF, mockN);
+          }
+          if (!cancelled) setAlertas(rows2);
         } catch { if (!cancelled) setAlertas([]); }
       } finally {
         if (!cancelled) setLoadingList(false);
@@ -80,7 +105,7 @@ export default function MapaPage() {
     }
     loadAlertas();
     return () => { cancelled = true; };
-  }, [selectedUF]);
+  }, [selectedUF, heatmapMock]);
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 64 }}>
@@ -105,7 +130,7 @@ export default function MapaPage() {
           backdropFilter: "blur(10px)", marginBottom: 24,
           boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
         }}>
-          <BrazilHeatmap onStateSelect={setSelectedUF} />
+          <BrazilHeatmap onStateSelect={setSelectedUF} onMockModeChange={setHeatmapMock} />
         </div>
 
         {/* Lista de alertas do estado */}

@@ -159,21 +159,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         </div>
       </section>
 
-      {/* STATS */}
-      <div style={{ maxWidth: 760, margin: '0 auto 52px', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 14 }}>
-        {[
-          { n: '513', label: 'Deputados federais monitorados' },
-          { n: '26',  label: 'Tabelas no banco de dados' },
-          { n: '10+', label: 'APIs públicas integradas' },
-          { n: 'IA',  label: 'Score e flags automáticos' },
-        ].map((s, i) => (
-          <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '18px 16px', textAlign: 'center', border: '1px solid #EDEBE8' }}>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#2D2D2D', marginBottom: 4 }}>{s.n}</div>
-            <div style={{ fontSize: 12, color: '#AAA', lineHeight: 1.4 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
       {/* TOP 10 / BOTTOM 10 */}
       <section id="ranking-section" style={{ maxWidth: 900, margin: '0 auto 64px', padding: '0 24px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
@@ -221,8 +206,23 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         )}
       </section>
 
+      {/* STATS — abaixo do ranking para não interromper o fluxo principal */}
+      <div style={{ maxWidth: 760, margin: '0 auto 52px', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 14 }}>
+        {[
+          { n: '513', label: 'Deputados federais monitorados' },
+          { n: '26',  label: 'Tabelas no banco de dados' },
+          { n: '10+', label: 'APIs públicas integradas' },
+          { n: 'IA',  label: 'Score e flags automáticos' },
+        ].map((s, i) => (
+          <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '18px 16px', textAlign: 'center', border: '1px solid #EDEBE8' }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#2D2D2D', marginBottom: 4 }}>{s.n}</div>
+            <div style={{ fontSize: 12, color: '#AAA', lineHeight: 1.4 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
       {/* AVISO DE METODOLOGIA */}
-      <section style={{ maxWidth: 900, margin: '-40px auto 56px', padding: '0 24px' }}>
+      <section style={{ maxWidth: 900, margin: '0 auto 56px', padding: '0 24px' }}>
         <div style={{ background: '#FBF7E8', border: '1px solid #F0E4A0', borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 16 }}>⚡</span>
           <p style={{ fontSize: 12, color: '#7A6A20', margin: 0, lineHeight: 1.6 }}>
@@ -231,36 +231,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
             <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer" style={{ color: '#7A6A20', fontWeight: 600 }}>Portal da Transparência</a>.
             Análise probabilística — pode conter imprecisões.
           </p>
-        </div>
-      </section>
-
-      {/* PRODUTOS */}
-      <section style={{ maxWidth: 900, margin: '0 auto 64px', padding: '0 24px' }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2D2D2D', marginBottom: 8 }}>O que você pode comprar</h2>
-        <p style={{ fontSize: 14, color: '#AAA', marginBottom: 24 }}>Pague por aquilo que precisa. Sem assinatura obrigatória.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16 }}>
-          {[
-            { icon: '📋', title: 'Dossiê CEAP Básico',     price: 'R$ 9,90',          desc: 'Resumo de gastos, top fornecedores e 5 flags principais.',                           badge: 'Popular'  },
-            { icon: '🔥', title: 'Dossiê CEAP Matador',    price: 'R$ 39,90',         desc: 'Análise forense completa com todos os recibos, gráficos e PDF para denúncia.',      badge: 'Premium'  },
-            { icon: '💬', title: 'Pergunta ao Agente IA',  price: 'R$ 2,00/pergunta', desc: 'Consulte o agente IA com dados parlamentares. Resposta baseada em dados oficiais.', badge: 'IA'       },
-            { icon: '📦', title: 'Módulos avulsos',        price: 'Emendas, Gabinete',desc: 'Emendas R$14,90 · Gabinete R$14,90 · Super Relatório R$79,90.',                     badge: 'Modular'  },
-          ].map((p, i) => (
-            <div key={i}
-              style={{ background: '#fff', borderRadius: 14, padding: '22px 18px', border: '1px solid #EDEBE8', position: 'relative', transition: 'box-shadow 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.08)'}
-              onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
-            >
-              {p.badge && (
-                <span style={{ position: 'absolute', top: 14, right: 14, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 100, background: p.badge === 'Premium' ? '#FBD87F' : p.badge === 'IA' ? '#9ECFE8' : '#A8D8B0', color: '#2D2D2D' }}>
-                  {p.badge}
-                </span>
-              )}
-              <div style={{ fontSize: 28, marginBottom: 10 }}>{p.icon}</div>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#2D2D2D', marginBottom: 6 }}>{p.title}</h3>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#2D2D2D', marginBottom: 8 }}>{p.price}</div>
-              <p style={{ fontSize: 12, color: '#AAA', lineHeight: 1.6 }}>{p.desc}</p>
-            </div>
-          ))}
         </div>
       </section>
 
@@ -311,6 +281,36 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           </div>
         </section>
       )}
+
+      {/* PRODUTOS — rodapé de página (acima do footer) */}
+      <section style={{ maxWidth: 900, margin: '0 auto 48px', padding: '0 24px' }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2D2D2D', marginBottom: 8 }}>O que você pode comprar</h2>
+        <p style={{ fontSize: 14, color: '#AAA', marginBottom: 24 }}>Pague por aquilo que precisa. Sem assinatura obrigatória.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16 }}>
+          {[
+            { icon: '📋', title: 'Dossiê CEAP Básico',     price: 'R$ 9,90',          desc: 'Resumo de gastos, top fornecedores e 5 flags principais.',                           badge: 'Popular'  },
+            { icon: '🔥', title: 'Dossiê CEAP Matador',    price: 'R$ 39,90',         desc: 'Análise forense completa com todos os recibos, gráficos e PDF para denúncia.',      badge: 'Premium'  },
+            { icon: '💬', title: 'Pergunta ao Agente IA',  price: 'R$ 2,00/pergunta', desc: 'Consulte o agente IA com dados parlamentares. Resposta baseada em dados oficiais.', badge: 'IA'       },
+            { icon: '📦', title: 'Módulos avulsos',        price: 'Emendas, Gabinete',desc: 'Emendas R$14,90 · Gabinete R$14,90 · Super Relatório R$79,90.',                     badge: 'Modular'  },
+          ].map((p, i) => (
+            <div key={i}
+              style={{ background: '#fff', borderRadius: 14, padding: '22px 18px', border: '1px solid #EDEBE8', position: 'relative', transition: 'box-shadow 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.08)'; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; }}
+            >
+              {p.badge && (
+                <span style={{ position: 'absolute', top: 14, right: 14, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 100, background: p.badge === 'Premium' ? '#FBD87F' : p.badge === 'IA' ? '#9ECFE8' : '#A8D8B0', color: '#2D2D2D' }}>
+                  {p.badge}
+                </span>
+              )}
+              <div style={{ fontSize: 28, marginBottom: 10 }}>{p.icon}</div>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#2D2D2D', marginBottom: 6 }}>{p.title}</h3>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#2D2D2D', marginBottom: 8 }}>{p.price}</div>
+              <p style={{ fontSize: 12, color: '#AAA', lineHeight: 1.6 }}>{p.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <footer style={{ textAlign: 'center', padding: '24px', fontSize: 12, color: '#CCC', borderTop: '1px solid #EDEBE8' }}>
         transparenciabr · dados 100% públicos · metodologia aberta · apartidário

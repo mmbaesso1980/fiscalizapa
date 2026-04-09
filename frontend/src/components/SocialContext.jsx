@@ -21,19 +21,38 @@ const ESTADO_TO_UF = {
   "São Paulo": "SP", "Sergipe": "SE", "Tocantins": "TO",
 };
 
+const UF_SIGLAS = new Set(["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"]);
+
+/** Força MT / MA / MS a partir de texto (evita “Mato Grosso” → slice “MA”). */
+function ufFromNomeCompleto(...parts) {
+  const blob = parts.filter(Boolean).join(" ");
+  if (!blob) return null;
+  const t = blob.toUpperCase().normalize("NFD").replace(/\p{M}/gu, "");
+  if (t.includes("MATO GROSSO DO SUL")) return "MS";
+  if (t.includes("MATO GROSSO")) return "MT";
+  if (t.includes("MARANHAO")) return "MA";
+  return null;
+}
+
 export function normalizeUF(uf, estadoNome) {
+  const forced = ufFromNomeCompleto(estadoNome, uf);
+  if (forced) return forced;
   if (estadoNome && ESTADO_TO_UF[estadoNome]) return ESTADO_TO_UF[estadoNome];
+  const u = String(uf ?? "").trim();
+  if (!u || u === "–") return "–";
+  const up = u.toUpperCase();
+  if (up.length === 2 && UF_SIGLAS.has(up)) return up;
   return uf ?? "–";
 }
 
-// ─── Categorias IDH ────────────────────────────────────────────────────────────
+// ─── Categorias IDH (tom neutro — contexto social, não alerta) ────────────────
 function idhCategory(val) {
-  if (val === null || val === undefined) return { label: "Sem dados", color: "#9ca3af", bg: "#f9fafb", fill: 0 };
-  if (val >= 0.8)  return { label: "Muito Alto",  color: "#15803d", bg: "#f0fdf4", fill: val * 100 };
-  if (val >= 0.7)  return { label: "Alto",        color: "#2E7F18", bg: "#f0fdf4", fill: val * 100 };
-  if (val >= 0.6)  return { label: "Médio",       color: "#d97706", bg: "#fffbeb", fill: val * 100 };
-  if (val >= 0.5)  return { label: "Baixo",       color: "#dc2626", bg: "#fef2f2", fill: val * 100 };
-  return              { label: "Muito Baixo",  color: "#991b1b", bg: "#fef2f2", fill: val * 100 };
+  if (val === null || val === undefined) return { label: "Sem dados", color: "#64748b", bg: "#f8fafc", fill: 0 };
+  if (val >= 0.8)  return { label: "Muito Alto",  color: "#1e40af", bg: "#eff6ff", fill: val * 100 };
+  if (val >= 0.7)  return { label: "Alto",        color: "#2563eb", bg: "#eff6ff", fill: val * 100 };
+  if (val >= 0.6)  return { label: "Médio",       color: "#475569", bg: "#f1f5f9", fill: val * 100 };
+  if (val >= 0.5)  return { label: "Baixo",       color: "#64748b", bg: "#f8fafc", fill: val * 100 };
+  return              { label: "Muito Baixo",  color: "#475569", bg: "#f1f5f9", fill: val * 100 };
 }
 
 export default function SocialContext({ idh, localidade, uf }) {
@@ -53,7 +72,7 @@ export default function SocialContext({ idh, localidade, uf }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <div>
           <span style={{ fontSize: 10, fontWeight: 700, color, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            Impacto Social · IDH Regional
+            Contexto Social Local
           </span>
           {localidade && (
             <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>

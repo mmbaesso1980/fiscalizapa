@@ -34,6 +34,7 @@ import PerformanceTab     from "../components/PerformanceTab";
 import PoliticalTimeline  from "../components/PoliticalTimeline";
 import CabinetAudit       from "../components/CabinetAudit";
 import { normalizeUF }    from "../components/SocialContext";
+import { parseCamaraValorReais } from "../utils/moneyCamara";
 
 const CUSTO_FULL    = 200;
 const CUSTO_RESUMO  = 10;
@@ -41,12 +42,12 @@ const CUSTO_RESUMO  = 10;
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtBRL(v) {
   if (v === null || v === undefined || v === "") return "–";
-  const n = parseFloat(String(v).replace(/\./g, "").replace(",", "."));
-  if (isNaN(n)) return "–";
+  const n = parseCamaraValorReais(v);
+  if (!Number.isFinite(n)) return "–";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
 // Alias seguro para formatCurrency (jamais R$ NaN)
-const formatCurrency = (v) => fmtBRL(v || 0);
+const formatCurrency = (v) => fmtBRL(v ?? 0);
 
 function sessionKey(id, tipo = "full") {
   return `dossie_${tipo}_${id}`;
@@ -78,7 +79,7 @@ function SectionHeader({ icon, title, badge, badgeColor = "#2E7F18", badgeBg = "
       <span style={{ fontSize: 18 }}>{icon}</span>
       <h2 style={{
         fontFamily: "'Space Grotesk', sans-serif",
-        fontSize: 16, fontWeight: 700, color: "#2D2D2D", margin: 0, flex: 1,
+        fontSize: 16, fontWeight: 700, color: "#1e293b", margin: 0, flex: 1,
       }}>
         {title}
       </h2>
@@ -98,8 +99,12 @@ function SectionHeader({ icon, title, badge, badgeColor = "#2E7F18", badgeBg = "
 function Card({ children, style }) {
   return (
     <div style={{
-      background: "rgba(255,255,255,0.72)", borderRadius: 16,
-      border: "1px solid rgba(237,235,232,0.9)", padding: "20px 22px",
+      background: "#ffffff",
+      borderRadius: "0.75rem",
+      border: "1px solid #e2e8f0",
+      boxShadow: "0 1px 2px 0 rgb(15 23 42 / 0.06)",
+      padding: "20px 22px",
+      color: "#1e293b",
       ...style,
     }}>
       {children}
@@ -256,7 +261,9 @@ const CEAP_WEIGHTS  = [0.18, 0.14, 0.22, 0.16, 0.12, 0.18];
 const CEAP_SUPPLIER = ["Cia Aérea Brasil", "Hotel Nacional BH", "Gráfica SenSul", "Posto Planalto"];
 
 function buildCeapData(total) {
-  const half = (parseFloat(total) || 120000) / 2;
+  const reais = parseCamaraValorReais(total ?? 0);
+  const base = reais > 0 ? reais : 120000;
+  const half = base / 2;
   return CEAP_MONTHS.map((month, i) => ({ month, value: Math.round(half * CEAP_WEIGHTS[i]) }));
 }
 
@@ -623,9 +630,9 @@ function OracleLaboratory({ politico, alertas, rank, fullUnlocked, pdfRef, onDow
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "10px 20px",
               background: generatingPDF
-                ? "#F5F3F0"
-                : "linear-gradient(135deg, #1A1A2E 0%, #2D2D2D 100%)",
-              color: generatingPDF ? "#AAA" : "#FBD87F",
+                ? "#f1f5f9"
+                : "linear-gradient(135deg, #334155 0%, #475569 100%)",
+              color: generatingPDF ? "#94a3b8" : "#fff",
               border: "none", borderRadius: 10, fontWeight: 700, fontSize: 13,
               cursor: generatingPDF ? "not-allowed" : "pointer",
               fontFamily: "'Space Grotesk', sans-serif",
@@ -764,11 +771,11 @@ function UnlockGate({ dailyQuota, credits, onUseQuota, onPayFull, unlocking, err
               onClick={() => navigate("/creditos")}
               style={{
                 width: "100%", padding: "12px 0", marginBottom: 10,
-                background: "linear-gradient(135deg, #1A1A2E 0%, #2D2D2D 100%)",
-                color: "#FBD87F", fontWeight: 700, fontSize: 14,
+                background: "linear-gradient(135deg, #334155 0%, #475569 100%)",
+                color: "#fff", fontWeight: 700, fontSize: 14,
                 border: "none", borderRadius: 12, cursor: "pointer",
                 fontFamily: "'Space Grotesk', sans-serif",
-                boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
+                boxShadow: "0 4px 14px rgba(51,65,85,0.25)",
               }}
             >
               💳 Comprar Créditos ou Acesso Ilimitado
@@ -1309,6 +1316,7 @@ export default function DossiePage() {
       <div style={{
         minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif",
         paddingBottom: 80,
+        background: "#f8fafc",
       }}>
         <div style={{ maxWidth: 820, margin: "0 auto", padding: "36px 20px 0" }}>
 
@@ -1415,21 +1423,21 @@ export default function DossiePage() {
                   display:      "flex",
                   alignItems:   "center",
                   gap:          8,
-                  padding:      "8px 14px",
-                  background:   "rgba(0,245,212,0.08)",
-                  border:       "1px solid rgba(0,245,212,0.2)",
-                  borderRadius: 8,
+                  padding:      "10px 14px",
+                  background:   "#f0fdfa",
+                  border:       "1px solid #99f6e4",
+                  borderRadius: "0.75rem",
                   marginBottom: 16,
                   fontSize:     "0.75rem",
-                  color:        "rgba(255,255,255,0.6)",
+                  color:        "#334155",
                   fontFamily:   "'Space Grotesk', sans-serif",
                 }}>
-                  <span style={{ color: "#00f5d4", fontSize: "0.9rem" }}>🛡</span>
+                  <span style={{ color: "#0d9488", fontSize: "0.9rem" }}>🛡</span>
                   <span>
-                    <strong style={{ color: "#00f5d4" }}>Acesso Livre</strong>
+                    <strong style={{ color: "#0f766e" }}>Acesso Livre</strong>
                     {" "}— Dados brutos do gabinete auditados pelo Protocolo F.L.A.V.I.O.
                     O Oráculo Gemini (análise de nepotismo cruzado) requer{" "}
-                    <strong style={{ color: "#f97316" }}>200 créditos</strong>.
+                    <strong style={{ color: "#c2410c" }}>200 créditos</strong>.
                   </span>
                 </div>
 
@@ -1443,10 +1451,10 @@ export default function DossiePage() {
                   <div style={{
                     position:     "relative",
                     marginTop:    20,
-                    background:   "rgba(0,0,0,0.35)",
-                    backdropFilter: "blur(18px)",
-                    border:       "1px solid rgba(124,58,237,0.4)",
-                    borderRadius: 12,
+                    background:   "#f8fafc",
+                    border:       "1px solid #e2e8f0",
+                    borderRadius: "0.75rem",
+                    boxShadow:    "0 1px 2px 0 rgb(15 23 42 / 0.06)",
                     padding:      "24px",
                     textAlign:    "center",
                     overflow:     "hidden",
@@ -1455,7 +1463,7 @@ export default function DossiePage() {
                     <div style={{ filter: "blur(4px)", pointerEvents: "none", marginBottom: 16 }}>
                       <div style={{
                         fontFamily: "'Fira Code', monospace", fontSize: "0.8rem",
-                        color: "rgba(255,255,255,0.4)", lineHeight: 1.8,
+                        color: "#94a3b8", lineHeight: 1.8,
                       }}>
                         GEMINI FORENSICS v3.1 — ANÁLISE DE NEPOTISMO CRUZADO<br/>
                         ██████████████████████████████████████████████<br/>
@@ -1464,7 +1472,7 @@ export default function DossiePage() {
                         Probabilidade de Irregularidade: ██%
                       </div>
                     </div>
-                    <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.7)", marginBottom: 12 }}>
+                    <div style={{ fontSize: "0.8rem", color: "#475569", marginBottom: 12 }}>
                       🔒 Análise Oráculo de Nepotismo — F.L.A.V.I.O. Premium
                     </div>
                     <button

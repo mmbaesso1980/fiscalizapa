@@ -50,18 +50,25 @@ const SEVERITY_STYLES = {
   BAIXA: { borderColor: 'var(--accent-green)', badgeBg: 'rgba(61,107,94,0.12)', badgeColor: 'var(--accent-green)' },
 };
 
+const FORN_NAO_INFORMADO = "Fornecedor não informado (Dados da Câmara)";
+
+function rotuloFornecedor(g) {
+  const n = (g.fornecedorNome || g.nomeFornecedor || "").trim();
+  return n || FORN_NAO_INFORMADO;
+}
+
 function gerarAlertasClientSide(gastos) {
   const alertas = [];
   const fretamentos = gastos.filter(g => {
     const tipo = (g.tipoDespesa || g.tipo || g.descricao || '').toLowerCase();
-    const forn = (g.fornecedorNome || g.nomeFornecedor || '').toLowerCase();
+    const forn = (g.fornecedorNome || g.nomeFornecedor || "").toLowerCase();
     return KEYWORDS_FRETAMENTO.some(kw => tipo.includes(kw) || forn.includes(kw) || JSON.stringify(g).toLowerCase().includes(kw));
   });
 
   // Agrupar por fornecedor
   const porFornecedor = {};
   fretamentos.forEach(g => {
-    const f = g.fornecedorNome || g.nomeFornecedor || 'Desconhecido';
+    const f = rotuloFornecedor(g);
     if (!porFornecedor[f]) porFornecedor[f] = { total: 0, notas: [] };
     porFornecedor[f].total += (g.valorLiquido || g.valor || g.valorDocumento || 0);
     porFornecedor[f].notas.push(g);
@@ -69,7 +76,7 @@ function gerarAlertasClientSide(gastos) {
 
   fretamentos.forEach(g => {
     const valor = g.valorLiquido || g.valor || g.valorDocumento || 0;
-    const forn = g.fornecedorNome || g.nomeFornecedor || 'Desconhecido';
+    const forn = rotuloFornecedor(g);
     const cnpj = g.cnpjCpf || g.cnpjCpfFornecedor || '';
     const url = g.urlDocumento || g.url;
     const data = g.dataDocumento || '';

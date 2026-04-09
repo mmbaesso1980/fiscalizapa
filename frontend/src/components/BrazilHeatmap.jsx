@@ -63,8 +63,8 @@ const GRID_COLS = 8;
 const CELL_SIZE = 58;   // px
 const CELL_GAP  = 5;    // px
 
-// ─── Dados mock ───────────────────────────────────────────────────────────────
-const MOCK_DATA = {
+// ─── Dados mock (exportado para MapaPage alinhar lista ao tooltip) ────────────
+export const BRAZIL_HEATMAP_MOCK_COUNTS = {
   SP: 42, RJ: 38, MG: 31, BA: 28, PA: 24,
   RS: 19, PR: 17, GO: 15, AM: 14, CE: 12,
   MA: 11, PE: 10, MT: 9,  MS: 8,  TO: 7,
@@ -193,7 +193,7 @@ function MapCell({ cell, count, maxCount, isNivel5, isSelected, onClick, onMouse
  * @param {Set<string>} criticalUFs - UFs com alerta Nível 5 (pulso roxo)
  *                                   Populado por 16_contract_collision.py
  */
-export default function BrazilHeatmap({ onStateSelect, criticalUFs }) {
+export default function BrazilHeatmap({ onStateSelect, criticalUFs, onMockModeChange }) {
   const [counts,    setCounts   ] = useState({});
   const [loading,   setLoading  ] = useState(true);
   const [tooltip,   setTooltip  ] = useState(null);   // { cell, x, y }
@@ -210,8 +210,9 @@ export default function BrazilHeatmap({ onStateSelect, criticalUFs }) {
         if (cancelled) return;
 
         if (snap.empty) {
-          setCounts(MOCK_DATA);
+          setCounts(BRAZIL_HEATMAP_MOCK_COUNTS);
           setUseMock(true);
+          onMockModeChange?.(true);
           return;
         }
 
@@ -221,8 +222,13 @@ export default function BrazilHeatmap({ onStateSelect, criticalUFs }) {
           if (uf) agg[uf] = (agg[uf] ?? 0) + 1;
         });
         setCounts(agg);
+        onMockModeChange?.(false);
       } catch {
-        if (!cancelled) { setCounts(MOCK_DATA); setUseMock(true); }
+        if (!cancelled) {
+          setCounts(BRAZIL_HEATMAP_MOCK_COUNTS);
+          setUseMock(true);
+          onMockModeChange?.(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
