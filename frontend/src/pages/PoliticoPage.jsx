@@ -188,22 +188,64 @@ export default function PoliticoPage() {
 
   return (
     <div className="min-h-screen bg-[#FAFAF8] text-[#2D2D2D] font-sans pb-20">
-      {/* ── HEADER ── */}
-      <div className="border-b border-[#EDEBE8] bg-white pt-10 pb-8 px-6 mb-8 shadow-sm">
+      {/* ── HEADER A.S.M.O.D.E.U.S. ── */}
+      <div style={{ borderBottom: "1px solid #EDEBE8", background: "linear-gradient(135deg, #fff 60%, #FBF7E8 100%)", paddingTop: 40, paddingBottom: 32, paddingLeft: 24, paddingRight: 24, marginBottom: 24 }}>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-6">
-          <img src={foto} alt={pol.nome} className="w-28 h-28 rounded-full border-2 border-[#A8D8B0] shadow-md object-cover bg-[#f3f4f6]" />
+          {/* Foto com anel de risco */}
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <img src={foto} alt={pol.nome}
+              style={{ width: 104, height: 104, borderRadius: "50%", objectFit: "cover",
+                       border: "3px solid #A8D8B0", boxShadow: "0 0 0 4px #A8D8B020" }} />
+            <span style={{
+              position: "absolute", bottom: 4, right: 4,
+              width: 14, height: 14, borderRadius: "50%",
+              background: "#2E7F18", border: "2px solid #fff",
+            }} title="Auditoria ativa" />
+          </div>
+
           <div className="text-center md:text-left flex-1">
-            <p className="text-[11px] tracking-[0.35em] uppercase text-[#A8D8B0] mb-2 font-semibold">Dossiê Parlamentar · Dados Abertos</p>
-            <h1 className="text-3xl md:text-4xl font-bold font-space text-[#2D2D2D] tracking-tight uppercase">{pol.nome}</h1>
-            <p className="text-[#6b7280] mt-1 text-sm tracking-widest uppercase">{pol.partido} • {normalizeUF(pol.uf, pol.estado)} | {getCargoPolitico(pol)}</p>
-            <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-3">
-              <span className="bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />Auditoria Ativa
+            {/* Breadcrumb */}
+            <p style={{ fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase",
+                        color: "#A8D8B0", fontWeight: 700, marginBottom: 6 }}>
+              A.S.M.O.D.E.U.S. · Dossiê Parlamentar · Dados Abertos
+            </p>
+            <h1 style={{ fontSize: "clamp(22px,4vw,36px)", fontWeight: 800, color: "#1f2937",
+                          letterSpacing: "-0.5px", marginBottom: 4, textTransform: "uppercase" }}>
+              {pol.nome}
+            </h1>
+            <p style={{ fontSize: 12, color: "#6b7280", letterSpacing: "0.15em",
+                        textTransform: "uppercase", marginBottom: 12 }}>
+              {pol.partido} · {normalizeUF(pol.uf, pol.estado)} | {getCargoPolitico(pol)}
+            </p>
+
+            {/* Badges */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <span style={{
+                display: "flex", alignItems: "center", gap: 5,
+                fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
+                background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA",
+                letterSpacing: "0.06em", textTransform: "uppercase",
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#DC2626",
+                                animation: "spin 1.8s linear infinite" }} />
+                Auditoria Ativa
               </span>
-              <a href={`https://www.camara.leg.br/deputados/${pol.idCamara ?? id}`} target="_blank" rel="noopener noreferrer"
-                className="border border-[#EDEBE8] text-[#6b7280] px-3 py-1 rounded text-xs font-bold uppercase hover:bg-[#f3f4f6] transition-all">
+              <a href={`https://www.camara.leg.br/deputados/${pol.idCamara ?? id}`}
+                target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
+                          background: "#F0FDF4", color: "#15803D", border: "1px solid #BBF7D0",
+                          textDecoration: "none", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                 🔗 Fonte Oficial ↗
               </a>
+              {pol.score != null && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
+                  background: "#FBF7E8", color: "#92400E", border: "1px solid #F0E4A0",
+                  letterSpacing: "0.06em", textTransform: "uppercase",
+                }}>
+                  Score {parseFloat(pol.score ?? pol.indice_transparenciabr ?? 0).toFixed(1)}
+                </span>
+              )}
             </div>
           </div>
         </div>

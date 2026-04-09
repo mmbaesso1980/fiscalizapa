@@ -1,6 +1,18 @@
 import { useState, useEffect } from "react";
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { normalizeUF } from "./SocialContext";
+
+// UF válidas brasileiras (2 chars)
+const UF_VALIDAS = new Set(["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"]);
+
+function safeUF(v) {
+  if (!v) return "";
+  const up = String(v).toUpperCase().trim();
+  if (UF_VALIDAS.has(up)) return up;
+  // Tentar normalizar via mapa de estado
+  return normalizeUF(up) !== "–" ? normalizeUF(up) : up.slice(0, 2);
+}
 
 function fmt(v) {
   const n = parseFloat(String(v ?? "").replace(/\./g, "").replace(",", "."));
@@ -119,7 +131,8 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
               >
                 <div style={{ flex: 1 }}>
                   <p style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', margin: 0 }}>
-                    {e.municipioNome || 'N/A'} {e.uf ? `- ${e.uf}` : ''}
+                    {e.municipioNome || e.municipio || e.localidade || 'Município não informado'}
+                    {safeUF(e.uf) ? ` — ${safeUF(e.uf)}` : ''}
                   </p>
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
                     {e.objetoResumo || e.funcao || e.programa || ''}
