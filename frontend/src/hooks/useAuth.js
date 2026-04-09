@@ -60,20 +60,10 @@ async function ensureUserDoc(u) {
       atualizadoEm:                serverTimestamp(),
     });
     return CREDITOS_INICIAIS;
-  } else {
-    // Atualiza apenas campos de perfil (não toca em creditos / plano / cotas)
-    await setDoc(
-      ref,
-      {
-        email:        u.email ?? "",
-        nome:         u.displayName ?? "",
-        photoURL:     u.photoURL ?? "",
-        atualizadoEm: serverTimestamp(),
-      },
-      { merge: true },
-    );
-    return snap.data()?.creditos ?? 0;
   }
+
+  // Doc já existe: não escreve nada — onSnapshot já lê os dados em tempo real.
+  return snap.data()?.creditos ?? 0;
 }
 
 // ─── Hook principal ───────────────────────────────────────────────────────────
@@ -109,15 +99,15 @@ export function useAuth() {
       const stored = localStorage.getItem("userCredits");
       if (stored) setCredits(parseInt(stored, 10));
 
-      // Garantir documento no Firestore (cria se necessário)
-      try {
-        await ensureUserDoc(u);
-      } catch (e) {
-        console.warn("ensureUserDoc failed:", e.message);
-      }
-
       // Cloud Functions legadas em background (não bloqueiam)
+      // ensureUserDoc também roda em background — onSnapshot já entrega os dados.
       (async () => {
+        try {
+          await ensureUserDoc(u);
+        } catch (e) {
+          console.warn("ensureUserDoc failed:", e.message);
+        }
+
         try {
           const registerSess = httpsCallable(functions, "registerUserSession");
           await registerSess({ sessionId, deviceInfo: { ua: navigator.userAgent } });
