@@ -39,9 +39,9 @@ export default function App() {
     <HelmetProvider>
     {/* Meta-tags padrão — sobrescritas por cada página via <Helmet> */}
     <Helmet>
-      <title>A.S.M.O.D.E.U.S. | Auditoria Forense de Gastos Públicos</title>
-      <meta name="description" content="Plataforma de inteligência forense para auditoria de gastos públicos, parlamentares e contratos governamentais no Brasil. Motor A.S.M.O.D.E.U.S." />
-      <meta property="og:site_name" content="A.S.M.O.D.E.U.S. Auditoria" />
+      <title>TransparenciaBR | Auditoria Forense de Gastos Públicos</title>
+      <meta name="description" content="Plataforma de inteligência forense para auditoria de gastos públicos, parlamentares e contratos governamentais no Brasil. TransparenciaBR." />
+      <meta property="og:site_name" content="TransparenciaBR" />
       <meta property="og:type" content="website" />
       <meta name="robots" content="index, follow" />
       <meta name="theme-color" content="#0a0a1e" />

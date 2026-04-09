@@ -192,7 +192,7 @@ export default function PoliticoPage() {
 
   return (
     <div className="min-h-screen bg-[#FAFAF8] text-[#2D2D2D] font-sans pb-20">
-      {/* ── HEADER A.S.M.O.D.E.U.S. ── */}
+      {/* ── HEADER ── */}
       <div style={{ borderBottom: "1px solid #EDEBE8", background: "linear-gradient(135deg, #fff 60%, #FBF7E8 100%)", paddingTop: 40, paddingBottom: 32, paddingLeft: 24, paddingRight: 24, marginBottom: 24 }}>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-6">
           {/* Foto com anel de risco */}
@@ -211,7 +211,7 @@ export default function PoliticoPage() {
             {/* Breadcrumb */}
             <p style={{ fontSize: 10, letterSpacing: "0.3em", textTransform: "uppercase",
                         color: "#A8D8B0", fontWeight: 700, marginBottom: 6 }}>
-              A.S.M.O.D.E.U.S. · Dossiê Parlamentar · Dados Abertos
+              TransparenciaBR · Dossiê Parlamentar · Dados Abertos
             </p>
             <h1 style={{ fontSize: "clamp(22px,4vw,36px)", fontWeight: 800, color: "#1f2937",
                           letterSpacing: "-0.5px", marginBottom: 4, textTransform: "uppercase" }}>

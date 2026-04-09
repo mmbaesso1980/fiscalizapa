@@ -65,7 +65,7 @@ function DeputadoCard({ dep }) {
         </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color }}>{fmtScore(dep.score ?? dep.indice_transparenciabr ?? dep.nota_ranking_org)}</div>
-          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>índice A.S.M.O.D.E.U.S.</div>
+          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>Índice TransparenciaBR</div>
         </div>
       </div>
     </Link>
@@ -226,7 +226,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         <div style={{ background: '#FBF7E8', border: '1px solid #F0E4A0', borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 16 }}>⚡</span>
           <p style={{ fontSize: 12, color: '#7A6A20', margin: 0, lineHeight: 1.6 }}>
-            <strong>Índice A.S.M.O.D.E.U.S.:</strong> Score calculado a partir de dados públicos da{' '}
+            <strong>Índice TransparenciaBR:</strong> Score calculado a partir de dados públicos da{' '}
             <a href="https://www.camara.leg.br" target="_blank" rel="noopener noreferrer" style={{ color: '#7A6A20', fontWeight: 600 }}>Câmara dos Deputados</a>{' '}e{' '}
             <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer" style={{ color: '#7A6A20', fontWeight: 600 }}>Portal da Transparência</a>.
             Análise probabilística — pode conter imprecisões.

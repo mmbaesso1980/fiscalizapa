@@ -93,7 +93,7 @@ export default function MapaPage() {
             Mapa da Fraude
           </h1>
           <p style={{ fontSize: 13, color: "#888", maxWidth: 560 }}>
-            Distribuição geográfica de alertas forenses do A.S.M.O.D.E.U.S.
+            Distribuição geográfica de alertas forenses do TransparenciaBR.
             Clique em um estado para ver os alertas detectados.
           </p>
         </div>

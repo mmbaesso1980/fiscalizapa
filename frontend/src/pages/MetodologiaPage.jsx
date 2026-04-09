@@ -27,7 +27,7 @@ export default function MetodologiaPage() {
         <Link to="/" style={{ fontSize: 13, color: '#AAA', textDecoration: 'none' }}>&larr; Voltar</Link>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: '#2D2D2D', margin: '16px 0 8px' }}>Metodologia &amp; Fontes</h1>
         <p style={{ fontSize: 15, color: '#666', lineHeight: 1.7, marginBottom: 36 }}>
-          O score de transparencia e calculado automaticamente pelo motor ASMODEUS, combinando dados de
+          O score de transparencia e calculado automaticamente pelo motor TransparenciaBR, combinando dados de
           multiplas fontes oficiais. Nao ha julgamento politico: apenas matematica aplicada a dados publicos.
         </p>
 

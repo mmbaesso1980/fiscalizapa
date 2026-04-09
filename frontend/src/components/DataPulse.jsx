@@ -1,7 +1,7 @@
 /**
  * DataPulse.jsx — Atividade em Tempo Real (Sala do Trono)
  *
- * Mostra um log visual "terminal hacker" das APIs que o Motor A.S.M.O.D.E.U.S.
+ * Mostra um log visual "terminal hacker" das APIs que o Motor TransparenciaBR
  * está consultando em tempo real, lido da coleção Firestore `crawler_activity`.
  *
  * Fonte de dados:

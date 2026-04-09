@@ -309,7 +309,7 @@ export default function AdminDashboard() {
               </span>
             </div>
             <p style={{ fontSize: 12, color: C.muted }}>
-              A.S.M.O.D.E.U.S. Control Panel · {user?.email}
+              TransparenciaBR Control Panel · {user?.email}
             </p>
           </div>
 
@@ -423,7 +423,7 @@ export default function AdminDashboard() {
         <div style={{ marginTop: 20, display: "flex", justifyContent: "space-between",
                       flexWrap: "wrap", gap: 8 }}>
           <span style={{ fontFamily: C.mono, fontSize: 10, color: C.muted }}>
-            A.S.M.O.D.E.U.S. v2 · projeto-codex-br / fiscallizapa
+            TransparenciaBR v2 · projeto-codex-br / fiscallizapa
           </span>
           <span style={{ fontFamily: C.mono, fontSize: 10, color: C.muted }}>
             para dar isAdmin a um usuário: Firestore → usuarios/[uid] → isAdmin: true

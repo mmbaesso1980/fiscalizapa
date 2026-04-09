@@ -1,16 +1,10 @@
 /**
- * ASMODEUS - Auditoria Sistêmica e Monitoramento Ostensivo de Desvios,
- * Esquemas e Usurpações Sociopolíticas
- *
- * Backend mínimo v1.0 — Firebase Cloud Functions
+ * TransparenciaBR — Backend Cloud Functions v1.0
  * Núcleo: BigQuery (projeto-codex-br / us-central1) + Firestore + Auth + Stripe
  *
  * ARQUITETURA DE PROJETOS:
- *   fiscalizapa-e3fd4  → Firebase (Auth, Firestore, Storage, Functions) — southamerica-east1
- *   projeto-codex-br   → BigQuery dataset dados_camara — us-central1 (Iowa) — economia
- *
- * TransparênciaBR = interface/produto (o que o usuário vê)
- * ASMODEUS        = cérebro investigativo + database
+ *   fiscallizapa  → Firebase (Auth, Firestore, Storage, Functions) — southamerica-east1
+ *   projeto-codex-br → BigQuery dataset dados_camara — us-central1 (Iowa)
  */
 
 'use strict';
@@ -59,7 +53,7 @@ exports.health = onRequest(OPTS, (req, res) => {
     bigquery_location: BQ_LOCATION,
     functions_region: REGION,
     timestamp: new Date().toISOString(),
-    engine: 'ASMODEUS v1'
+    engine: 'TransparenciaBR v1'
   });
 });
 

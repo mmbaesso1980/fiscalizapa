@@ -147,7 +147,7 @@ export default function AuditSeal({ showDetails = false }) {
             fontSize:   "0.82rem",
             color:      "#fff",
           }}>
-            <span>Auditoria A.S.M.O.D.E.U.S.</span>
+            <span>Auditoria TransparenciaBR</span>
             <span style={{
               fontSize:   "0.62rem",
               fontFamily: "'Fira Code', monospace",

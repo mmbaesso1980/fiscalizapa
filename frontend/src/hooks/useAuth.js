@@ -1,5 +1,5 @@
 /**
- * useAuth.js — Hook central de autenticação e créditos do A.S.M.O.D.E.U.S.
+ * useAuth.js — Hook central de autenticação e créditos do TransparenciaBR
  *
  * Responsabilidades:
  *  • Gerencia estado de autenticação Firebase (Google, GitHub, e-mail)

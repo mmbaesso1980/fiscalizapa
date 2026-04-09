@@ -146,7 +146,7 @@ export function useDraftValue(key, initialValue) {
 }
 
 /**
- * Limpa todos os drafts do A.S.M.O.D.E.U.S. do localStorage.
+ * Limpa todos os drafts do TransparenciaBR do localStorage.
  * Chamado no logout ou após limpeza manual.
  */
 export function clearAllDrafts() {

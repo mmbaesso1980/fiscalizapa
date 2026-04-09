@@ -2,7 +2,7 @@
  * BrazilHeatmap.jsx — Mapa de Calor Forense do Brasil (por UF)
  *
  * Renderiza um tile grid map do Brasil (27 estados + DF) colorido pelo
- * volume de alertas de risco detectados pelo A.S.M.O.D.E.U.S.
+ * volume de alertas de risco detectados pelo TransparenciaBR
  *
  * Lógica de cores:
  *  • Sem alertas      → cinza neutro

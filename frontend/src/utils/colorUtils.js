@@ -1,5 +1,5 @@
 /**
- * colorUtils.js — Motor de Cores do Ranking A.S.M.O.D.E.U.S.
+ * colorUtils.js — Motor de Cores do Ranking TransparenciaBR
  *
  * Transição suave verde → amarelo → vermelho em HSL puro,
  * baseada na posição do parlamentar no ranking de risco.

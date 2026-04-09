@@ -1,5 +1,5 @@
 /**
- * Layout.jsx — Camada visual global do A.S.M.O.D.E.U.S.
+ * Layout.jsx — Camada visual global do TransparenciaBR
  *
  * Protocolo A.F.R.O.D.I.T.E. — Redesign estético (Operação D.R.A.C.U.L.A.)
  *

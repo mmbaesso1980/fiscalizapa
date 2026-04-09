@@ -1,5 +1,5 @@
 /**
- * DossiePage.jsx — Hotpage Elite do A.S.M.O.D.E.U.S.
+ * DossiePage.jsx — Hotpage Elite do TransparenciaBR
  *
  * Rota: /dossie/:id  (id = documento Firestore do político)
  *
@@ -406,7 +406,7 @@ function DiariosMencoesSection({ politicoId, credits, deductCredits }) {
         : (texto || "Sem conteúdo disponível.");
       setSummaries(prev => ({
         ...prev,
-        [docId]: `[Motor A.S.M.O.D.E.U.S. · Síntese] ${resumo}`,
+        [docId]: `[Motor TransparenciaBR · Síntese] ${resumo}`,
       }));
     } catch (err) {
       alert(err.message);
@@ -544,7 +544,7 @@ function OracleLaboratory({ politico, alertas, rank, fullUnlocked, pdfRef, onDow
             ))}
           </div>
           <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>
-            Score A.S.M.O.D.E.U.S.: <strong style={{ color: riskColor }}>
+            Score TransparenciaBR: <strong style={{ color: riskColor }}>
               {(politico?.score ?? politico?.indice_transparenciabr ?? 0).toFixed(1)}
             </strong>
           </div>
@@ -790,7 +790,7 @@ function UnlockGate({ dailyQuota, credits, onUseQuota, onPayFull, unlocking, err
   );
 }
 
-// ─── Logo SVG A.S.M.O.D.E.U.S. para o PDF ────────────────────────────────────
+// ─── Logo SVG TransparenciaBR para o PDF ──────────────────────────────────────
 function PDFLogo() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
@@ -807,7 +807,7 @@ function PDFLogo() {
       </svg>
       <div>
         <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 13, color: "#2D2D2D" }}>
-          A.S.M.O.D.E.U.S.
+          TransparenciaBR
         </div>
         <div style={{ fontSize: 9, color: "#888", letterSpacing: "0.05em" }}>
           SISTEMA DE AUDITORIA FORENSE PARLAMENTAR
@@ -969,7 +969,7 @@ function DossiePDFContent({ pdfRef, politico, alertas, rank, nivel5Alertas = [] 
       )}
 
       <div style={{ borderTop: "1px solid #EDEBE8", paddingTop: 12, fontSize: 9, color: "#AAA", lineHeight: 1.5 }}>
-        <strong>AVISO LEGAL:</strong> Dossiê gerado automaticamente pelo A.S.M.O.D.E.U.S. para transparência pública e
+        <strong>AVISO LEGAL:</strong> Dossiê gerado automaticamente pelo TransparenciaBR para transparência pública e
         investigação jornalística. Dados de fontes públicas. Não constitui acusação formal.
         Plataforma: transparenciabr.app · Projeto: fiscallizapa.
       </div>
@@ -1232,7 +1232,7 @@ export default function DossiePage() {
       const nome = (politico?.nome ?? "politico").replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
       await html2pdf().set({
         margin:      [10, 12, 10, 12],
-        filename:    `Dossie_${nome}_ASMODEUS.pdf`,
+        filename:    `Dossie_${nome}_TransparenciaBR.pdf`,
         image:       { type: "jpeg", quality: 0.92 },
         html2canvas: { scale: 2, useCORS: true, letterRendering: true },
         jsPDF:       { unit: "mm", format: "a4", orientation: "portrait" },
@@ -1271,11 +1271,11 @@ export default function DossiePage() {
   const seoOracle  = alertas.find(a => a.explicacao_oraculo)?.explicacao_oraculo ?? "";
   const seoDesc    = seoOracle
     ? `${seoNome} (${seoPartido}/${seoUF}): ${seoOracle.substring(0, 155)}…`
-    : `Auditoria forense completa de ${seoNome} (${seoPartido}/${seoUF}). Análise de gastos CEAP, emendas parlamentares e alertas de irregularidades pelo motor A.S.M.O.D.E.U.S.`;
+    : `Auditoria forense completa de ${seoNome} (${seoPartido}/${seoUF}). Análise de gastos CEAP, emendas parlamentares e alertas de irregularidades pelo TransparenciaBR.`;
   const seoUrl     = `https://fiscallizapa.web.app/dossie/${id}`;
   const seoTitle   = politico
-    ? `Dossiê: ${seoNome} | A.S.M.O.D.E.U.S. Auditoria`
-    : "Dossiê Forense | A.S.M.O.D.E.U.S. Auditoria";
+    ? `Dossiê: ${seoNome} | TransparenciaBR`
+    : "Dossiê Forense | TransparenciaBR";
 
   return (
     <>
@@ -1288,7 +1288,7 @@ export default function DossiePage() {
         <meta property="og:description" content={seoDesc} />
         <meta property="og:url"         content={seoUrl} />
         <meta property="og:type"        content="article" />
-        <meta property="og:site_name"   content="A.S.M.O.D.E.U.S. Auditoria" />
+        <meta property="og:site_name"   content="TransparenciaBR" />
         {/* Twitter Card */}
         <meta name="twitter:card"        content="summary" />
         <meta name="twitter:title"       content={seoTitle} />
@@ -1380,7 +1380,7 @@ export default function DossiePage() {
               Auditoria Profunda
             </h1>
             <p style={{ fontSize: 13, color: "#6b7280" }}>
-              Motor A.S.M.O.D.E.U.S. · {fullUnlocked ? "Acesso Completo" : basicUnlocked ? "Acesso Básico (IA simples)" : "Dados públicos visíveis"}
+              Motor TransparenciaBR · {fullUnlocked ? "Acesso Completo" : basicUnlocked ? "Acesso Básico (IA simples)" : "Dados públicos visíveis"}
             </p>
           </div>
 

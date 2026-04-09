@@ -1,7 +1,7 @@
 {
   "name": "fiscalizapa-functions",
   "version": "1.0.0",
-  "description": "ASMODEUS - Backend m\u00ednimo est\u00e1vel (Transpar\u00eanciaBR)",
+  "description": "TransparenciaBR - Backend m\u00ednimo est\u00e1vel (Transpar\u00eanciaBR)",
   "engines": {
     "node": "24"
   },

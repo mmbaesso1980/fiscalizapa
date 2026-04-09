@@ -255,7 +255,7 @@ export default function PerfilPage() {
             O Cofre do Arquiteto
           </h1>
           <p style={{ fontSize: 13, color: "#888" }}>
-            Seus dossiês adquiridos e saldo de créditos do sistema A.S.M.O.D.E.U.S.
+            Seus dossiês adquiridos e saldo de créditos do TransparenciaBR
           </p>
         </div>
 

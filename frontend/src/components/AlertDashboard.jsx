@@ -203,7 +203,7 @@ export default function AlertDashboard() {
             Alertas Recentes
           </h2>
           <p className="text-xs text-[var(--brand-text)] opacity-50 mt-0.5">
-            Últimos {LIMIT} bodes detectados pelo motor A.S.M.O.D.E.U.S.
+            Últimos {LIMIT} bodes detectados pelo motor TransparenciaBR
           </p>
         </div>
         {!loading && alertas.length > 0 && (

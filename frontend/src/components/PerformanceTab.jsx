@@ -1,5 +1,5 @@
 /**
- * PerformanceTab.jsx — Aba "Desempenho Legislativo" do A.S.M.O.D.E.U.S.
+ * PerformanceTab.jsx — Aba "Desempenho Legislativo" do TransparenciaBR
  *
  * Conteúdo (todo GRÁTIS exceto o Oráculo Gemini):
  *
@@ -51,7 +51,7 @@ const SITUACOES  = ["Em tramitação", "Aprovado (CD)", "Em tramitação", "Arqu
 const DATAS_APRES = ["12/02/2024", "18/09/2023", "05/04/2024", "20/11/2022", "01/03/2023"];
 
 // Texto de análise do Oráculo (mock, substituir por Gemini real)
-const ORACLE_ANALYSIS = `A análise do Motor A.S.M.O.D.E.U.S. detectou um aumento de 34% nos gastos
+const ORACLE_ANALYSIS = `A análise do Motor TransparenciaBR detectou um aumento de 34% nos gastos
 da cota parlamentar entre Julho e Outubro de 2022 (período pré-eleitoral). Este padrão
 coincide com: (1) incremento de R$ 12.400 em combustível e locação de veículos particulares,
 (2) contratação de 3 assessores temporários com vínculos a fornecedores da campanha,
@@ -483,7 +483,7 @@ function OracleAnalysis({ fullUnlocked, onPayFull, unlocking, unlockError, credi
               Análise Forense Premium
             </h4>
             <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.6, marginBottom: 20 }}>
-              O Oráculo A.S.M.O.D.E.U.S. explica <strong style={{ color: "#c7d2e7" }}>
+              O Oráculo TransparenciaBR explica <strong style={{ color: "#c7d2e7" }}>
               por que os gastos sobem em períodos eleitorais</strong> e quais
               fornecedores beneficiados têm vínculos suspeitos.
             </p>

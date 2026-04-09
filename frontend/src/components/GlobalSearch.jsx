@@ -1,5 +1,5 @@
 /**
- * GlobalSearch.jsx — Barra de busca global do A.S.M.O.D.E.U.S.
+ * GlobalSearch.jsx — Barra de busca global do TransparenciaBR
  *
  * Busca políticos por nome no Firestore (deputados_federais) com:
  *  • Cache de módulo (5 min) — não recarrega a cada keystroke
