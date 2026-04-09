@@ -5,6 +5,7 @@ import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../lib/firebase";
 
 import GastosChart from "../components/GastosChart";
+import { normalizeUF } from "../components/SocialContext";
 import EmendasAba from "../components/EmendasAba";
 import ScorePilaresCard from "../components/ScorePilaresCard";
 import PresencaSection from "../components/PresencaSection";
@@ -15,8 +16,9 @@ import VerbaGabineteSection from "../components/VerbaGabineteSection";
 import EncaminhamentoEmendas from "../components/EncaminhamentoEmendas";
 
 function fmtMoney(value) {
-  const n = Number(value || 0);
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const n = parseFloat(String(value ?? "").replace(/\./g, "").replace(",", ".")) || 0;
+  if (isNaN(n)) return "–";
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
 
 function safeArray(value) {
@@ -54,29 +56,29 @@ function getStatusTone(analise) {
 
 function StatCard({ label, value, accent = "gold" }) {
   const accentMap = {
-    gold: "border-[#c9a84c]/30 text-[#c9a84c]",
-    teal: "border-[#3d6b5e]/50 text-[#5a9e8f]",
-    white: "border-gray-700 text-white",
+    gold: "border-[#e8d9a8] text-[#8B6914]",
+    teal: "border-[#a7d4cc] text-[#2E7F6E]",
+    white: "border-[#EDEBE8] text-[#2D2D2D]",
   };
   return (
-    <div className={`bg-[#12121a] border rounded-xl p-5 shadow-lg ${accentMap[accent] || accentMap.white}`}>
-      <div className="text-[#8a8a9e] text-xs uppercase tracking-widest mb-1">{label}</div>
-      <div className={`text-2xl font-bold font-space ${accentMap[accent]?.split(" ").pop() || "text-white"}`}>{value}</div>
+    <div className={`bg-white border rounded-xl p-5 shadow-sm ${accentMap[accent] || accentMap.white}`}>
+      <div className="text-[#9ca3af] text-xs uppercase tracking-widest mb-1">{label}</div>
+      <div className={`text-2xl font-bold font-space ${accentMap[accent]?.split(" ").pop() || "text-[#2D2D2D]"}`}>{value}</div>
     </div>
   );
 }
 
 function SectionCard({ title, icon, children, tone = "default" }) {
   const toneClasses = tone === "danger"
-    ? "bg-[#12121a] rounded-xl border border-red-900/30 p-6 shadow-lg relative overflow-hidden"
+    ? "bg-white rounded-xl border border-red-200 p-6 shadow-sm relative overflow-hidden"
     : tone === "teal"
-    ? "bg-[#12121a] rounded-xl border border-[#3d6b5e]/30 p-6 shadow-lg"
-    : "bg-[#12121a] rounded-xl border border-gray-800 p-6 shadow-lg";
+    ? "bg-white rounded-xl border border-[#a7d4cc] p-6 shadow-sm"
+    : "bg-white rounded-xl border border-[#EDEBE8] p-6 shadow-sm";
   const titleClasses = tone === "danger"
-    ? "text-lg text-red-400 font-bold mb-4 border-b border-gray-800 pb-2 flex items-center gap-2 relative z-10"
+    ? "text-lg text-red-600 font-bold mb-4 border-b border-red-100 pb-2 flex items-center gap-2 relative z-10"
     : tone === "teal"
-    ? "text-lg text-[#5a9e8f] font-bold mb-4 border-b border-gray-800 pb-2 flex items-center gap-2"
-    : "text-lg text-white font-bold mb-4 border-b border-gray-800 pb-2 flex items-center gap-2";
+    ? "text-lg text-[#2E7F6E] font-bold mb-4 border-b border-[#EDEBE8] pb-2 flex items-center gap-2"
+    : "text-lg text-[#2D2D2D] font-bold mb-4 border-b border-[#EDEBE8] pb-2 flex items-center gap-2";
   return (
     <div className={toneClasses}>
       {tone === "danger" && <div className="absolute top-0 right-0 w-32 h-32 bg-red-900/10 rounded-full blur-3xl" />}
@@ -167,7 +169,7 @@ export default function PoliticoPage() {
 
   /* ── LOADING ── */
   if (loading) return (
-    <div className="min-h-screen bg-[#0B0B0F] flex items-center justify-center px-6">
+    <div className="min-h-screen bg-[#FAFAF8] flex items-center justify-center px-6">
       <div style={{ width: 40, height: 40, border: '3px solid #A8D8B0', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
@@ -175,36 +177,50 @@ export default function PoliticoPage() {
 
   /* ── ERROR ── */
   if (pageError || !pol) return (
-    <div className="min-h-screen bg-[#0B0B0F] text-white flex items-center justify-center px-6">
+    <div className="min-h-screen bg-[#FAFAF8] flex items-center justify-center px-6">
       <div className="text-center max-w-xl">
-        <h1 className="text-2xl md:text-3xl font-bold font-space text-[#c9a84c] mb-3">Dossiê indisponível</h1>
-        <p className="text-gray-400 mb-6">{pageError || "Deputado não encontrado."}</p>
-        <Link to="/" className="inline-block py-3 px-8 rounded-lg font-bold text-black bg-[#c9a84c] hover:bg-white transition-colors">← Voltar ao início</Link>
+        <h1 className="text-2xl md:text-3xl font-bold font-space text-[#2D2D2D] mb-3">Dossiê indisponível</h1>
+        <p className="text-[#6b7280] mb-6">{pageError || "Deputado não encontrado."}</p>
+        <Link to="/" className="inline-block py-3 px-8 rounded-lg font-bold text-white bg-[#2D2D2D] hover:bg-[#444] transition-colors">← Voltar ao início</Link>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#0B0B0F] text-[#e0e0e0] font-sans pb-20">
+    <div className="min-h-screen bg-[#FAFAF8] text-[#2D2D2D] font-sans pb-20">
       {/* ── HEADER ── */}
-      <div className="border-b border-[#c9a84c]/20 bg-[#12121a] pt-10 pb-8 px-6 mb-8 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5" style={{ backgroundImage: "linear-gradient(#c9a84c 1px, transparent 1px)", backgroundSize: "100% 4px" }} />
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-6 relative z-10">
-          <img src={foto} alt={pol.nome} className="w-28 h-28 rounded-full border-2 border-[#c9a84c] shadow-[0_0_20px_rgba(201,168,76,0.3)] object-cover bg-[#0f0f14]" />
+      <div className="border-b border-[#EDEBE8] bg-white pt-10 pb-8 px-6 mb-8 shadow-sm">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-6">
+          <img src={foto} alt={pol.nome} className="w-28 h-28 rounded-full border-2 border-[#A8D8B0] shadow-md object-cover bg-[#f3f4f6]" />
           <div className="text-center md:text-left flex-1">
-            <p className="text-[11px] tracking-[0.35em] uppercase text-[#c9a84c] mb-2">Dossiê Parlamentar · Dados Abertos</p>
-            <h1 className="text-3xl md:text-4xl font-bold font-space text-white tracking-tight uppercase">{pol.nome}</h1>
-            <p className="text-[#8a8a9e] mt-1 text-sm tracking-widest uppercase">{pol.partido} • {pol.uf} | {getCargoPolitico(pol)}</p>
+            <p className="text-[11px] tracking-[0.35em] uppercase text-[#A8D8B0] mb-2 font-semibold">Dossiê Parlamentar · Dados Abertos</p>
+            <h1 className="text-3xl md:text-4xl font-bold font-space text-[#2D2D2D] tracking-tight uppercase">{pol.nome}</h1>
+            <p className="text-[#6b7280] mt-1 text-sm tracking-widest uppercase">{pol.partido} • {normalizeUF(pol.uf, pol.estado)} | {getCargoPolitico(pol)}</p>
             <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-3">
-              <span className="bg-red-900/30 text-red-400 border border-red-500/50 px-3 py-1 rounded text-xs font-bold uppercase tracking-wider animate-pulse flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-500" />Auditoria Ativa
+              <span className="bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />Auditoria Ativa
               </span>
-              <a href={`https://www.camara.leg.br/deputados/${id}`} target="_blank" rel="noopener noreferrer"
-                className="border border-[#3d6b5e] text-[#5a9e8f] px-3 py-1 rounded text-xs font-bold uppercase hover:bg-[#3d6b5e]/20 transition-all">
-                Fonte Oficial ↗
+              <a href={`https://www.camara.leg.br/deputados/${pol.idCamara ?? id}`} target="_blank" rel="noopener noreferrer"
+                className="border border-[#EDEBE8] text-[#6b7280] px-3 py-1 rounded text-xs font-bold uppercase hover:bg-[#f3f4f6] transition-all">
+                🔗 Fonte Oficial ↗
               </a>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Disclaimer IA */}
+      <div className="max-w-6xl mx-auto px-6 mb-4">
+        <div style={{ background: "#FBF7E8", border: "1px solid #F0E4A0", borderRadius: 8, padding: "10px 16px", display: "flex", alignItems: "flex-start", gap: 8 }}>
+          <span style={{ fontSize: 14 }}>⚡</span>
+          <p style={{ fontSize: 11, color: "#7A6A20", margin: 0, lineHeight: 1.6 }}>
+            <strong>Análise probabilística por IA — pode cometer erros.</strong>{" "}
+            Dados extraídos de fontes públicas. Antes de qualquer decisão, verifique em:{" "}
+            <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer"
+              style={{ color: "#7A6A20", fontWeight: 700, textDecoration: "underline" }}>
+              Portal da Transparência ↗
+            </a>
+          </p>
         </div>
       </div>
 
@@ -217,41 +233,46 @@ export default function PoliticoPage() {
             <StatCard label="Total de Emendas" value={fmtMoney(totalEmendas)} accent="teal" />
           </div>
 
-          <div className="bg-[#12121a] border border-gray-800 rounded-xl p-6 shadow-lg relative">
-            <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
-              <h3 className="text-xl text-[#c9a84c] font-space font-bold flex items-center gap-2">
+          <div className="bg-white border border-[#EDEBE8] rounded-xl p-6 shadow-sm">
+            <div className="flex justify-between items-center mb-6 border-b border-[#EDEBE8] pb-4">
+              <h3 className="text-xl text-[#2D2D2D] font-space font-bold flex items-center gap-2">
                 <span>🔍</span>Dossiê de Notas Fiscais
               </h3>
+              <a href={`https://portaldatransparencia.gov.br/verbas-indenizatorias/consulta?nome=${encodeURIComponent(pol.nome)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="text-[11px] text-[#6b7280] border border-[#EDEBE8] rounded-md px-3 py-1 hover:bg-[#f9fafb] transition-colors no-underline">
+                🔗 Portal da Transparência ↗
+              </a>
             </div>
             {auditError && (
-              <div className="mb-4 rounded-lg border border-yellow-700/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300">{auditError}</div>
+              <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-700">{auditError}</div>
             )}
             <div className="space-y-3">
               {gastos.length === 0 ? (
-                <div className="text-center py-10 text-gray-500 text-sm">Nenhuma despesa auditada disponível para exibição.</div>
+                <div className="text-center py-10 text-[#9ca3af] text-sm">Nenhuma despesa auditada disponível para exibição.</div>
               ) : (
                 gastos.slice(0, 15).map((g) => (
                   <div key={g.id}
-                    className={`flex justify-between items-center gap-4 p-4 rounded-lg transition-all ${
-                      g.isLocked ? "bg-red-900/10 border-l-4 border-red-600 cursor-pointer hover:bg-red-900/20" : "bg-white/5 border-l-4 border-[#3d6b5e] hover:bg-white/10"
+                    className={`flex justify-between items-center gap-4 p-4 rounded-lg border transition-all ${
+                      g.isLocked ? "bg-red-50 border-red-200 cursor-pointer hover:bg-red-100" : "bg-[#FAFAF8] border-[#EDEBE8] hover:bg-[#f3f4f6]"
                     }`}
                     onClick={() => { if (g.isLocked) navigate("/creditos"); }}
                   >
                     <div className={`min-w-0 ${g.isLocked ? "blur-[3px] select-none" : ""}`}>
-                      <p className={`font-bold text-sm truncate ${g.isLocked ? "text-red-400" : "text-white"}`}>
+                      <p className={`font-bold text-sm truncate ${g.isLocked ? "text-red-500" : "text-[#2D2D2D]"}`}>
                         {g.isLocked ? "FORNECEDOR EM SIGILO" : g.fornecedorNome}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">{g.tipoDespesa}</p>
+                      <p className="text-xs text-[#9ca3af] mt-1">{g.tipoDespesa}</p>
                       <p className={`text-[11px] mt-1 font-semibold uppercase tracking-wide ${getStatusTone(g.analiseForense)}`}>{g.analiseForense}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className={`font-space font-bold ${g.isLocked ? "text-red-400" : "text-[#5a9e8f]"}`}>{fmtMoney(g.valorLiquido)}</p>
+                      <p className={`font-space font-bold ${g.isLocked ? "text-red-500" : "text-[#2E7F6E]"}`}>{fmtMoney(g.valorLiquido)}</p>
                       {g.isLocked ? (
-                        <button type="button" className="text-[10px] bg-[#c9a84c] text-black px-3 py-1.5 rounded mt-2 font-bold hover:bg-white transition-colors">🔓 VER PROVA (1 CRÉDITO)</button>
+                        <button type="button" className="text-[10px] bg-[#2D2D2D] text-white px-3 py-1.5 rounded mt-2 font-bold hover:bg-[#444] transition-colors">🔓 VER PROVA (1 CRÉDITO)</button>
                       ) : g.urlDocumento ? (
-                        <a href={g.urlDocumento} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 underline mt-2 block hover:text-white">Nota Oficial</a>
+                        <a href={g.urlDocumento} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#6b7280] underline mt-2 block hover:text-[#2D2D2D]">🔗 Nota Oficial ↗</a>
                       ) : (
-                        <span className="text-[10px] text-gray-600 mt-2 block">Sem nota pública</span>
+                        <span className="text-[10px] text-[#d1d5db] mt-2 block">Sem nota pública</span>
                       )}
                     </div>
                   </div>
@@ -261,7 +282,7 @@ export default function PoliticoPage() {
           </div>
 
           {gastos.length > 0 && (
-            <div className="bg-[#12121a] border border-gray-800 rounded-xl p-6">
+            <div className="bg-white border border-[#EDEBE8] rounded-xl p-6 shadow-sm">
               <GastosChart data={gastos} />
             </div>
           )}
@@ -269,12 +290,12 @@ export default function PoliticoPage() {
 
         <div className="space-y-8">
           {pol.scorePilares && (
-            <div className="bg-[#12121a] rounded-xl border border-gray-800 overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#EDEBE8] overflow-hidden shadow-sm">
               <ScorePilaresCard scorePilares={pol.scorePilares} />
             </div>
           )}
-          <div className="bg-[#12121a] rounded-xl border border-gray-800 p-6">
-            <h3 className="text-lg text-white font-bold mb-4 border-b border-gray-800 pb-2">Rastro de Emendas</h3>
+          <div className="bg-white rounded-xl border border-[#EDEBE8] p-6 shadow-sm">
+            <h3 className="text-lg text-[#2D2D2D] font-bold mb-4 border-b border-[#EDEBE8] pb-2">Rastro de Emendas</h3>
             <EmendasAba deputadoId={id} colecao={col} nomeDeputado={pol.nome} />
           </div>
         </div>
@@ -296,7 +317,7 @@ export default function PoliticoPage() {
             </SectionCard>
           ) : (
             <SectionCard title="Radar de Fretamento" icon="✈️" tone="danger">
-              <div className="text-sm text-gray-400">Sem despesas suficientes para análise de fretamento.</div>
+              <div className="text-sm text-[#9ca3af]">Sem despesas suficientes para análise de fretamento.</div>
             </SectionCard>
           )}
           <SectionCard title="Monitor de Nepotismo Cruzado" icon="🧬" tone="teal">
@@ -312,7 +333,7 @@ export default function PoliticoPage() {
           </SectionCard>
         </div>
         <div className="text-center pb-10">
-          <Link to="/" className="inline-block py-3 px-8 rounded-lg font-bold text-black bg-[#c9a84c] hover:bg-white transition-colors">← Voltar ao início</Link>
+          <Link to="/" className="inline-block py-3 px-8 rounded-lg font-bold text-white bg-[#2D2D2D] hover:bg-[#444] transition-colors">← Voltar ao início</Link>
         </div>
       </div>
     </div>

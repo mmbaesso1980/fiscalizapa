@@ -426,7 +426,7 @@ export default function AdminDashboard() {
             A.S.M.O.D.E.U.S. v2 · projeto-codex-br / fiscallizapa
           </span>
           <span style={{ fontFamily: C.mono, fontSize: 10, color: C.muted }}>
-            para dar isAdmin a um usuário: Firestore → usuarios/{'{'}{'{uid}'{'}'}} → isAdmin: true
+            para dar isAdmin a um usuário: Firestore → usuarios/[uid] → isAdmin: true
           </span>
         </div>
 

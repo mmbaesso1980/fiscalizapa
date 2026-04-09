@@ -43,9 +43,8 @@ function DeputadoCard({ dep }) {
   const color = getRankColor(dep.rank_externo || dep.rank || 1, 513);
   const soft  = color.replace('rgb', 'rgba').replace(')', ',0.08)');
   const nome  = dep.nome || '–';
-  const slug  = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g,'_').toUpperCase();
   return (
-    <Link to={`/politico/ranking_externo/${slug}`} style={{ textDecoration: 'none', display: 'block' }}>
+    <Link to={`/politico/ranking_externo/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 12,

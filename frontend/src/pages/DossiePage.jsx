@@ -33,15 +33,20 @@ import StickyHeader       from "../components/StickyHeader";
 import PerformanceTab     from "../components/PerformanceTab";
 import PoliticalTimeline  from "../components/PoliticalTimeline";
 import CabinetAudit       from "../components/CabinetAudit";
+import { normalizeUF }    from "../components/SocialContext";
 
 const CUSTO_FULL    = 200;
 const CUSTO_RESUMO  = 10;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtBRL(v) {
-  const n = parseFloat(v ?? 0);
-  return isNaN(n) ? "–" : n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  if (v === null || v === undefined || v === "") return "–";
+  const n = parseFloat(String(v).replace(/\./g, "").replace(",", "."));
+  if (isNaN(n)) return "–";
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
+// Alias seguro para formatCurrency (jamais R$ NaN)
+const formatCurrency = (v) => fmtBRL(v || 0);
 
 function sessionKey(id, tipo = "full") {
   return `dossie_${tipo}_${id}`;
@@ -187,7 +192,7 @@ function IdentitySection({ politico }) {
             {politico?.nome ?? politico?.nomeCompleto ?? "–"}
           </h3>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-            {[politico?.partido, politico?.uf, `Presença: ${presenca}%`].filter(Boolean).map(t => (
+            {[politico?.partido, normalizeUF(politico?.uf, politico?.estado), `Presença: ${presenca}%`].filter(Boolean).map(t => (
               <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
                                      background: "#f3f4f6", color: "#6b7280" }}>{t}</span>
             ))}
@@ -261,9 +266,22 @@ function CeapMonitorSection({ politico }) {
   const total  = data.reduce((s, d) => s + d.value, 0);
   const avg    = Math.round(total / data.length);
 
+  const idCamara = politico?.idCamara ?? politico?.id_camara;
+  const ceapUrl  = idCamara
+    ? `https://www.camara.leg.br/deputados/${idCamara}/despesas`
+    : `https://portaldatransparencia.gov.br/verbas-indenizatorias/consulta`;
+
   return (
     <Card>
-      <SectionHeader icon="💰" title="Monitor de Gastos CEAP" badge="GRÁTIS" />
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
+        <SectionHeader icon="💰" title="Monitor de Gastos CEAP" badge="GRÁTIS" />
+        <a href={ceapUrl} target="_blank" rel="noopener noreferrer"
+          style={{ fontSize: 10, color: "#6b7280", textDecoration: "none", whiteSpace: "nowrap",
+                   padding: "3px 8px", borderRadius: 6, border: "1px solid #e5e7eb",
+                   display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          🔗 FONTE OFICIAL ↗
+        </a>
+      </div>
 
       {/* KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 20 }}>
@@ -519,7 +537,7 @@ function OracleLaboratory({ politico, alertas, rank, fullUnlocked, pdfRef, onDow
         )}
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {[politico?.partido, politico?.uf, label].filter(Boolean).map(t => (
+            {[politico?.partido, normalizeUF(politico?.uf, politico?.estado), label].filter(Boolean).map(t => (
               <span key={t} style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 99,
                                      background: t === label ? riskAlpha : "#f3f4f6",
                                      color: t === label ? riskColor : "#6b7280" }}>{t}</span>
@@ -926,7 +944,7 @@ function DossiePDFContent({ pdfRef, politico, alertas, rank, nivel5Alertas = [] 
                     ["CNPJ",          a.empresa_cnpj ?? "–"],
                     ["Órgão",         a.contrato_orgao ?? "–"],
                     ["Objeto",        (a.contrato_objeto ?? "–").substring(0, 120) + (a.contrato_objeto?.length > 120 ? "…" : "")],
-                    ["Valor",         a.valor_contrato ? `R$ ${Number(a.valor_contrato).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}` : "–"],
+                    ["Valor",         fmtBRL(a.valor_contrato)],
                   ].map(([k, v]) => (
                     <tr key={k}>
                       <td style={{ padding: "3px 0", width: "25%", color: "#888",
@@ -1348,7 +1366,7 @@ export default function DossiePage() {
                   }}>
                     <strong>{a.empresa_nome ?? a.empresa_cnpj}</strong>
                     {" · "}{a.relacao_familiar ?? "familiar"}
-                    {a.valor_contrato ? ` · R$ ${Number(a.valor_contrato).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}` : ""}
+                    {a.valor_contrato ? ` · ${fmtBRL(a.valor_contrato)}` : ""}
                   </div>
                 ))}
               </div>
@@ -1607,6 +1625,30 @@ export default function DossiePage() {
             )}{/* /aba dossie */}
 
           </div>{/* /GRID */}
+        </div>
+
+        {/* Rodapé de compliance */}
+        <div style={{ maxWidth: 900, margin: "0 auto 40px", padding: "0 20px" }}>
+          <div style={{
+            background: "#FBF7E8", border: "1px solid #F0E4A0",
+            borderRadius: 10, padding: "12px 18px",
+            display: "flex", alignItems: "flex-start", gap: 10,
+          }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>🛡️</span>
+            <p style={{ fontSize: 11, color: "#7A6A20", margin: 0, lineHeight: 1.7 }}>
+              <strong>Análise probabilística por IA — pode cometer erros.</strong>{" "}
+              Todos os dados são extraídos de fontes públicas oficiais. Scores e alertas são indicadores,
+              não acusações. Antes de qualquer decisão, verifique nas fontes:{" "}
+              <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer"
+                style={{ color: "#7A6A20", fontWeight: 700, textDecoration: "underline" }}>
+                Portal da Transparência ↗
+              </a>{" · "}
+              <a href="https://www.camara.leg.br" target="_blank" rel="noopener noreferrer"
+                style={{ color: "#7A6A20", fontWeight: 700, textDecoration: "underline" }}>
+                Câmara Federal ↗
+              </a>
+            </p>
+          </div>
         </div>
 
         {/* PDF oculto fora do fluxo */}
