@@ -56,4 +56,6 @@ Credenciais GCP: defina `GOOGLE_APPLICATION_CREDENTIALS` apontando para o JSON d
 ## Documentação adicional
 
 - `frontend/README.md` — detalhes do app Vite/React.
-- `COMET_MISSAO.md` — contexto ampliado do projeto (quando aplicável).
+- `docs/COMET_MISSAO.md` — contexto ampliado e roadmap da Missão COMET.
+- `docs/AUDITORIA_*.md` — registros de auditoria por fase/protocolo executado.
+- `docs/REFACTOR_PLAN.md` — plano de refatoração do DossiePage.jsx em sub-componentes.

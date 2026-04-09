@@ -15,7 +15,7 @@
 
 import { useState, useEffect } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";
+import { db } from "../lib/firebase";
 
 const METRICS_MOCK = {
   coverage:    100,

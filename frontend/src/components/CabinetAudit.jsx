@@ -13,7 +13,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../firebase";
+import { db } from "../lib/firebase";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const TERRA_KM       = 40_075;

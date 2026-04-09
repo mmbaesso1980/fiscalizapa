@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../lib/firebase';
 
 function fmt(v) {
   if (!v) return 'R$ 0,00';
@@ -24,7 +25,6 @@ export default function EncaminhamentoEmendas({ politicoId, nomeAutor }) {
     setLoading(true);
     setErro(null);
     try {
-      const functions = getFunctions(undefined, 'southamerica-east1');
       const fn = httpsCallable(functions, 'getEmendasEncaminhamento');
       const result = await fn({ politicoId, nomeAutor, ano: anoFiltro || null, limit: 100 });
       setDados(result.data);

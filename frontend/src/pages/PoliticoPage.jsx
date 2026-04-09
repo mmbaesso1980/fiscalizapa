@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { db } from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../lib/firebase";
 
 import GastosChart from "../components/GastosChart";
 import EmendasAba from "../components/EmendasAba";
@@ -126,7 +126,6 @@ export default function PoliticoPage() {
         if (nomeDoPolitico) {
           promises.push((async () => {
             try {
-              const functions = getFunctions(undefined, "southamerica-east1");
               const getAuditoriaPolitico = httpsCallable(functions, "getAuditoriaPolitico");
               const result = await getAuditoriaPolitico({ nome: nomeDoPolitico, ano: 2024 });
               const despesas = safeArray(result?.data?.despesas).map(normalizeDespesa);
