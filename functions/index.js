@@ -202,8 +202,13 @@ exports.stripeWebhook = onRequest(
       const session = event.data.object;
       const uid = session.metadata?.uid;
       if (uid) {
-        await db.doc(`users/${uid}`).set(
-          { plan: 'premium', stripeCustomerId: session.customer, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+        // Coleção canónica: usuarios (alinhada ao frontend useAuth / CreditosPage)
+        await db.doc(`usuarios/${uid}`).set(
+          {
+            plano: 'premium',
+            stripeCustomerId: session.customer,
+            atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
+          },
           { merge: true }
         );
       }
@@ -211,8 +216,24 @@ exports.stripeWebhook = onRequest(
 
     if (event.type === 'customer.subscription.deleted') {
       const sub = event.data.object;
-      const snap = await db.collection('users').where('stripeCustomerId', '==', sub.customer).limit(1).get();
-      snap.forEach(doc => doc.ref.set({ plan: 'free', updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true }));
+      const customerId = sub.customer;
+      const snapU = await db.collection('usuarios').where('stripeCustomerId', '==', customerId).limit(5).get();
+      snapU.forEach(d =>
+        d.ref.set(
+          { plano: 'free', atualizadoEm: admin.firestore.FieldValue.serverTimestamp() },
+          { merge: true }
+        )
+      );
+      // Legado: assinatura antiga só em users
+      if (snapU.empty) {
+        const snapL = await db.collection('users').where('stripeCustomerId', '==', customerId).limit(5).get();
+        snapL.forEach(d =>
+          d.ref.set(
+            { plan: 'free', updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+            { merge: true }
+          )
+        );
+      }
     }
 
     res.json({ received: true });
@@ -226,8 +247,13 @@ exports.getPerfilParlamentar = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
 
-  const userDoc = await db.doc(`users/${uid}`).get();
-  const plan = userDoc.data()?.plan ?? 'free';
+  const userDoc = await db.doc(`usuarios/${uid}`).get();
+  let plan = userDoc.data()?.plano ?? 'free';
+  // Legado: assinaturas antigas gravadas em users/{uid}
+  if (plan !== 'premium') {
+    const leg = await db.doc(`users/${uid}`).get();
+    if (leg.data()?.plan === 'premium') plan = 'premium';
+  }
 
   const { cpf, idCamara } = req.data || {};
   if (!cpf && !idCamara) throw new HttpsError('invalid-argument', 'CPF ou idCamara obrigatório.');

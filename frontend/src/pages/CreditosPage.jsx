@@ -97,10 +97,20 @@ export default function CreditosPage() {
         walletData = res.data;
       } catch (fnErr) {
         console.warn('getWalletCredits falhou, usando fallback:', fnErr.message);
-        const snap = await getDoc(doc(db, 'users', user.uid));
+        const snap = await getDoc(doc(db, 'usuarios', user.uid));
         if (snap.exists()) {
           const d = snap.data();
-          walletData = { saldo: d.credits ?? 0, plano: d.plan ?? 'free', totalComprado: 0, totalConsumido: 0 };
+          let plano = d.plano ?? 'free';
+          if (plano !== 'premium' && plano !== 'ilimitado') {
+            const leg = await getDoc(doc(db, 'users', user.uid));
+            if (leg.exists() && leg.data()?.plan === 'premium') plano = 'premium';
+          }
+          walletData = {
+            saldo: d.creditos ?? d.credits ?? 0,
+            plano,
+            totalComprado: 0,
+            totalConsumido: 0
+          };
         } else {
           walletData = { saldo: 0, plano: 'free', totalComprado: 0, totalConsumido: 0 };
         }

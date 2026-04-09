@@ -1,5 +1,5 @@
 """
-A.S.M.O.D.E.U.S. — Motor de Assiduidade e Autoria  (13_ingest_presencas.py)
+TransparenciaBR — Motor de Assiduidade e Autoria (13_ingest_presencas.py)
 
 Responsabilidades:
   1. Buscar registros de presença dos deputados na API da Câmara dos Deputados
@@ -24,12 +24,14 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import json
 import logging
 import os
 import sys
 import time
-import json
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
 logging.basicConfig(
@@ -47,7 +49,7 @@ BQ_DATASET           = "fiscalizapa"
 BQ_TABLE_PRESENCAS   = f"{BQ_DATASET}.presencas_detalhadas"
 BQ_TABLE_PROPOSICOES = f"{BQ_DATASET}.proposicoes_autoria_propria"
 HEADERS              = {"Accept": "application/json",
-                        "User-Agent": "ASMODEUS/2.0 (auditoria-forense-parlamentar)"}
+                        "User-Agent": "TransparenciaBR/2.0 (dados-abertos-parlamentares)"}
 RATE_LIMIT_S         = 1.0    # segundos entre chamadas à API da Câmara
 MAX_RETRIES          = 3
 
@@ -60,6 +62,29 @@ COMISSAO_KEYWORDS    = {"comissão", "comissao", "reunião", "reuniao",
 # Tipos de proposição para autoria própria (com filtro anti-carona)
 TIPOS_AUTORIAIS      = ["PL", "PEC", "PDC", "MPV", "PRC", "PLV"]
 COAUTORIA_MAX_AUTORES = 3  # se tiver mais de N autores, considera co-autoria
+
+
+def _load_bq_setup():
+    """Carrega 01_bq_setup.py pelo caminho do ficheiro (mesmo padrão que 02_ingest_ibge.py)."""
+    engines_dir = Path(__file__).resolve().parent
+    path = engines_dir / "01_bq_setup.py"
+    spec = importlib.util.spec_from_file_location("engines_01_bq_setup", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Não foi possível carregar {path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_bq_setup_mod = None
+
+
+def _sanitize_and_load(df, table: str) -> None:
+    """Lazy-load de 01_bq_setup (evita exigir pandas só para --help / dry-run)."""
+    global _bq_setup_mod
+    if _bq_setup_mod is None:
+        _bq_setup_mod = _load_bq_setup()
+    _bq_setup_mod.sanitize_and_load(df, table)
 
 
 # ─── HTTP Helper ──────────────────────────────────────────────────────────────
@@ -112,8 +137,6 @@ def _paginate(url: str, base_params: dict | None = None) -> list[dict]:
 
 # ─── Inicialização dos clientes ───────────────────────────────────────────────
 def _init_clients(project: str, fs_project: str, dry_run: bool):
-    from engines_01_bq_setup import sanitize_and_load  # noqa: F401 — verifica se existe
-
     bq_client = None
     db_client = None
 
@@ -298,9 +321,9 @@ def save_to_bigquery(bq_client: Any, records: list[dict], table: str) -> None:
         return
     try:
         import pandas as pd
-        from engines_01_bq_setup import sanitize_and_load  # type: ignore
+
         df = pd.DataFrame(records)
-        sanitize_and_load(df, table)
+        _sanitize_and_load(df, table)
         log.info("  ✅ BigQuery: %d registros → %s", len(records), table)
     except Exception as e:
         log.error("  ❌ BigQuery error: %s", e)
