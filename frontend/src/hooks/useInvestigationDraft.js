@@ -22,9 +22,25 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 
-const PREFIX         = "asmodeus_draft_";
+const PREFIX         = "tbr_draft_";
+const LEGACY_PREFIX  = "asmodeus_draft_";
 const MAX_AGE_DAYS   = 7;     // drafts expiram em 7 dias
 const MAX_STORE_SIZE = 50;    // máximo de chaves no localStorage
+
+/** Copia draft de asmodeus_draft_* → tbr_draft_* uma vez (mesma chave lógica `key`). */
+function ensureDraftMigrated(userKey) {
+  const newKey = `${PREFIX}${userKey}`;
+  const oldKey = `${LEGACY_PREFIX}${userKey}`;
+  if (typeof window === "undefined") return newKey;
+  try {
+    const legacyRaw = localStorage.getItem(oldKey);
+    if (legacyRaw && !localStorage.getItem(newKey)) {
+      localStorage.setItem(newKey, legacyRaw);
+      localStorage.removeItem(oldKey);
+    }
+  } catch { /* ignore */ }
+  return newKey;
+}
 
 /**
  * Verifica se o draft está dentro do prazo de validade.
@@ -53,7 +69,7 @@ export function useInvestigationDraft(key, initialValue, options = {}) {
     enabled    = true,
   } = options;
 
-  const storageKey = `${PREFIX}${key}`;
+  const storageKey = ensureDraftMigrated(key);
   const timerRef   = useRef(null);
 
   // Inicializar estado a partir do localStorage
@@ -93,7 +109,9 @@ export function useInvestigationDraft(key, initialValue, options = {}) {
     timerRef.current = setTimeout(() => {
       try {
         // Verificar espaço disponível (anti-bloat)
-        const allKeys = Object.keys(localStorage).filter(k => k.startsWith(PREFIX));
+        const allKeys = Object.keys(localStorage).filter(
+          k => k.startsWith(PREFIX) || k.startsWith(LEGACY_PREFIX)
+        );
         if (allKeys.length >= MAX_STORE_SIZE) {
           // Remover o mais antigo
           const oldest = allKeys
@@ -153,7 +171,9 @@ export function clearAllDrafts() {
   if (typeof window === "undefined") return 0;
   let count = 0;
   try {
-    const keys = Object.keys(localStorage).filter(k => k.startsWith(PREFIX));
+    const keys = Object.keys(localStorage).filter(
+      k => k.startsWith(PREFIX) || k.startsWith(LEGACY_PREFIX)
+    );
     keys.forEach(k => { localStorage.removeItem(k); count++; });
   } catch {}
   return count;
@@ -166,11 +186,12 @@ export function getDraftsSummary() {
   if (typeof window === "undefined") return [];
   try {
     return Object.keys(localStorage)
-      .filter(k => k.startsWith(PREFIX))
+      .filter(k => k.startsWith(PREFIX) || k.startsWith(LEGACY_PREFIX))
       .map(k => {
         const raw = localStorage.getItem(k);
         const { savedAt } = JSON.parse(raw || "{}");
-        return { key: k.replace(PREFIX, ""), savedAt, expired: isExpired({ savedAt }) };
+        const short = k.replace(PREFIX, "").replace(LEGACY_PREFIX, "");
+        return { key: short, savedAt, expired: isExpired({ savedAt }) };
       })
       .filter(d => !d.expired);
   } catch {

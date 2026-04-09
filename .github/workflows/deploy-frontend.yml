@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# A.S.M.O.D.E.U.S. — Deploy Contínuo do Frontend (Firebase Hosting)
+# TransparenciaBR — Deploy contínuo do frontend (Firebase Hosting)
 #
 # Trigger:  push para a branch `main`
 # Função:   Build do Vite (frontend/) → Deploy para Firebase Hosting

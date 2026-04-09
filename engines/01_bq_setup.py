@@ -1,7 +1,7 @@
 """
-Protocolo A.S.M.O.D.E.U.S. — base BigQuery (projeto-codex-br).
+TransparenciaBR — base BigQuery (projeto-codex-br).
 
-Motor de inteligência: conexão ao GCP e carga tipada a partir de pandas.
+Conexão ao GCP e carga tipada a partir de pandas.
 Credenciais: GOOGLE_APPLICATION_CREDENTIALS ou ambiente GCE/Cloud Run.
 """
 

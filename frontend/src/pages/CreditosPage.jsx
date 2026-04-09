@@ -135,7 +135,10 @@ export default function CreditosPage() {
     setBuying(packageId);
     setError(null);
     try {
-      const result = await httpsCallable(functions, 'buyCredits')({ packageId });
+      const result = await httpsCallable(functions, 'buyCredits')({
+        packageId,
+        origin: typeof window !== 'undefined' ? window.location.origin : '',
+      });
       if (result.data && result.data.url) {
         window.location.href = result.data.url;
       } else {

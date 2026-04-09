@@ -265,7 +265,7 @@ export default function DataPulse({ maxLines = 40 }) {
             ))}
           </div>
           <span style={{ fontFamily: C.mono, fontSize: 10, color: C.muted }}>
-            asmodeus@crawler:~$ tail -f /engine/activity.log
+            tbr@crawler:~$ tail -f /engine/activity.log
           </span>
         </div>
 

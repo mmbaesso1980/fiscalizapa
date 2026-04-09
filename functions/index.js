@@ -179,6 +179,169 @@ exports.createCheckoutSession = onCall(OPTS, async (req) => {
   return { sessionId: session.id, url: session.url };
 });
 
+const APP_PUBLIC_ORIGIN =
+  process.env.APP_PUBLIC_ORIGIN || 'https://fiscallizapa.web.app';
+
+const PACKAGE_CREDITS = {
+  price_starter_10: 10,
+  price_pro_50: 50,
+  price_ultra_200: 200
+};
+
+// ─────────────────────────────────────────────
+// 7b. CARTEIRA / CRÉDITOS (Firestore usuarios)
+// ─────────────────────────────────────────────
+exports.getWalletCredits = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const snap = await db.doc(`usuarios/${uid}`).get();
+  const d = snap.data() || {};
+  let plano = d.plano ?? 'free';
+  if (plano !== 'premium' && plano !== 'ilimitado') {
+    const leg = await db.doc(`users/${uid}`).get();
+    if (leg.data()?.plan === 'premium') plano = 'premium';
+  }
+  return {
+    saldo: d.creditos ?? d.credits ?? 0,
+    plano,
+    totalComprado: d.totalComprado ?? 0,
+    totalConsumido: d.totalConsumido ?? 0
+  };
+});
+
+exports.getCreditHistory = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const limitN = Math.min(Math.max(Number(req.data?.limit) || 20, 1), 100);
+  try {
+    const snap = await db
+      .collection(`usuarios/${uid}/creditos_historico`)
+      .orderBy('criadoEm', 'desc')
+      .limit(limitN)
+      .get();
+    const historico = snap.docs.map(doc => {
+      const x = doc.data();
+      return {
+        tipo: x.tipo || 'BONUS',
+        credits: x.credits ?? x.creditos ?? 0,
+        criadoEm: x.criadoEm
+      };
+    });
+    return { historico };
+  } catch (e) {
+    return { historico: [] };
+  }
+});
+
+exports.buyCredits = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const { packageId, origin } = req.data || {};
+  if (!packageId) throw new HttpsError('invalid-argument', 'packageId obrigatório.');
+
+  const priceEnvMap = {
+    price_starter_10: process.env.STRIPE_PRICE_STARTER_10,
+    price_pro_50: process.env.STRIPE_PRICE_PRO_50,
+    price_ultra_200: process.env.STRIPE_PRICE_ULTRA_200,
+    price_ilimitado: process.env.STRIPE_PRICE_ILIMITADO
+  };
+  const priceId = priceEnvMap[packageId];
+  if (!priceId) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Stripe não configurado: defina STRIPE_PRICE_STARTER_10, STRIPE_PRICE_PRO_50, STRIPE_PRICE_ULTRA_200 e/ou STRIPE_PRICE_ILIMITADO nas variáveis de ambiente das Functions.'
+    );
+  }
+
+  let stripe;
+  try {
+    stripe = getStripe();
+  } catch (e) {
+    throw new HttpsError('failed-precondition', 'Stripe não configurado no servidor.');
+  }
+
+  const appOrigin = (function safeOrigin(o) {
+    const s = String(o || '').trim().replace(/\/$/, '');
+    if (!s.startsWith('http')) return APP_PUBLIC_ORIGIN;
+    try {
+      const u = new URL(s);
+      const h = u.hostname;
+      const ok =
+        h === 'localhost' ||
+        h.endsWith('.web.app') ||
+        h.endsWith('.firebaseapp.com') ||
+        h.endsWith('transparenciabr.com.br');
+      if (!ok) return APP_PUBLIC_ORIGIN;
+      const port = u.port ? `:${u.port}` : '';
+      return `${u.protocol}//${h}${port}`;
+    } catch {
+      return APP_PUBLIC_ORIGIN;
+    }
+  })(origin);
+
+  const mode = packageId === 'price_ilimitado' ? 'subscription' : 'payment';
+  const session = await stripe.checkout.sessions.create({
+    mode,
+    payment_method_types: ['card'],
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${appOrigin}/creditos?success=true`,
+    cancel_url: `${appOrigin}/creditos?canceled=true`,
+    metadata: { uid, packageId }
+  });
+  return { url: session.url };
+});
+
+// ─────────────────────────────────────────────
+// 7c. SESSÃO / REFERRAL (no-op estável — evita ruído no cliente)
+// ─────────────────────────────────────────────
+exports.registerUserSession = onCall(OPTS, async () => ({ ok: true }));
+
+exports.validateUserSession = onCall(OPTS, async () => ({ valid: true }));
+
+exports.processReferralCode = onCall(OPTS, async () => ({ ok: true }));
+
+exports.getUser = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const d = (await db.doc(`usuarios/${uid}`).get()).data() || {};
+  return { credits: d.creditos ?? d.credits ?? 0 };
+});
+
+exports.consumeCredit = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const ref = db.doc(`usuarios/${uid}`);
+  return db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const cur = snap.data()?.creditos ?? snap.data()?.credits ?? 0;
+    if (cur < 1) return { ok: false, reason: 'Saldo insuficiente.' };
+    tx.set(
+      ref,
+      { creditos: cur - 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+    return { ok: true, source: 'firestore' };
+  });
+});
+
+exports.chat = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const msg = String(req.data?.message || '').trim();
+  if (!msg) throw new HttpsError('invalid-argument', 'Mensagem vazia.');
+  return {
+    response:
+      'Assistente em fase de implantação. Use os links de fonte oficial (Portal da Transparência e Câmara) no dossiê para verificar os dados.'
+  };
+});
+
+exports.getEmendasEncaminhamento = onCall(OPTS, async () => ({
+  resumo: {},
+  fases: [],
+  documentos: [],
+  aviso: 'Agregado de encaminhamento em desenvolvimento — consulte a aba Emendas.'
+}));
+
 // ─────────────────────────────────────────────
 // 8. WEBHOOK STRIPE
 // ─────────────────────────────────────────────
@@ -202,15 +365,36 @@ exports.stripeWebhook = onRequest(
       const session = event.data.object;
       const uid = session.metadata?.uid;
       if (uid) {
-        // Coleção canónica: usuarios (alinhada ao frontend useAuth / CreditosPage)
-        await db.doc(`usuarios/${uid}`).set(
-          {
-            plano: 'premium',
-            stripeCustomerId: session.customer,
-            atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
-          },
-          { merge: true }
-        );
+        const ref = db.doc(`usuarios/${uid}`);
+        const pkg = session.metadata?.packageId || '';
+
+        if (session.mode === 'subscription') {
+          const plano = pkg === 'price_ilimitado' ? 'ilimitado' : 'premium';
+          await ref.set(
+            {
+              plano,
+              stripeCustomerId: session.customer,
+              atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
+            },
+            { merge: true }
+          );
+        } else if (session.mode === 'payment') {
+          const add = PACKAGE_CREDITS[pkg] ?? 0;
+          if (add > 0) {
+            await db.runTransaction(async tx => {
+              const snap = await tx.get(ref);
+              const cur = snap.data()?.creditos ?? snap.data()?.credits ?? 0;
+              tx.set(
+                ref,
+                {
+                  creditos: cur + add,
+                  atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
+                },
+                { merge: true }
+              );
+            });
+          }
+        }
       }
     }
 

@@ -396,7 +396,7 @@ export default function AdminDashboard() {
                 ))}
               </div>
               <span style={{ fontFamily: C.mono, fontSize: 11, color: C.muted }}>
-                asmodeus@control:~$ tail -f /var/log/system.log
+                tbr@control:~$ tail -f /var/log/system.log
               </span>
             </div>
             <button

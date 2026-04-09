@@ -274,4 +274,4 @@ Estes já são componentes externos importados no `DossiePage` e **não precisam
 
 ---
 
-*Criado em 2026-04-09 | A.S.M.O.D.E.U.S. — Projeto Limpeza Estrutural*
+*Criado em 2026-04-09 | TransparenciaBR — projeto de limpeza estrutural*

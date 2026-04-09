@@ -1,5 +1,5 @@
 """
-A.S.M.O.D.E.U.S. — Ponte BigQuery → Firestore  (05_sync_bodes.py)
+TransparenciaBR — Ponte BigQuery → Firestore (05_sync_bodes.py)
 
 Fluxo:
   1. Garante a view `vw_alertas_bodes` no BigQuery (projeto-codex-br).

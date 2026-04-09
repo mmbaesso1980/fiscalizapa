@@ -1,4 +1,4 @@
-# FiscalizaPA (Protocolo A.S.M.O.D.E.U.S.)
+# FiscalizaPA / TransparenciaBR
 
 Sistema de fiscalização e monitoramento de políticas públicas. O repositório separa de forma explícita a **vitrine** (Firebase / front-end) do **motor de dados** (BigQuery / Python).
 
