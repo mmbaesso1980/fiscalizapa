@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import {
+  loadRankingOrgExternoMap,
+  lookupRankingOrgExterno,
+  mergeDeputadoRankingOrg,
+  RANKING_ORG_PAGE,
+  RANKING_ORG_CRITERIA,
+} from "../utils/rankingOrg";
 
 // ─── Cor da bolinha: verde (#2E7F18) → vermelho (#C82538) ─────────────────────
 function getRankColor(rank, total = 513) {
@@ -13,8 +20,8 @@ function getRankColor(rank, total = 513) {
 }
 
 // ─── Bolinha com gradiente radial 3D premium ──────────────────────────────────
-function RankBall({ rank }) {
-  const color = getRankColor(rank);
+function RankBall({ rank, total = 513 }) {
+  const color = getRankColor(rank, total);
   const [r, g, b] = color.match(/\d+/g).map(Number);
   const borderColor = `rgb(${Math.round(r*0.78)},${Math.round(g*0.78)},${Math.round(b*0.78)})`;
   return (
@@ -39,8 +46,9 @@ function fmtScore(val) {
 }
 
 // ─── Card de linha do ranking ─────────────────────────────────────────────────
-function DeputadoCard({ dep }) {
-  const color = getRankColor(dep.rank_externo || dep.rank || 1, 513);
+function DeputadoCard({ dep, totalRanking }) {
+  const total = totalRanking || 513;
+  const color = getRankColor(dep.rank_externo || dep.rank || 1, total);
   const soft  = color.replace('rgb', 'rgba').replace(')', ',0.08)');
   const nome  = dep.nome || dep.nomeCompleto || '–';
   return (
@@ -56,7 +64,7 @@ function DeputadoCard({ dep }) {
         onMouseEnter={e => { e.currentTarget.style.transform = 'translateX(3px)'; e.currentTarget.style.boxShadow = `0 4px 16px ${color}22`; }}
         onMouseLeave={e => { e.currentTarget.style.transform = 'translateX(0)'; e.currentTarget.style.boxShadow = 'none'; }}
       >
-        <RankBall rank={dep.rank_externo || dep.rank || 1} />
+        <RankBall rank={dep.rank_externo || dep.rank || 1} total={total} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#2D2D2D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {nome}
@@ -64,8 +72,8 @@ function DeputadoCard({ dep }) {
           <div style={{ fontSize: 11, color: '#999' }}>{dep.partido || '–'} · {dep.uf || '–'}</div>
         </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color }}>{fmtScore(dep.score ?? dep.indice_transparenciabr ?? dep.nota_ranking_org)}</div>
-          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>Índice TransparenciaBR</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color }}>{fmtScore(dep.nota_ranking_org ?? dep.ranking_org?.nota)}</div>
+          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>Nota · Ranking dos Políticos</div>
         </div>
       </div>
     </Link>
@@ -77,6 +85,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   const [top10,    setTop10]    = useState([]);
   const [bottom10, setBottom10] = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [rankingTotal, setRankingTotal] = useState(513);
 
   const [authMode,    setAuthMode]    = useState('choose');
   const [email,       setEmail]       = useState('');
@@ -87,29 +96,22 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   useEffect(() => {
     async function fetchRanking() {
       try {
-        // deputados_federais — mesmo dataset do RankingPage (campo: score)
-        const col = collection(db, 'deputados_federais');
+        const { map, total } = await loadRankingOrgExternoMap(db);
+        setRankingTotal(total || 513);
 
-        // Top 10: maior score
-        const qTop    = query(col, orderBy('score', 'desc'), limit(10));
-        const snapTop = await getDocs(qTop);
-        const top = snapTop.docs.map((d, i) => ({
-          id: d.id, rank: i + 1,
-          score: parseFloat(d.data().score ?? d.data().indice_transparenciabr ?? 0),
-          ...d.data(),
-        }));
+        const col = collection(db, "deputados_federais");
+        const snap = await getDocs(col);
+        const merged = snap.docs.map((d) => {
+          const base = { id: d.id, ...d.data() };
+          const ext = lookupRankingOrgExterno(map, base.nome || base.nomeCompleto);
+          return mergeDeputadoRankingOrg(base, ext);
+        });
 
-        // Bottom 10: menor score (pega 20 e filtra score > 0 para evitar dados vazios)
-        const qBot    = query(col, orderBy('score', 'asc'), limit(20));
-        const snapBot = await getDocs(qBot);
-        const botAll  = snapBot.docs.map(d => ({
-          id: d.id,
-          score: parseFloat(d.data().score ?? d.data().indice_transparenciabr ?? 0),
-          ...d.data(),
-        }));
-        const botFiltered = botAll.filter(d => d.score > 0).slice(0, 10);
-        const bottom = (botFiltered.length >= 5 ? botFiltered : botAll.slice(0, 10))
-          .map((d, i) => ({ ...d, rank: 513 - i }));
+        const comRank = merged.filter((p) => p.rank_externo != null);
+        comRank.sort((a, b) => a.rank_externo - b.rank_externo);
+
+        const top = comRank.slice(0, 10);
+        const bottom = comRank.length >= 10 ? comRank.slice(-10).reverse() : comRank.slice().reverse().slice(0, 10);
 
         setTop10(top);
         setBottom10(bottom);
@@ -162,17 +164,13 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       {/* TOP 10 / BOTTOM 10 */}
       <section id="ranking-section" style={{ maxWidth: 900, margin: '0 auto 64px', padding: '0 24px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2D2D2D' }}>Ranking de Transparência Parlamentar</h2>
-          <a
-            href="https://portaldatransparencia.gov.br"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic', textDecoration: 'none', transition: 'color 0.15s' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#2D2D2D'}
-            onMouseLeave={e => e.currentTarget.style.color = '#AAA'}
-          >
-            Fonte: Portal da Transparência ↗
-          </a>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2D2D2D' }}>Ranking dos Políticos (Câmara)</h2>
+          <span style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic', lineHeight: 1.5, textAlign: 'right', maxWidth: 320 }}>
+            Posição e nota conforme{' '}
+            <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: '#666', fontWeight: 600 }}>ranking.org.br</a>
+            {' '}(atualização do ranking na fonte).{' '}
+            <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: '#666' }}>Metodologia ↗</a>
+          </span>
         </div>
 
         {loading ? (
@@ -185,9 +183,9 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
                 <span style={{ fontSize: 18 }}>🏆</span>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: '#2E7F18' }}>Top 10 — Mais transparentes</h3>
               </div>
-              {top10.map(dep => <DeputadoCard key={dep.id} dep={dep} />)}
+              {top10.map(dep => <DeputadoCard key={dep.id} dep={dep} totalRanking={rankingTotal} />)}
               <Link to="/ranking" style={{ display: 'block', textAlign: 'center', marginTop: 12, fontSize: 13, color: '#AAA', textDecoration: 'none', fontWeight: 500 }}>
-                Ver todos os 513 →
+                Ver lista completa →
               </Link>
             </div>
 
@@ -197,7 +195,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
                 <span style={{ fontSize: 18 }}>⚠️</span>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: '#C82538' }}>Bottom 10 — Maior risco</h3>
               </div>
-              {bottom10.map(dep => <DeputadoCard key={dep.id} dep={dep} />)}
+              {bottom10.map(dep => <DeputadoCard key={dep.id} dep={dep} totalRanking={rankingTotal} />)}
               <Link to="/ranking" style={{ display: 'block', textAlign: 'center', marginTop: 12, fontSize: 13, color: '#AAA', textDecoration: 'none', fontWeight: 500 }}>
                 Ver ranking completo →
               </Link>

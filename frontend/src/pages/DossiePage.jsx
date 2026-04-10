@@ -17,13 +17,18 @@
  * StickyHeader aparece ao scrollar > 120px com nome, partido e temperatura de risco.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   doc, getDoc, setDoc, collection, query, where,
   orderBy, limit, getDocs, serverTimestamp,
 } from "firebase/firestore";
 import { db }            from "../lib/firebase";
+import {
+  loadRankingOrgExternoMap,
+  lookupRankingOrgExterno,
+  mergeDeputadoRankingOrg,
+} from "../utils/rankingOrg";
 import { useAuth }       from "../hooks/useAuth";
 import { getRiskColor, getRiskColorAlpha, getRiskLabel } from "../utils/colorUtils";
 import { Helmet }         from "react-helmet-async";
@@ -525,10 +530,14 @@ function DiariosMencoesSection({ politicoId, credits, deductCredits }) {
 // ─── SEÇÃO 4: Laboratório Oráculo (GATED) ─────────────────────────────────────
 // Conteúdo básico: alertas + Gemini oracle texts
 // Conteúdo full:   + NetworkGraph + PDF export
-function OracleLaboratory({ politico, alertas, rank, fullUnlocked, pdfRef, onDownloadPDF, generatingPDF }) {
-  const riskColor = getRiskColor(rank ?? 256);
-  const riskAlpha = getRiskColorAlpha(rank ?? 256, 513, 0.08);
-  const { label } = getRiskLabel(rank ?? 256);
+function OracleLaboratory({ politico, alertas, rank, rankTotal, fullUnlocked, pdfRef, onDownloadPDF, generatingPDF }) {
+  const rank1 = politico?.rank_externo != null
+    ? Number(politico.rank_externo)
+    : (typeof rank === "number" && rank >= 0 ? rank + 1 : 256);
+  const total = rankTotal || 513;
+  const riskColor = getRiskColor(rank1, total);
+  const riskAlpha = getRiskColorAlpha(rank1, total, 0.08);
+  const { label } = getRiskLabel(rank1, total);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -554,6 +563,13 @@ function OracleLaboratory({ politico, alertas, rank, fullUnlocked, pdfRef, onDow
             Score TransparenciaBR: <strong style={{ color: riskColor }}>
               {(politico?.score ?? politico?.indice_transparenciabr ?? 0).toFixed(1)}
             </strong>
+            {politico?.ranking_org && (
+              <>
+                {" · "}
+                Ranking.org: <strong>#{politico.ranking_org.posicao}</strong> · nota{" "}
+                <strong>{Number(politico.ranking_org.nota).toFixed(2)}</strong>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -825,9 +841,13 @@ function PDFLogo() {
 }
 
 // ─── Conteúdo PDF oculto ──────────────────────────────────────────────────────
-function DossiePDFContent({ pdfRef, politico, alertas, rank, nivel5Alertas = [] }) {
-  const riskColor = getRiskColor(rank ?? 256);
-  const { label } = getRiskLabel(rank ?? 256);
+function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Alertas = [] }) {
+  const rank1 = politico?.rank_externo != null
+    ? Number(politico.rank_externo)
+    : (typeof rank === "number" && rank >= 0 ? rank + 1 : 256);
+  const total = rankTotal || 513;
+  const riskColor = getRiskColor(rank1, total);
+  const { label } = getRiskLabel(rank1, total);
 
   return (
     <div ref={pdfRef} style={{
@@ -853,7 +873,13 @@ function DossiePDFContent({ pdfRef, politico, alertas, rank, nivel5Alertas = [] 
         <div style={{ display: "flex", gap: 12, fontSize: 11 }}>
           <span>Partido: <strong>{politico?.partido ?? "–"}</strong></span>
           <span>UF: <strong>{politico?.uf ?? "–"}</strong></span>
-          <span>Score: <strong style={{ color: riskColor }}>{parseFloat(politico?.score ?? 0).toFixed(1)}</strong></span>
+          <span>Índice plataforma: <strong style={{ color: riskColor }}>{parseFloat(politico?.score ?? 0).toFixed(1)}</strong></span>
+          {politico?.ranking_org && (
+            <span>
+              Ranking.org: <strong>#{politico.ranking_org.posicao}</strong> · nota{" "}
+              <strong>{Number(politico.ranking_org.nota).toFixed(2)}</strong>
+            </span>
+          )}
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
@@ -1063,6 +1089,7 @@ export default function DossiePage() {
   const [politico,       setPolitico      ] = useState(null);
   const [alertas,        setAlertas       ] = useState([]);
   const [rank,           setRank          ] = useState(null);
+  const [rankTotal,      setRankTotal     ] = useState(513);
   const [dataLoading,    setDataLoading   ] = useState(true);
   const [fullUnlocked,   setFullUnlocked  ] = useState(false);
   const [basicUnlocked,  setBasicUnlocked ] = useState(false);
@@ -1076,6 +1103,12 @@ export default function DossiePage() {
   const [familiaRede,    setFamiliaRede   ] = useState(null);
 
   const pdfRef = useRef(null);
+
+  const dossieRiskRank1 = useMemo(() => {
+    if (politico?.rank_externo != null) return Number(politico.rank_externo);
+    if (typeof rank === "number" && rank >= 0) return rank + 1;
+    return 256;
+  }, [politico?.rank_externo, rank]);
 
   // ── Scroll → StickyHeader ─────────────────────────────────────────────────
   useEffect(() => {
@@ -1128,7 +1161,14 @@ export default function DossiePage() {
       try {
         const snap = await getDoc(doc(db, "deputados_federais", id));
         if (!snap.exists()) { setNotFound(true); return; }
-        if (!cancelled) setPolitico({ id: snap.id, ...snap.data() });
+        let pol = { id: snap.id, ...snap.data() };
+        try {
+          const { map, total } = await loadRankingOrgExternoMap(db);
+          if (!cancelled && total) setRankTotal(total);
+          const ext = lookupRankingOrgExterno(map, pol.nome || pol.nomeCompleto);
+          pol = mergeDeputadoRankingOrg(pol, ext);
+        } catch {/* ranking externo opcional */}
+        if (!cancelled) setPolitico(pol);
 
         const rankSnap = await getDocs(
           query(collection(db, "deputados_federais"), orderBy("score", "desc"))
@@ -1308,8 +1348,12 @@ export default function DossiePage() {
       {/* StickyHeader (fixed, aparece no scroll) */}
       <StickyHeader
         politico={politico}
-        rankIndex={rank ?? 256}
-        total={513}
+        rankIndex={
+          politico?.rank_externo != null
+            ? Number(politico.rank_externo) - 1
+            : (rank ?? 256)
+        }
+        total={rankTotal}
         visible={stickyVisible}
       />
 
@@ -1396,7 +1440,7 @@ export default function DossiePage() {
           <TabBar
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            accentColor={getRiskColor(rank ?? 256)}
+            accentColor={getRiskColor(dossieRiskRank1, rankTotal)}
           />
 
           {/* GRID principal */}
@@ -1580,6 +1624,7 @@ export default function DossiePage() {
                     politico={politico}
                     alertas={alertas}
                     rank={rank}
+                    rankTotal={rankTotal}
                     fullUnlocked={fullUnlocked}
                     pdfRef={pdfRef}
                     onDownloadPDF={handleDownloadPDF}
@@ -1660,7 +1705,7 @@ export default function DossiePage() {
         </div>
 
         {/* PDF oculto fora do fluxo */}
-        <DossiePDFContent pdfRef={pdfRef} politico={politico} alertas={alertas} rank={rank} nivel5Alertas={nivel5Alertas} />
+        <DossiePDFContent pdfRef={pdfRef} politico={politico} alertas={alertas} rank={rank} rankTotal={rankTotal} nivel5Alertas={nivel5Alertas} />
       </div>
     </>
   );
