@@ -14,8 +14,10 @@ const RANKING_ORG_CRITERIA = "https://ranking.org.br/criterios-e-metodologia";
 export const MANDATOS_CAMARA = 513;
 
 let cachedMap = null;
+let cachedMapByIdCamara = null;
 let cachedTotal = 0;
 let cachedListCount = 0;
+let cachedMandatosNoSeed = 0;
 let loadPromise = null;
 
 /** Chave alinhada ao load-seed-firestore.js (doc id em ranking_externo). */
@@ -30,34 +32,48 @@ export function normalizeNomeRankingKey(nome) {
 
 function buildMapFromRecords(records) {
   const map = new Map();
+  const mapByIdCamara = new Map();
   let maxRank = 0;
+  let comNotaRankingOrg = 0;
+
   for (const r of records) {
     const nome = r.nome?.trim();
     if (!nome) continue;
     const key = normalizeNomeRankingKey(nome);
     const rank = Number(r.rank_externo);
-    const nota = Number(r.nota_ranking_org ?? r.score);
     if (!Number.isFinite(rank) || rank <= 0) continue;
     maxRank = Math.max(maxRank, rank);
+
+    const rawNota = r.nota_ranking_org ?? r.score;
+    const hasNota = rawNota != null && rawNota !== "" && Number.isFinite(Number(rawNota));
+    if (hasNota) comNotaRankingOrg++;
+
     const row = {
       rank_externo: rank,
-      nota_ranking_org: Number.isFinite(nota) ? nota : 0,
+      nota_ranking_org: hasNota ? Number(rawNota) : null,
       fonte: r.fonte || "ranking.org.br",
       slug_ranking_org: r.slug_ranking_org || "",
       nome_ranking_org: nome,
       partido: r.partido || "",
       uf: r.uf || "",
+      idCamara: r.idCamara != null && Number.isFinite(Number(r.idCamara)) ? Number(r.idCamara) : null,
+      nota_ranking_org_ausente: Boolean(r.nota_ranking_org_ausente) || !hasNota,
     };
     map.set(key, row);
+    if (row.idCamara) mapByIdCamara.set(row.idCamara, row);
   }
+
   const listCount = map.size;
   const maxPosicao = maxRank || listCount;
   return {
     map,
-    /** Maior número de posição presente no JSON (gradiente HSL) */
+    mapByIdCamara,
+    /** Maior posição no seed (513 após merge) — escala do gradiente */
     total: maxPosicao,
-    /** Quantidade de linhas distintas na lista da fonte */
-    listCount,
+    /** Linhas com nota publicada no ranking.org.br */
+    listCount: comNotaRankingOrg,
+    /** Total de mandatos no seed (deve ser 513) */
+    mandatosNoSeed: listCount,
   };
 }
 
@@ -69,8 +85,10 @@ export async function loadRankingOrgExternoMap(db) {
   if (cachedMap) {
     return {
       map: cachedMap,
+      mapByIdCamara: cachedMapByIdCamara,
       total: cachedTotal,
       listCount: cachedListCount,
+      mandatosNoSeed: cachedMandatosNoSeed,
       sourceUrl: RANKING_ORG_PAGE,
     };
   }
@@ -82,11 +100,13 @@ export async function loadRankingOrgExternoMap(db) {
         const res = await fetch(SEED_PATH, { cache: "no-store" });
         if (res.ok) {
           const records = await res.json();
-          const { map, total, listCount } = buildMapFromRecords(records);
+          const { map, mapByIdCamara, total, listCount, mandatosNoSeed } = buildMapFromRecords(records);
           if (map.size > 0) {
             cachedMap = map;
+            cachedMapByIdCamara = mapByIdCamara;
             cachedTotal = total;
             cachedListCount = listCount;
+            cachedMandatosNoSeed = mandatosNoSeed;
             return;
           }
         }
@@ -100,11 +120,13 @@ export async function loadRankingOrgExternoMap(db) {
           const snap = await getDocs(collection(db, "ranking_externo"));
           if (!snap.empty) {
             const rows = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
-            const { map, total, listCount } = buildMapFromRecords(rows);
+            const { map, mapByIdCamara, total, listCount, mandatosNoSeed } = buildMapFromRecords(rows);
             if (map.size > 0) {
               cachedMap = map;
+              cachedMapByIdCamara = mapByIdCamara;
               cachedTotal = total;
               cachedListCount = listCount;
+              cachedMandatosNoSeed = mandatosNoSeed;
               return;
             }
           }
@@ -120,8 +142,10 @@ export async function loadRankingOrgExternoMap(db) {
   await loadPromise;
   return {
     map: cachedMap,
+    mapByIdCamara: cachedMapByIdCamara,
     total: cachedTotal,
     listCount: cachedListCount,
+    mandatosNoSeed: cachedMandatosNoSeed,
     sourceUrl: RANKING_ORG_PAGE,
   };
 }
@@ -160,6 +184,13 @@ export function lookupRankingOrgExterno(map, nome) {
   return null;
 }
 
+export function lookupRankingOrgExternoById(mapByIdCamara, idCamara) {
+  if (!mapByIdCamara || idCamara == null) return null;
+  const id = Number(idCamara);
+  if (!Number.isFinite(id)) return null;
+  return mapByIdCamara.get(id) ?? null;
+}
+
 /** Lista ordenada por posição (para fallback quando não há cruzamento com deputados_federais). */
 export function rankingOrgMapToSortedList(map) {
   if (!map || map.size === 0) return [];
@@ -169,18 +200,20 @@ export function rankingOrgMapToSortedList(map) {
 export function mergeDeputadoRankingOrg(base, externo) {
   if (!externo) return { ...base, ranking_org: null };
   const path = externo.slug_ranking_org ? `/${externo.slug_ranking_org}` : "";
+  const semNota = externo.nota_ranking_org == null || externo.nota_ranking_org_ausente;
   return {
     ...base,
     rank_externo: externo.rank_externo,
-    nota_ranking_org: externo.nota_ranking_org,
+    nota_ranking_org: semNota ? null : externo.nota_ranking_org,
     fonte_ranking_parlamentar: externo.fonte,
     ranking_org: {
       posicao: externo.rank_externo,
-      nota: externo.nota_ranking_org,
+      nota: semNota ? null : externo.nota_ranking_org,
       fonte: externo.fonte || "ranking.org.br",
       perfilPath: path,
       listaUrl: RANKING_ORG_PAGE,
       metodologiaUrl: RANKING_ORG_CRITERIA,
+      semNotaPublicada: semNota,
     },
   };
 }

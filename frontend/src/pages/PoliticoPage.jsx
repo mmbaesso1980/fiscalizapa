@@ -18,6 +18,7 @@ import { parseCamaraValorReais } from "../utils/moneyCamara";
 import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
+  lookupRankingOrgExternoById,
   mergeDeputadoRankingOrg,
   RANKING_ORG_PAGE,
   RANKING_ORG_CRITERIA,
@@ -130,8 +131,11 @@ export default function PoliticoPage() {
         const data = snap.data();
         let politico = { id: snap.id, ...data };
         try {
-          const { map } = await loadRankingOrgExternoMap(db);
-          const ext = lookupRankingOrgExterno(map, politico.nome || politico.nomeCompleto);
+          const { map, mapByIdCamara } = await loadRankingOrgExternoMap(db);
+          const idC = politico.idCamara != null ? Number(politico.idCamara) : Number(snap.id);
+          const ext =
+            lookupRankingOrgExterno(map, politico.nome || politico.nomeCompleto) ||
+            (Number.isFinite(idC) ? lookupRankingOrgExternoById(mapByIdCamara, idC) : null);
           politico = mergeDeputadoRankingOrg(politico, ext);
         } catch {/* seed / Firestore opcional */}
         if (isMounted) setPol(politico);
@@ -260,7 +264,11 @@ export default function PoliticoPage() {
               </a>
               {pol.ranking_org && (
                 <a
-                  href={`https://ranking.org.br${pol.ranking_org.perfilPath || ""}`}
+                  href={
+                    pol.ranking_org.perfilPath
+                      ? `https://ranking.org.br${pol.ranking_org.perfilPath}`
+                      : RANKING_ORG_PAGE
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -270,7 +278,9 @@ export default function PoliticoPage() {
                     textDecoration: "none",
                   }}
                 >
-                  Ranking.org #{pol.ranking_org.posicao} · nota {Number(pol.ranking_org.nota).toFixed(2)} ↗
+                  {pol.ranking_org.semNotaPublicada
+                    ? `Posição #${pol.ranking_org.posicao} (seed) · sem nota no ranking.org ↗`
+                    : `Ranking.org #${pol.ranking_org.posicao} · nota ${Number(pol.ranking_org.nota).toFixed(2)} ↗`}
                 </a>
               )}
             </div>
@@ -281,10 +291,21 @@ export default function PoliticoPage() {
       {pol.ranking_org && (
         <div className="max-w-6xl mx-auto px-6 mb-4">
           <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 16px", fontSize: 11, color: "#166534", lineHeight: 1.6 }}>
-            <strong>Posição e nota</strong> conforme o{" "}
-            <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", fontWeight: 700 }}>Ranking dos Políticos</a>
-            {" "}(Câmara).{" "}
-            <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", textDecoration: "underline" }}>Critérios e metodologia ↗</a>
+            {pol.ranking_org.semNotaPublicada ? (
+              <>
+                <strong>Posição #{pol.ranking_org.posicao}</strong> no seed completo (513 mandatos).{" "}
+                Este deputado está ativo na Câmara, mas{" "}
+                <strong>não há linha com nota</strong> para ele na lista Câmara do{" "}
+                <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", fontWeight: 700 }}>ranking.org.br</a> na data do seed.
+              </>
+            ) : (
+              <>
+                <strong>Posição e nota</strong> conforme o{" "}
+                <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", fontWeight: 700 }}>Ranking dos Políticos</a>
+                {" "}(Câmara).{" "}
+                <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", textDecoration: "underline" }}>Critérios e metodologia ↗</a>
+              </>
+            )}
             {pol.score != null && (
               <> · Índice TransparenciaBR (plataforma): <strong>{parseFloat(pol.score).toFixed(1)}</strong></>
             )}

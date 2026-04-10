@@ -27,6 +27,7 @@ import { db }            from "../lib/firebase";
 import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
+  lookupRankingOrgExternoById,
   mergeDeputadoRankingOrg,
   MANDATOS_CAMARA,
 } from "../utils/rankingOrg";
@@ -1164,9 +1165,12 @@ export default function DossiePage() {
         if (!snap.exists()) { setNotFound(true); return; }
         let pol = { id: snap.id, ...snap.data() };
         try {
-          const { map } = await loadRankingOrgExternoMap(db);
+          const { map, mapByIdCamara } = await loadRankingOrgExternoMap(db);
           if (!cancelled) setRankTotal(MANDATOS_CAMARA);
-          const ext = lookupRankingOrgExterno(map, pol.nome || pol.nomeCompleto);
+          const idC = pol.idCamara != null ? Number(pol.idCamara) : Number(id);
+          const ext =
+            lookupRankingOrgExterno(map, pol.nome || pol.nomeCompleto) ||
+            (Number.isFinite(idC) ? lookupRankingOrgExternoById(mapByIdCamara, idC) : null);
           pol = mergeDeputadoRankingOrg(pol, ext);
         } catch {/* ranking externo opcional */}
         if (!cancelled) setPolitico(pol);

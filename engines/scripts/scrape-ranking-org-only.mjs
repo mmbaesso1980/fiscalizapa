@@ -85,7 +85,11 @@ async function scrape() {
         const scoreText = a.querySelector('[class*="score"] p')?.textContent?.trim() || "";
         const nota = parseFloat(String(scoreText).replace(/\./g, "").replace(",", ".")) || 0;
         const href = a.getAttribute("href") || "";
-        out.push({ pos, nome, cargo, partyLine, nota, href });
+        const imgSrc = a.querySelector("img")?.getAttribute("src") || "";
+        let idCamara = null;
+        const m = String(imgSrc).match(/bandep\/(\d+)/) || String(imgSrc).match(/deputado\/(\d+)/);
+        if (m) idCamara = parseInt(m[1], 10);
+        out.push({ pos, nome, cargo, partyLine, nota, href, idCamara });
       }
       return out;
     });
@@ -99,6 +103,7 @@ async function scrape() {
         nome: r.nome,
         partido,
         uf,
+        idCamara: r.idCamara || null,
         nota_ranking_org: r.nota,
         score: r.nota,
         cargo: FILTER_CARGO,

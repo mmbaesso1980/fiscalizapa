@@ -13,6 +13,7 @@ import { db } from "../lib/firebase";
 import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
+  lookupRankingOrgExternoById,
   mergeDeputadoRankingOrg,
   MANDATOS_CAMARA,
   RANKING_ORG_PAGE,
@@ -33,8 +34,9 @@ function fmtBRL(val) {
 }
 
 function fmtScore(val) {
-  const n = parseFloat(val ?? 0);
-  return isNaN(n) ? "–" : n.toFixed(1);
+  if (val == null || val === "") return "—";
+  const n = parseFloat(val);
+  return isNaN(n) ? "—" : n.toFixed(2);
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -55,13 +57,15 @@ function RowSkeleton() {
 // ─── Card de deputado ─────────────────────────────────────────────────────────
 function DeputadoRow({ dep, total }) {
   const semMatch = dep.rank_externo == null;
+  const semNota = !semMatch && (dep.nota_ranking_org == null || dep.ranking_org?.semNotaPublicada);
   const rankNum = semMatch ? Math.round((MANDATOS_CAMARA + 1) / 2) : dep.rank_externo;
   const color      = semMatch ? "#9ca3af" : getRiskColor(rankNum, total);
   const colorAlpha = semMatch ? "rgba(243,244,246,0.95)" : getRiskColorAlpha(rankNum, total, 0.08);
   const colorDark  = semMatch ? "#6b7280" : getRiskColorDark(rankNum, total);
-  const { label }  = semMatch
-    ? { label: "Sem posição na fonte", level: "mid" }
-    : getRiskLabel(rankNum, total);
+  let label;
+  if (semMatch) label = "Sem posição no seed";
+  else if (semNota) label = "Ativo na Câmara · sem nota no ranking.org";
+  else label = getRiskLabel(rankNum, total).label;
   const rankLabel  = semMatch ? "s/n" : String(dep.rank_externo);
 
   return (
@@ -76,7 +80,7 @@ function DeputadoRow({ dep, total }) {
                    hover:-translate-x-0.5 hover:shadow-md"
         style={{
           background: colorAlpha,
-          border: semMatch ? "1px solid #e5e7eb" : `1px solid ${color}28`,
+          border: semMatch ? "1px solid #e5e7eb" : semNota ? `1px solid ${color}20` : `1px solid ${color}28`,
         }}
         onMouseEnter={e => {
           e.currentTarget.style.boxShadow = `0 4px 20px ${color}28`;
@@ -117,11 +121,14 @@ function DeputadoRow({ dep, total }) {
             className="text-base font-bold tabular-nums"
             style={{ color }}
           >
-            {semMatch ? "—" : fmtScore(dep.nota_ranking_org)}
+            {semMatch || semNota ? "—" : fmtScore(dep.nota_ranking_org)}
           </span>
           <span
             className="block text-[9px] font-semibold px-2 py-0.5 rounded-full mt-0.5 whitespace-nowrap"
-            style={{ background: semMatch ? "#f3f4f6" : `${color}18`, color: semMatch ? "#6b7280" : color }}
+            style={{
+              background: semMatch ? "#f3f4f6" : semNota ? `${color}12` : `${color}18`,
+              color: semMatch ? "#6b7280" : semNota ? "#57534e" : color,
+            }}
           >
             {label}
           </span>
@@ -160,12 +167,13 @@ export default function RankingPage() {
   const [filterUF,   setFilterUF]   = useState("");
   const [filterPart, setFilterPart] = useState("");
   const [rankingListCount, setRankingListCount] = useState(0);
+  const [mandatosSeed, setMandatosSeed] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchAll() {
       try {
-        const { map, listCount } = await loadRankingOrgExternoMap(db);
+        const { map, mapByIdCamara, listCount, mandatosNoSeed } = await loadRankingOrgExternoMap(db);
         const snap = await getDocs(collection(db, "deputados_federais"));
         if (cancelled) return;
         const data = snap.docs.map((docSnap) => {
@@ -177,7 +185,10 @@ export default function RankingPage() {
             uf: raw.uf || "–",
             gastosCeapTotal: raw.gastosCeapTotal || raw.totalGasto || 0,
           };
-          const ext = lookupRankingOrgExterno(map, base.nome);
+          const idC = raw.idCamara != null ? Number(raw.idCamara) : Number(docSnap.id);
+          const ext =
+            lookupRankingOrgExterno(map, base.nome) ||
+            (Number.isFinite(idC) ? lookupRankingOrgExternoById(mapByIdCamara, idC) : null);
           const m = mergeDeputadoRankingOrg(base, ext);
           return {
             ...m,
@@ -192,7 +203,10 @@ export default function RankingPage() {
           return String(a.nome).localeCompare(String(b.nome), "pt-BR");
         });
         setDeputies(data);
-        if (!cancelled && listCount) setRankingListCount(listCount);
+        if (!cancelled) {
+          setRankingListCount(listCount || 0);
+          setMandatosSeed(mandatosNoSeed || 0);
+        }
       } catch (err) {
         console.error("Ranking — erro Firestore:", err);
       } finally {
@@ -221,6 +235,10 @@ export default function RankingPage() {
     [deputies],
   );
   const semPosicao = deputies.length - comPosicao;
+  const comNota = useMemo(
+    () => deputies.filter((d) => d.nota_ranking_org != null && !d.ranking_org?.semNotaPublicada).length,
+    [deputies],
+  );
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -244,8 +262,8 @@ export default function RankingPage() {
                     ranking.org.br
                   </a>
                   {" "}
-                  ({rankingListCount || "—"} na lista Câmara da fonte · {comPosicao} de {deputies.length || "—"} perfis com posição
-                  {semPosicao > 0 ? ` · ${semPosicao} sem match (nome diferente do ranking.org)` : ""}).{" "}
+                  (Seed: {mandatosSeed || MANDATOS_CAMARA} mandatos · {rankingListCount} com nota no ranking.org · {comNota} perfis com nota após cruzamento
+                  {semPosicao > 0 ? ` · ${semPosicao} sem posição (id/nome)` : ""}).{" "}
                   <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: "#999" }}>
                     Metodologia ↗
                   </a>

@@ -5,6 +5,7 @@ import { db } from "../lib/firebase";
 import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
+  lookupRankingOrgExternoById,
   mergeDeputadoRankingOrg,
   rankingOrgMapToSortedList,
   MANDATOS_CAMARA,
@@ -42,8 +43,9 @@ function RankBall({ rank, total = MANDATOS_CAMARA }) {
 
 // ─── Formata score ─────────────────────────────────────────────────────────
 function fmtScore(val) {
+  if (val == null || val === '') return '—';
   const num = parseFloat(val);
-  if (isNaN(num)) return '–';
+  if (isNaN(num)) return '—';
   return num.toFixed(2);
 }
 
@@ -78,8 +80,12 @@ function DeputadoCard({ dep, totalRanking }) {
           <div style={{ fontSize: 11, color: '#999' }}>{dep.partido || '–'} · {dep.uf || '–'}</div>
         </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color }}>{fmtScore(dep.nota_ranking_org ?? dep.ranking_org?.nota)}</div>
-          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>Nota · Ranking dos Políticos</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color }}>
+            {dep.ranking_org?.semNotaPublicada ? '—' : fmtScore(dep.nota_ranking_org ?? dep.ranking_org?.nota)}
+          </div>
+          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>
+            {dep.ranking_org?.semNotaPublicada ? 'Sem nota na fonte' : 'Nota · Ranking dos Políticos'}
+          </div>
         </div>
       </div>
   );
@@ -105,6 +111,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   const [bottom10, setBottom10] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [rankingListCount, setRankingListCount] = useState(0);
+  const [mandatosNoSeed, setMandatosNoSeed] = useState(MANDATOS_CAMARA);
   const [homeRankingFonte, setHomeRankingFonte] = useState("firestore");
 
   const [authMode,    setAuthMode]    = useState('choose');
@@ -116,8 +123,9 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   useEffect(() => {
     async function fetchRanking() {
       try {
-        const { map, listCount } = await loadRankingOrgExternoMap(db);
+        const { map, mapByIdCamara, listCount, mandatosNoSeed: ms } = await loadRankingOrgExternoMap(db);
         setRankingListCount(listCount || 0);
+        setMandatosNoSeed(ms || MANDATOS_CAMARA);
 
         const fromSeed = rankingOrgMapToSortedList(map).map((ext) =>
           mergeDeputadoRankingOrg(
@@ -135,7 +143,11 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         const snap = await getDocs(col);
         const merged = snap.docs.map((d) => {
           const base = { id: d.id, ...d.data() };
-          const ext = lookupRankingOrgExterno(map, base.nome || base.nomeCompleto);
+          const raw = d.data();
+          const idC = raw.idCamara != null ? Number(raw.idCamara) : Number(d.id);
+          const ext =
+            lookupRankingOrgExterno(map, base.nome || base.nomeCompleto) ||
+            (Number.isFinite(idC) ? lookupRankingOrgExternoById(mapByIdCamara, idC) : null);
           return mergeDeputadoRankingOrg(base, ext);
         });
 
@@ -260,7 +272,8 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       <div style={{ maxWidth: 760, margin: '0 auto 52px', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 14 }}>
         {[
           { n: String(MANDATOS_CAMARA), label: 'Mandatos na Câmara dos Deputados' },
-          ...(rankingListCount > 0 ? [{ n: String(rankingListCount), label: 'Com posição no ranking.org (Câmara)' }] : []),
+          { n: String(mandatosNoSeed), label: 'Deputados no seed (posição + dados Câmara)' },
+          ...(rankingListCount > 0 ? [{ n: String(rankingListCount), label: 'Com nota publicada no ranking.org' }] : []),
           { n: '26',  label: 'Tabelas no banco de dados' },
           { n: '10+', label: 'APIs públicas integradas' },
           { n: 'IA',  label: 'Score e flags automáticos' },
