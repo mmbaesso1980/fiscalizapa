@@ -10,8 +10,12 @@ const SEED_PATH = "/ranking-org-seed.json";
 const RANKING_ORG_PAGE = "https://ranking.org.br/ranking/politicos";
 const RANKING_ORG_CRITERIA = "https://ranking.org.br/criterios-e-metodologia";
 
+/** Cadeiras da Câmara dos Deputados (mandatos), independente do tamanho da lista publicada no ranking.org.br */
+export const MANDATOS_CAMARA = 513;
+
 let cachedMap = null;
 let cachedTotal = 0;
+let cachedListCount = 0;
 let loadPromise = null;
 
 /** Chave alinhada ao load-seed-firestore.js (doc id em ranking_externo). */
@@ -35,7 +39,7 @@ function buildMapFromRecords(records) {
     const nota = Number(r.nota_ranking_org ?? r.score);
     if (!Number.isFinite(rank) || rank <= 0) continue;
     maxRank = Math.max(maxRank, rank);
-    map.set(key, {
+    const row = {
       rank_externo: rank,
       nota_ranking_org: Number.isFinite(nota) ? nota : 0,
       fonte: r.fonte || "ranking.org.br",
@@ -43,9 +47,18 @@ function buildMapFromRecords(records) {
       nome_ranking_org: nome,
       partido: r.partido || "",
       uf: r.uf || "",
-    });
+    };
+    map.set(key, row);
   }
-  return { map, total: maxRank || map.size };
+  const listCount = map.size;
+  const maxPosicao = maxRank || listCount;
+  return {
+    map,
+    /** Maior número de posição presente no JSON (gradiente HSL) */
+    total: maxPosicao,
+    /** Quantidade de linhas distintas na lista da fonte */
+    listCount,
+  };
 }
 
 /**
@@ -53,7 +66,14 @@ function buildMapFromRecords(records) {
  * @param {import('firebase/firestore').Firestore | null} db
  */
 export async function loadRankingOrgExternoMap(db) {
-  if (cachedMap) return { map: cachedMap, total: cachedTotal, sourceUrl: RANKING_ORG_PAGE };
+  if (cachedMap) {
+    return {
+      map: cachedMap,
+      total: cachedTotal,
+      listCount: cachedListCount,
+      sourceUrl: RANKING_ORG_PAGE,
+    };
+  }
 
   if (!loadPromise) {
     loadPromise = (async () => {
@@ -62,10 +82,11 @@ export async function loadRankingOrgExternoMap(db) {
         const res = await fetch(SEED_PATH, { cache: "no-store" });
         if (res.ok) {
           const records = await res.json();
-          const { map, total } = buildMapFromRecords(records);
+          const { map, total, listCount } = buildMapFromRecords(records);
           if (map.size > 0) {
             cachedMap = map;
             cachedTotal = total;
+            cachedListCount = listCount;
             return;
           }
         }
@@ -79,10 +100,11 @@ export async function loadRankingOrgExternoMap(db) {
           const snap = await getDocs(collection(db, "ranking_externo"));
           if (!snap.empty) {
             const rows = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
-            const { map, total } = buildMapFromRecords(rows);
+            const { map, total, listCount } = buildMapFromRecords(rows);
             if (map.size > 0) {
               cachedMap = map;
               cachedTotal = total;
+              cachedListCount = listCount;
               return;
             }
           }
@@ -96,12 +118,46 @@ export async function loadRankingOrgExternoMap(db) {
   }
 
   await loadPromise;
-  return { map: cachedMap, total: cachedTotal, sourceUrl: RANKING_ORG_PAGE };
+  return {
+    map: cachedMap,
+    total: cachedTotal,
+    listCount: cachedListCount,
+    sourceUrl: RANKING_ORG_PAGE,
+  };
+}
+
+function stripTratamentoNome(nome) {
+  return String(nome || "")
+    .replace(/^(dep\.|deputad[oa]|dr\.?|dra\.?|prof\.?|eng\.?)\s+/gi, "")
+    .trim();
+}
+
+/** Variações de chave para cruzar nome do Firestore com o nome no ranking.org.br */
+function nomeKeysForLookup(nome) {
+  const keys = [];
+  const raw = String(nome || "").trim();
+  if (!raw) return keys;
+  const add = (s) => {
+    const k = normalizeNomeRankingKey(s);
+    if (k && !keys.includes(k)) keys.push(k);
+  };
+  add(raw);
+  const semTrat = stripTratamentoNome(raw);
+  if (semTrat && semTrat !== raw) add(semTrat);
+  const parts = semTrat.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    add(`${parts[0]} ${parts[parts.length - 1]}`);
+  }
+  return keys;
 }
 
 export function lookupRankingOrgExterno(map, nome) {
   if (!map || !nome) return null;
-  return map.get(normalizeNomeRankingKey(nome)) ?? null;
+  for (const k of nomeKeysForLookup(nome)) {
+    const hit = map.get(k);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 /** Lista ordenada por posição (para fallback quando não há cruzamento com deputados_federais). */

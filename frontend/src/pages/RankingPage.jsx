@@ -14,6 +14,7 @@ import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
   mergeDeputadoRankingOrg,
+  MANDATOS_CAMARA,
   RANKING_ORG_PAGE,
   RANKING_ORG_CRITERIA,
 } from "../utils/rankingOrg";
@@ -53,12 +54,15 @@ function RowSkeleton() {
 
 // ─── Card de deputado ─────────────────────────────────────────────────────────
 function DeputadoRow({ dep, total }) {
-  const rankNum = dep.rank_externo != null ? dep.rank_externo : Math.min(total, Math.floor(total * 0.85));
-  const color      = getRiskColor(rankNum, total);
-  const colorAlpha = getRiskColorAlpha(rankNum, total, 0.08);
-  const colorDark  = getRiskColorDark(rankNum, total);
-  const { label }  = getRiskLabel(rankNum, total);
-  const rankLabel  = dep.rank_externo != null ? String(dep.rank_externo) : "–";
+  const semMatch = dep.rank_externo == null;
+  const rankNum = semMatch ? Math.round((MANDATOS_CAMARA + 1) / 2) : dep.rank_externo;
+  const color      = semMatch ? "#9ca3af" : getRiskColor(rankNum, total);
+  const colorAlpha = semMatch ? "rgba(243,244,246,0.95)" : getRiskColorAlpha(rankNum, total, 0.08);
+  const colorDark  = semMatch ? "#6b7280" : getRiskColorDark(rankNum, total);
+  const { label }  = semMatch
+    ? { label: "Sem posição na fonte", level: "mid" }
+    : getRiskLabel(rankNum, total);
+  const rankLabel  = semMatch ? "s/n" : String(dep.rank_externo);
 
   return (
     <Link
@@ -72,7 +76,7 @@ function DeputadoRow({ dep, total }) {
                    hover:-translate-x-0.5 hover:shadow-md"
         style={{
           background: colorAlpha,
-          border: `1px solid ${color}28`,
+          border: semMatch ? "1px solid #e5e7eb" : `1px solid ${color}28`,
         }}
         onMouseEnter={e => {
           e.currentTarget.style.boxShadow = `0 4px 20px ${color}28`;
@@ -113,11 +117,11 @@ function DeputadoRow({ dep, total }) {
             className="text-base font-bold tabular-nums"
             style={{ color }}
           >
-            {fmtScore(dep.nota_ranking_org)}
+            {semMatch ? "—" : fmtScore(dep.nota_ranking_org)}
           </span>
           <span
             className="block text-[9px] font-semibold px-2 py-0.5 rounded-full mt-0.5 whitespace-nowrap"
-            style={{ background: `${color}18`, color }}
+            style={{ background: semMatch ? "#f3f4f6" : `${color}18`, color: semMatch ? "#6b7280" : color }}
           >
             {label}
           </span>
@@ -155,13 +159,13 @@ export default function RankingPage() {
   const [search,     setSearch]     = useState("");
   const [filterUF,   setFilterUF]   = useState("");
   const [filterPart, setFilterPart] = useState("");
-  const [externalTotal, setExternalTotal] = useState(0);
+  const [rankingListCount, setRankingListCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchAll() {
       try {
-        const { map, total: extTotal } = await loadRankingOrgExternoMap(db);
+        const { map, listCount } = await loadRankingOrgExternoMap(db);
         const snap = await getDocs(collection(db, "deputados_federais"));
         if (cancelled) return;
         const data = snap.docs.map((docSnap) => {
@@ -188,7 +192,7 @@ export default function RankingPage() {
           return String(a.nome).localeCompare(String(b.nome), "pt-BR");
         });
         setDeputies(data);
-        if (!cancelled && extTotal) setExternalTotal(extTotal);
+        if (!cancelled && listCount) setRankingListCount(listCount);
       } catch (err) {
         console.error("Ranking — erro Firestore:", err);
       } finally {
@@ -211,11 +215,12 @@ export default function RankingPage() {
     );
   }), [deputies, search, filterUF, filterPart]);
 
-  const colorTotal = externalTotal || deputies.length || 513;
+  const colorTotal = MANDATOS_CAMARA;
   const comPosicao = useMemo(
     () => deputies.filter((d) => d.rank_externo != null).length,
     [deputies],
   );
+  const semPosicao = deputies.length - comPosicao;
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -238,7 +243,9 @@ export default function RankingPage() {
                   <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: "#666", fontWeight: 600 }}>
                     ranking.org.br
                   </a>
-                  {" "}({colorTotal} na lista oficial · {comPosicao} cruzados com perfis locais).{" "}
+                  {" "}
+                  ({rankingListCount || "—"} na lista Câmara da fonte · {comPosicao} de {deputies.length || "—"} perfis com posição
+                  {semPosicao > 0 ? ` · ${semPosicao} sem match (nome diferente do ranking.org)` : ""}).{" "}
                   <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: "#999" }}>
                     Metodologia ↗
                   </a>

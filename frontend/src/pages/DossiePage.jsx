@@ -28,6 +28,7 @@ import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
   mergeDeputadoRankingOrg,
+  MANDATOS_CAMARA,
 } from "../utils/rankingOrg";
 import { useAuth }       from "../hooks/useAuth";
 import { getRiskColor, getRiskColorAlpha, getRiskLabel } from "../utils/colorUtils";
@@ -534,7 +535,7 @@ function OracleLaboratory({ politico, alertas, rank, rankTotal, fullUnlocked, pd
   const rank1 = politico?.rank_externo != null
     ? Number(politico.rank_externo)
     : (typeof rank === "number" && rank >= 0 ? rank + 1 : 256);
-  const total = rankTotal || 513;
+  const total = rankTotal || MANDATOS_CAMARA;
   const riskColor = getRiskColor(rank1, total);
   const riskAlpha = getRiskColorAlpha(rank1, total, 0.08);
   const { label } = getRiskLabel(rank1, total);
@@ -845,7 +846,7 @@ function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Al
   const rank1 = politico?.rank_externo != null
     ? Number(politico.rank_externo)
     : (typeof rank === "number" && rank >= 0 ? rank + 1 : 256);
-  const total = rankTotal || 513;
+  const total = rankTotal || MANDATOS_CAMARA;
   const riskColor = getRiskColor(rank1, total);
   const { label } = getRiskLabel(rank1, total);
 
@@ -1089,7 +1090,7 @@ export default function DossiePage() {
   const [politico,       setPolitico      ] = useState(null);
   const [alertas,        setAlertas       ] = useState([]);
   const [rank,           setRank          ] = useState(null);
-  const [rankTotal,      setRankTotal     ] = useState(513);
+  const [rankTotal,      setRankTotal     ] = useState(MANDATOS_CAMARA);
   const [dataLoading,    setDataLoading   ] = useState(true);
   const [fullUnlocked,   setFullUnlocked  ] = useState(false);
   const [basicUnlocked,  setBasicUnlocked ] = useState(false);
@@ -1163,8 +1164,8 @@ export default function DossiePage() {
         if (!snap.exists()) { setNotFound(true); return; }
         let pol = { id: snap.id, ...snap.data() };
         try {
-          const { map, total } = await loadRankingOrgExternoMap(db);
-          if (!cancelled && total) setRankTotal(total);
+          const { map } = await loadRankingOrgExternoMap(db);
+          if (!cancelled) setRankTotal(MANDATOS_CAMARA);
           const ext = lookupRankingOrgExterno(map, pol.nome || pol.nomeCompleto);
           pol = mergeDeputadoRankingOrg(pol, ext);
         } catch {/* ranking externo opcional */}

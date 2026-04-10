@@ -7,12 +7,13 @@ import {
   lookupRankingOrgExterno,
   mergeDeputadoRankingOrg,
   rankingOrgMapToSortedList,
+  MANDATOS_CAMARA,
   RANKING_ORG_PAGE,
   RANKING_ORG_CRITERIA,
 } from "../utils/rankingOrg";
 
 // ─── Cor da bolinha: verde (#2E7F18) → vermelho (#C82538) ─────────────────────
-function getRankColor(rank, total = 513) {
+function getRankColor(rank, total = MANDATOS_CAMARA) {
   const pct = Math.min(Math.max((rank - 1) / (total - 1), 0), 1);
   const r = Math.round(46  + pct * (200 - 46));
   const g = Math.round(127 - pct * (127 - 37));
@@ -21,7 +22,7 @@ function getRankColor(rank, total = 513) {
 }
 
 // ─── Bolinha com gradiente radial 3D premium ──────────────────────────────────
-function RankBall({ rank, total = 513 }) {
+function RankBall({ rank, total = MANDATOS_CAMARA }) {
   const color = getRankColor(rank, total);
   const [r, g, b] = color.match(/\d+/g).map(Number);
   const borderColor = `rgb(${Math.round(r*0.78)},${Math.round(g*0.78)},${Math.round(b*0.78)})`;
@@ -48,7 +49,7 @@ function fmtScore(val) {
 
 // ─── Card de linha do ranking ─────────────────────────────────────────────────
 function DeputadoCard({ dep, totalRanking }) {
-  const total = totalRanking || 513;
+  const total = totalRanking || MANDATOS_CAMARA;
   const color = getRankColor(dep.rank_externo || dep.rank || 1, total);
   const soft  = color.replace('rgb', 'rgba').replace(')', ',0.08)');
   const nome  = dep.nome || dep.nomeCompleto || '–';
@@ -103,7 +104,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   const [top10,    setTop10]    = useState([]);
   const [bottom10, setBottom10] = useState([]);
   const [loading,  setLoading]  = useState(true);
-  const [rankingTotal, setRankingTotal] = useState(513);
+  const [rankingListCount, setRankingListCount] = useState(0);
   const [homeRankingFonte, setHomeRankingFonte] = useState("firestore");
 
   const [authMode,    setAuthMode]    = useState('choose');
@@ -115,8 +116,8 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   useEffect(() => {
     async function fetchRanking() {
       try {
-        const { map, total } = await loadRankingOrgExternoMap(db);
-        setRankingTotal(total || 513);
+        const { map, listCount } = await loadRankingOrgExternoMap(db);
+        setRankingListCount(listCount || 0);
 
         const fromSeed = rankingOrgMapToSortedList(map).map((ext) =>
           mergeDeputadoRankingOrg(
@@ -158,6 +159,8 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
     fetchRanking();
   }, []);
 
+  const gradientTotal = MANDATOS_CAMARA;
+
   const handleEmailSubmit = async (e) => {
     e.preventDefault(); setAuthError(''); setAuthLoading(true);
     try {
@@ -179,11 +182,15 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         <h1 style={{ fontSize: 'clamp(28px,5vw,50px)', fontWeight: 700, color: '#2D2D2D', lineHeight: 1.1, marginBottom: 16, letterSpacing: '-1px' }}>
           Cada real gasto por <br />
           <span style={{ background: 'linear-gradient(90deg,#FBD87F,#F7B98B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            {rankingTotal} deputados federais
+            {MANDATOS_CAMARA} deputados federais
           </span>
           <br />
           <span style={{ fontSize: 'clamp(14px,2.8vw,20px)', fontWeight: 600, color: '#666', letterSpacing: 0 }}>
-            na lista Câmara do Ranking dos Políticos
+            na Câmara · posição no{' '}
+            <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: '#444', textDecoration: 'underline' }}>
+              Ranking dos Políticos
+            </a>
+            {rankingListCount > 0 ? ` (${rankingListCount} com nota publicada)` : ''}
           </span>
         </h1>
         <p style={{ fontSize: 15, color: '#666', maxWidth: 500, margin: '0 auto 28px', lineHeight: 1.7 }}>
@@ -206,7 +213,8 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           <span style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic', lineHeight: 1.5, textAlign: 'right', maxWidth: 320 }}>
             Posição e nota conforme{' '}
             <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: '#666', fontWeight: 600 }}>ranking.org.br</a>
-            {' '}(atualização do ranking na fonte).{' '}
+            {rankingListCount > 0 ? ` · ${rankingListCount} deputados na lista Câmara da fonte` : ''}
+            {' '}· escala de cores vs. {MANDATOS_CAMARA} mandatos.{' '}
             <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: '#666' }}>Metodologia ↗</a>
           </span>
         </div>
@@ -227,7 +235,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
                 <span style={{ fontSize: 18 }}>🏆</span>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: '#2E7F18' }}>Top 10 — Mais transparentes</h3>
               </div>
-              {top10.map(dep => <DeputadoCard key={dep.id} dep={dep} totalRanking={rankingTotal} />)}
+              {top10.map(dep => <DeputadoCard key={dep.id} dep={dep} totalRanking={gradientTotal} />)}
               <Link to="/ranking" style={{ display: 'block', textAlign: 'center', marginTop: 12, fontSize: 13, color: '#AAA', textDecoration: 'none', fontWeight: 500 }}>
                 Ver lista completa →
               </Link>
@@ -239,7 +247,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
                 <span style={{ fontSize: 18 }}>⚠️</span>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: '#C82538' }}>Bottom 10 — Maior risco</h3>
               </div>
-              {bottom10.map(dep => <DeputadoCard key={dep.id} dep={dep} totalRanking={rankingTotal} />)}
+              {bottom10.map(dep => <DeputadoCard key={dep.id} dep={dep} totalRanking={gradientTotal} />)}
               <Link to="/ranking" style={{ display: 'block', textAlign: 'center', marginTop: 12, fontSize: 13, color: '#AAA', textDecoration: 'none', fontWeight: 500 }}>
                 Ver ranking completo →
               </Link>
@@ -251,7 +259,8 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       {/* STATS — abaixo do ranking para não interromper o fluxo principal */}
       <div style={{ maxWidth: 760, margin: '0 auto 52px', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 14 }}>
         {[
-          { n: String(rankingTotal), label: 'Posições no ranking Câmara (fonte)' },
+          { n: String(MANDATOS_CAMARA), label: 'Mandatos na Câmara dos Deputados' },
+          ...(rankingListCount > 0 ? [{ n: String(rankingListCount), label: 'Com posição no ranking.org (Câmara)' }] : []),
           { n: '26',  label: 'Tabelas no banco de dados' },
           { n: '10+', label: 'APIs públicas integradas' },
           { n: 'IA',  label: 'Score e flags automáticos' },
