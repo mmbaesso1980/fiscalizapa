@@ -6,6 +6,7 @@ import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
   mergeDeputadoRankingOrg,
+  rankingOrgMapToSortedList,
   RANKING_ORG_PAGE,
   RANKING_ORG_CRITERIA,
 } from "../utils/rankingOrg";
@@ -51,8 +52,12 @@ function DeputadoCard({ dep, totalRanking }) {
   const color = getRankColor(dep.rank_externo || dep.rank || 1, total);
   const soft  = color.replace('rgb', 'rgba').replace(')', ',0.08)');
   const nome  = dep.nome || dep.nomeCompleto || '–';
-  return (
-    <Link to={`/politico/deputados_federais/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+  const isSeedOnly = String(dep.id || '').startsWith('seed-');
+  const extUrl = dep.ranking_org?.perfilPath
+    ? `https://ranking.org.br${dep.ranking_org.perfilPath}`
+    : RANKING_ORG_PAGE;
+
+  const inner = (
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 12,
@@ -76,6 +81,19 @@ function DeputadoCard({ dep, totalRanking }) {
           <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>Nota · Ranking dos Políticos</div>
         </div>
       </div>
+  );
+
+  if (isSeedOnly) {
+    return (
+      <a href={extUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
+        {inner}
+      </a>
+    );
+  }
+
+  return (
+    <Link to={`/politico/deputados_federais/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+      {inner}
     </Link>
   );
 }
@@ -86,6 +104,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   const [bottom10, setBottom10] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [rankingTotal, setRankingTotal] = useState(513);
+  const [homeRankingFonte, setHomeRankingFonte] = useState("firestore");
 
   const [authMode,    setAuthMode]    = useState('choose');
   const [email,       setEmail]       = useState('');
@@ -99,6 +118,18 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         const { map, total } = await loadRankingOrgExternoMap(db);
         setRankingTotal(total || 513);
 
+        const fromSeed = rankingOrgMapToSortedList(map).map((ext) =>
+          mergeDeputadoRankingOrg(
+            {
+              id: `seed-${ext.rank_externo}`,
+              nome: ext.nome_ranking_org,
+              partido: ext.partido,
+              uf: ext.uf,
+            },
+            ext,
+          ),
+        );
+
         const col = collection(db, "deputados_federais");
         const snap = await getDocs(col);
         const merged = snap.docs.map((d) => {
@@ -110,8 +141,11 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         const comRank = merged.filter((p) => p.rank_externo != null);
         comRank.sort((a, b) => a.rank_externo - b.rank_externo);
 
-        const top = comRank.slice(0, 10);
-        const bottom = comRank.length >= 10 ? comRank.slice(-10).reverse() : comRank.slice().reverse().slice(0, 10);
+        const useFirestore = comRank.length >= 10;
+        setHomeRankingFonte(useFirestore ? "firestore" : "seed");
+        const source = useFirestore ? comRank : fromSeed;
+        const top = source.slice(0, 10);
+        const bottom = source.length >= 10 ? source.slice(-10).reverse() : source.slice().reverse().slice(0, 10);
 
         setTop10(top);
         setBottom10(bottom);
@@ -145,8 +179,12 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         <h1 style={{ fontSize: 'clamp(28px,5vw,50px)', fontWeight: 700, color: '#2D2D2D', lineHeight: 1.1, marginBottom: 16, letterSpacing: '-1px' }}>
           Cada real gasto por <br />
           <span style={{ background: 'linear-gradient(90deg,#FBD87F,#F7B98B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            513 deputados
-          </span>{' '}em foco
+            {rankingTotal} deputados federais
+          </span>
+          <br />
+          <span style={{ fontSize: 'clamp(14px,2.8vw,20px)', fontWeight: 600, color: '#666', letterSpacing: 0 }}>
+            na lista Câmara do Ranking dos Políticos
+          </span>
         </h1>
         <p style={{ fontSize: 15, color: '#666', maxWidth: 500, margin: '0 auto 28px', lineHeight: 1.7 }}>
           Análise de CEAP, emendas e atividade parlamentar. Flags de risco, dossiês e relatórios prontos.
@@ -172,6 +210,12 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
             <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: '#666' }}>Metodologia ↗</a>
           </span>
         </div>
+
+        {!loading && homeRankingFonte === "seed" && (
+          <p style={{ fontSize: 12, color: '#888', marginBottom: 16, lineHeight: 1.5 }}>
+            Exibindo a lista oficial do seed (nomes da Câmara). Poucos perfis locais cruzaram com o Firestore — os cards abrem o perfil em ranking.org.br.
+          </p>
+        )}
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '48px', color: '#AAA', fontSize: 14 }}>Carregando ranking...</div>
@@ -207,7 +251,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       {/* STATS — abaixo do ranking para não interromper o fluxo principal */}
       <div style={{ maxWidth: 760, margin: '0 auto 52px', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 14 }}>
         {[
-          { n: '513', label: 'Deputados federais monitorados' },
+          { n: String(rankingTotal), label: 'Posições no ranking Câmara (fonte)' },
           { n: '26',  label: 'Tabelas no banco de dados' },
           { n: '10+', label: 'APIs públicas integradas' },
           { n: 'IA',  label: 'Score e flags automáticos' },

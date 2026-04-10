@@ -41,6 +41,8 @@ function buildMapFromRecords(records) {
       fonte: r.fonte || "ranking.org.br",
       slug_ranking_org: r.slug_ranking_org || "",
       nome_ranking_org: nome,
+      partido: r.partido || "",
+      uf: r.uf || "",
     });
   }
   return { map, total: maxRank || map.size };
@@ -55,6 +57,23 @@ export async function loadRankingOrgExternoMap(db) {
 
   if (!loadPromise) {
     loadPromise = (async () => {
+      // 1) JSON versionado no deploy — evita Firestore antigo sobrescrever o seed atual
+      try {
+        const res = await fetch(SEED_PATH, { cache: "no-store" });
+        if (res.ok) {
+          const records = await res.json();
+          const { map, total } = buildMapFromRecords(records);
+          if (map.size > 0) {
+            cachedMap = map;
+            cachedTotal = total;
+            return;
+          }
+        }
+      } catch {
+        /* rede / arquivo ausente em dev */
+      }
+
+      // 2) Firestore (ingestão manual ou pipeline)
       if (db) {
         try {
           const snap = await getDocs(collection(db, "ranking_externo"));
@@ -72,12 +91,7 @@ export async function loadRankingOrgExternoMap(db) {
         }
       }
 
-      const res = await fetch(SEED_PATH, { cache: "no-store" });
-      if (!res.ok) throw new Error(`Seed ranking: HTTP ${res.status}`);
-      const records = await res.json();
-      const { map, total } = buildMapFromRecords(records);
-      cachedMap = map;
-      cachedTotal = total;
+      throw new Error("Ranking externo: seed e Firestore indisponíveis ou vazios");
     })();
   }
 
@@ -88,6 +102,12 @@ export async function loadRankingOrgExternoMap(db) {
 export function lookupRankingOrgExterno(map, nome) {
   if (!map || !nome) return null;
   return map.get(normalizeNomeRankingKey(nome)) ?? null;
+}
+
+/** Lista ordenada por posição (para fallback quando não há cruzamento com deputados_federais). */
+export function rankingOrgMapToSortedList(map) {
+  if (!map || map.size === 0) return [];
+  return [...map.values()].sort((a, b) => a.rank_externo - b.rank_externo);
 }
 
 export function mergeDeputadoRankingOrg(base, externo) {
