@@ -15,6 +15,13 @@ import NepotismoCard from "../components/NepotismoCard";
 import VerbaGabineteSection from "../components/VerbaGabineteSection";
 import EncaminhamentoEmendas from "../components/EncaminhamentoEmendas";
 import { parseCamaraValorReais } from "../utils/moneyCamara";
+import {
+  loadRankingOrgExternoMap,
+  lookupRankingOrgExterno,
+  mergeDeputadoRankingOrg,
+  RANKING_ORG_PAGE,
+  RANKING_ORG_CRITERIA,
+} from "../utils/rankingOrg";
 
 function fmtMoney(value) {
   const n = parseCamaraValorReais(value ?? 0);
@@ -121,7 +128,12 @@ export default function PoliticoPage() {
         }
 
         const data = snap.data();
-        const politico = { id: snap.id, ...data };
+        let politico = { id: snap.id, ...data };
+        try {
+          const { map } = await loadRankingOrgExternoMap(db);
+          const ext = lookupRankingOrgExterno(map, politico.nome || politico.nomeCompleto);
+          politico = mergeDeputadoRankingOrg(politico, ext);
+        } catch {/* seed / Firestore opcional */}
         if (isMounted) setPol(politico);
 
         const nomeDoPolitico = data?.nome || "";
@@ -246,19 +258,39 @@ export default function PoliticoPage() {
                           textDecoration: "none", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                 🔗 Fonte Oficial ↗
               </a>
-              {pol.score != null && (
-                <span style={{
-                  fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
-                  background: "#FBF7E8", color: "#92400E", border: "1px solid #F0E4A0",
-                  letterSpacing: "0.06em", textTransform: "uppercase",
-                }}>
-                  Score {parseFloat(pol.score ?? pol.indice_transparenciabr ?? 0).toFixed(1)}
-                </span>
+              {pol.ranking_org && (
+                <a
+                  href={`https://ranking.org.br${pol.ranking_org.perfilPath || ""}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
+                    background: "#FBF7E8", color: "#92400E", border: "1px solid #F0E4A0",
+                    letterSpacing: "0.06em", textTransform: "uppercase",
+                    textDecoration: "none",
+                  }}
+                >
+                  Ranking.org #{pol.ranking_org.posicao} · nota {Number(pol.ranking_org.nota).toFixed(2)} ↗
+                </a>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {pol.ranking_org && (
+        <div className="max-w-6xl mx-auto px-6 mb-4">
+          <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 16px", fontSize: 11, color: "#166534", lineHeight: 1.6 }}>
+            <strong>Posição e nota</strong> conforme o{" "}
+            <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", fontWeight: 700 }}>Ranking dos Políticos</a>
+            {" "}(Câmara).{" "}
+            <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", textDecoration: "underline" }}>Critérios e metodologia ↗</a>
+            {pol.score != null && (
+              <> · Índice TransparenciaBR (plataforma): <strong>{parseFloat(pol.score).toFixed(1)}</strong></>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Disclaimer IA */}
       <div className="max-w-6xl mx-auto px-6 mb-4">

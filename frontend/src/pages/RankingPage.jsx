@@ -1,15 +1,22 @@
 /**
  * RankingPage.jsx — Ranking de Transparência Parlamentar
  *
- * Dados reais: Firestore (deputados_federais, ordenado por score desc).
+ * Posição e nota: Ranking dos Políticos (ranking.org.br), cruzados com deputados_federais.
  * Cores: getRiskColor() de colorUtils.js — transição HSL verde→vermelho.
  * Preparado para 513 deputados federais.
  */
 
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { collection, query, orderBy, getDocs } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import {
+  loadRankingOrgExternoMap,
+  lookupRankingOrgExterno,
+  mergeDeputadoRankingOrg,
+  RANKING_ORG_PAGE,
+  RANKING_ORG_CRITERIA,
+} from "../utils/rankingOrg";
 import {
   getRiskColor,
   getRiskColorAlpha,
@@ -46,10 +53,12 @@ function RowSkeleton() {
 
 // ─── Card de deputado ─────────────────────────────────────────────────────────
 function DeputadoRow({ dep, total }) {
-  const color      = getRiskColor(dep.rank, total);
-  const colorAlpha = getRiskColorAlpha(dep.rank, total, 0.08);
-  const colorDark  = getRiskColorDark(dep.rank, total);
-  const { label }  = getRiskLabel(dep.rank, total);
+  const rankNum = dep.rank_externo != null ? dep.rank_externo : Math.min(total, Math.floor(total * 0.85));
+  const color      = getRiskColor(rankNum, total);
+  const colorAlpha = getRiskColorAlpha(rankNum, total, 0.08);
+  const colorDark  = getRiskColorDark(rankNum, total);
+  const { label }  = getRiskLabel(rankNum, total);
+  const rankLabel  = dep.rank_externo != null ? String(dep.rank_externo) : "–";
 
   return (
     <Link
@@ -82,7 +91,7 @@ function DeputadoRow({ dep, total }) {
             boxShadow: `0 3px 10px ${color}55, inset 0 1px 2px rgba(255,255,255,0.3)`,
           }}
         >
-          {dep.rank}
+          {rankLabel}
         </span>
 
         {/* Nome + partido/UF */}
@@ -98,13 +107,13 @@ function DeputadoRow({ dep, total }) {
           </p>
         </div>
 
-        {/* Score */}
+        {/* Nota ranking.org */}
         <div className="text-right shrink-0">
           <span
             className="text-base font-bold tabular-nums"
             style={{ color }}
           >
-            {fmtScore(dep.score)}
+            {fmtScore(dep.nota_ranking_org)}
           </span>
           <span
             className="block text-[9px] font-semibold px-2 py-0.5 rounded-full mt-0.5 whitespace-nowrap"
@@ -146,24 +155,40 @@ export default function RankingPage() {
   const [search,     setSearch]     = useState("");
   const [filterUF,   setFilterUF]   = useState("");
   const [filterPart, setFilterPart] = useState("");
+  const [externalTotal, setExternalTotal] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchAll() {
       try {
-        const q    = query(collection(db, "deputados_federais"), orderBy("score", "desc"));
-        const snap = await getDocs(q);
+        const { map, total: extTotal } = await loadRankingOrgExternoMap(db);
+        const snap = await getDocs(collection(db, "deputados_federais"));
         if (cancelled) return;
-        const data = snap.docs.map((doc, i) => ({
-          id:               doc.id,
-          rank:             i + 1,
-          nome:             doc.data().nome || doc.data().nomeCompleto || doc.id,
-          partido:          doc.data().partido || "–",
-          uf:               doc.data().uf || "–",
-          score:            parseFloat(doc.data().score ?? doc.data().indice_transparenciabr ?? 0),
-          gastosCeapTotal:  doc.data().gastosCeapTotal || doc.data().totalGasto || 0,
-        }));
+        const data = snap.docs.map((docSnap) => {
+          const raw = docSnap.data();
+          const base = {
+            id: docSnap.id,
+            nome: raw.nome || raw.nomeCompleto || docSnap.id,
+            partido: raw.partido || "–",
+            uf: raw.uf || "–",
+            gastosCeapTotal: raw.gastosCeapTotal || raw.totalGasto || 0,
+          };
+          const ext = lookupRankingOrgExterno(map, base.nome);
+          const m = mergeDeputadoRankingOrg(base, ext);
+          return {
+            ...m,
+            rank: m.rank_externo ?? 9999,
+            nota_ranking_org: m.nota_ranking_org ?? 0,
+          };
+        });
+        data.sort((a, b) => {
+          const ra = a.rank_externo ?? 9999;
+          const rb = b.rank_externo ?? 9999;
+          if (ra !== rb) return ra - rb;
+          return String(a.nome).localeCompare(String(b.nome), "pt-BR");
+        });
         setDeputies(data);
+        if (!cancelled && extTotal) setExternalTotal(extTotal);
       } catch (err) {
         console.error("Ranking — erro Firestore:", err);
       } finally {
@@ -186,7 +211,11 @@ export default function RankingPage() {
     );
   }), [deputies, search, filterUF, filterPart]);
 
-  const total = deputies.length || 513;
+  const colorTotal = externalTotal || deputies.length || 513;
+  const comPosicao = useMemo(
+    () => deputies.filter((d) => d.rank_externo != null).length,
+    [deputies],
+  );
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -198,12 +227,23 @@ export default function RankingPage() {
             fontSize: 26, fontWeight: 700, color: "#2D2D2D",
             fontFamily: "'Space Grotesk', sans-serif", marginBottom: 6,
           }}>
-            Ranking de Transparência Parlamentar
+            Ranking dos Políticos (Câmara)
           </h1>
-          <p style={{ fontSize: 13, color: "#999" }}>
+          <p style={{ fontSize: 13, color: "#999", lineHeight: 1.6 }}>
             {loading
               ? "Carregando…"
-              : `${total} deputados federais · Índice TransparenciaBR · dados públicos da Câmara`}
+              : (
+                <>
+                  Posição e nota conforme{" "}
+                  <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: "#666", fontWeight: 600 }}>
+                    ranking.org.br
+                  </a>
+                  {" "}({colorTotal} na lista oficial · {comPosicao} cruzados com perfis locais).{" "}
+                  <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: "#999" }}>
+                    Metodologia ↗
+                  </a>
+                </>
+              )}
           </p>
 
           {/* Barra de gradiente decorativa */}
@@ -243,7 +283,7 @@ export default function RankingPage() {
           {loading
             ? Array.from({ length: 12 }).map((_, i) => <RowSkeleton key={i} />)
             : filtered.map(dep => (
-                <DeputadoRow key={dep.id} dep={dep} total={total} />
+                <DeputadoRow key={dep.id} dep={dep} total={colorTotal} />
               ))}
         </div>
 
@@ -257,7 +297,7 @@ export default function RankingPage() {
         {/* Rodapé */}
         {!loading && deputies.length > 0 && (
           <p style={{ marginTop: 20, fontSize: 11, color: "#CCC", textAlign: "center" }}>
-            {filtered.length} de {total} · verde = mais transparente · vermelho = maior risco
+            {filtered.length} de {deputies.length} · verde = melhor posição no ranking · vermelho = pior posição
           </p>
         )}
       </div>
