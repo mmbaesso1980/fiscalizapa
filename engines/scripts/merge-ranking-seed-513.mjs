@@ -29,14 +29,28 @@ function normalizeNome(nome) {
     .toUpperCase();
 }
 
+async function fetchWithRetry(url, tries = 5) {
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(45000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res;
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, 2000 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function fetchAllDeputados() {
   const all = [];
   let pagina = 1;
   const itens = 100;
   for (;;) {
     const url = `${CAMARA_BASE}?pagina=${pagina}&itens=${itens}&ordem=ASC&ordenarPor=nome&idLegislatura=57`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Câmara API ${res.status}: ${url}`);
+    const res = await fetchWithRetry(url);
     const j = await res.json();
     const dados = j.dados || [];
     all.push(...dados);
@@ -106,8 +120,8 @@ function main() {
 
     async function resolveIdBySearch(nome) {
       const url = `${CAMARA_BASE}?nome=${encodeURIComponent(nome)}&itens=20&idLegislatura=57`;
-      const res = await fetch(url);
-      if (!res.ok) return null;
+      const res = await fetchWithRetry(url, 3).catch(() => null);
+      if (!res || !res.ok) return null;
       const j = await res.json();
       const dados = j.dados || [];
       const want = normalizeNome(nome);
