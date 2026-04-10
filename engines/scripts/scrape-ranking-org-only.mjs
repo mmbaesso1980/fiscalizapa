@@ -40,7 +40,7 @@ async function scrape() {
   await page.waitForLoadState("networkidle").catch(() => {});
 
   const maxPage = await page.evaluate(() => {
-    const nums = [...document.querySelectorAll("button")]
+    const nums = [...document.querySelectorAll('button[class*="page_button"]')]
       .map((b) => parseInt(String(b.textContent || "").trim(), 10))
       .filter((n) => n > 0 && n < 1000);
     return nums.length ? Math.max(...nums) : 1;
@@ -48,12 +48,30 @@ async function scrape() {
   console.log(`Pages: ${maxPage}`);
 
   const byRank = new Map();
+  let prevSnapshot = "";
+
+  async function readFirstRowSnapshot() {
+    return page.evaluate(() => {
+      const a = document.querySelector('a[class*="table_body"]');
+      if (!a) return "";
+      const pos = a.querySelector('[class*="placement"] p')?.textContent?.trim() || "";
+      const nome = a.querySelector('[class*="name"]')?.textContent?.trim() || "";
+      return `${pos}|${nome}`;
+    });
+  }
 
   for (let p = 1; p <= maxPage; p++) {
     if (p > 1) {
-      await page.getByRole("button", { name: String(p), exact: true }).click();
+      const btn = page.locator('button[class*="page_button"]').filter({ hasText: new RegExp(`^${p}$`) }).first();
+      await btn.scrollIntoViewIfNeeded();
+      await btn.click();
       await sleep(PAGE_WAIT_MS);
       await page.waitForLoadState("networkidle").catch(() => {});
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const snap = await readFirstRowSnapshot();
+        if (snap && snap !== prevSnapshot) break;
+        await sleep(400);
+      }
     }
 
     const rows = await page.evaluate(() => {
@@ -88,6 +106,7 @@ async function scrape() {
         slug_ranking_org: r.href.replace(/^\//, "").split("?")[0] || "",
       });
     }
+    prevSnapshot = await readFirstRowSnapshot();
     console.log(`  page ${p}/${maxPage} → ${rows.length} rows, unique ranks ${byRank.size}`);
   }
 
