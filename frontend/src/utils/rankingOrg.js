@@ -201,8 +201,21 @@ export function mergeDeputadoRankingOrg(base, externo) {
   if (!externo) return { ...base, ranking_org: null };
   const path = externo.slug_ranking_org ? `/${externo.slug_ranking_org}` : "";
   const semNota = externo.nota_ranking_org == null || externo.nota_ranking_org_ausente;
+  const nomeSeed = externo.nome_ranking_org?.trim();
+  const nomeBase = String(base.nome || "").trim();
+  const nomeCompBase = String(base.nomeCompleto || "").trim();
+  const missing = (v) => {
+    const s = String(v ?? "").trim();
+    return !s || s === "–" || s === "-" || s === "—";
+  };
   return {
     ...base,
+    nome: !missing(nomeBase) ? nomeBase : (nomeSeed || base.nome),
+    nomeCompleto: !missing(nomeCompBase)
+      ? nomeCompBase
+      : (nomeSeed || (!missing(nomeBase) ? nomeBase : base.nomeCompleto)),
+    partido: !missing(base.partido) ? String(base.partido).trim() : (externo.partido || base.partido),
+    uf: !missing(base.uf) ? String(base.uf).trim() : (externo.uf || base.uf),
     rank_externo: externo.rank_externo,
     nota_ranking_org: semNota ? null : externo.nota_ranking_org,
     fonte_ranking_parlamentar: externo.fonte,

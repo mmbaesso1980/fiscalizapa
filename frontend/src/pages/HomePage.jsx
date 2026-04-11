@@ -112,8 +112,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   const [loading,  setLoading]  = useState(true);
   const [rankingListCount, setRankingListCount] = useState(0);
   const [mandatosNoSeed, setMandatosNoSeed] = useState(MANDATOS_CAMARA);
-  const [homeRankingFonte, setHomeRankingFonte] = useState("firestore");
-
   const [authMode,    setAuthMode]    = useState('choose');
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
@@ -127,38 +125,44 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         setRankingListCount(listCount || 0);
         setMandatosNoSeed(ms || MANDATOS_CAMARA);
 
-        const fromSeed = rankingOrgMapToSortedList(map).map((ext) =>
-          mergeDeputadoRankingOrg(
+        const sortedExt = rankingOrgMapToSortedList(map);
+        const fromSeed = sortedExt.map((ext) => {
+          const idCamara = ext.idCamara != null && Number.isFinite(Number(ext.idCamara))
+            ? String(ext.idCamara)
+            : `seed-${ext.rank_externo}`;
+          return mergeDeputadoRankingOrg(
             {
-              id: `seed-${ext.rank_externo}`,
+              id: idCamara,
               nome: ext.nome_ranking_org,
               partido: ext.partido,
               uf: ext.uf,
             },
             ext,
-          ),
-        );
+          );
+        });
 
         const col = collection(db, "deputados_federais");
         const snap = await getDocs(col);
-        const merged = snap.docs.map((d) => {
+        snap.docs.forEach((d) => {
           const base = { id: d.id, ...d.data() };
           const raw = d.data();
           const idC = raw.idCamara != null ? Number(raw.idCamara) : Number(d.id);
           const ext =
             lookupRankingOrgExterno(map, base.nome || base.nomeCompleto) ||
             (Number.isFinite(idC) ? lookupRankingOrgExternoById(mapByIdCamara, idC) : null);
-          return mergeDeputadoRankingOrg(base, ext);
+          if (!ext) return;
+          const merged = mergeDeputadoRankingOrg(base, ext);
+          const idx = sortedExt.findIndex((e) => e.rank_externo === ext.rank_externo);
+          if (idx !== -1) {
+            fromSeed[idx] = {
+              ...merged,
+              id: String(d.id),
+            };
+          }
         });
 
-        const comRank = merged.filter((p) => p.rank_externo != null);
-        comRank.sort((a, b) => a.rank_externo - b.rank_externo);
-
-        const useFirestore = comRank.length >= 10;
-        setHomeRankingFonte(useFirestore ? "firestore" : "seed");
-        const source = useFirestore ? comRank : fromSeed;
-        const top = source.slice(0, 10);
-        const bottom = source.length >= 10 ? source.slice(-10).reverse() : source.slice().reverse().slice(0, 10);
+        const top = fromSeed.slice(0, 10);
+        const bottom = fromSeed.length >= 10 ? fromSeed.slice(-10).reverse() : fromSeed.slice().reverse().slice(0, 10);
 
         setTop10(top);
         setBottom10(bottom);
@@ -230,12 +234,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
             <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: '#666' }}>Metodologia ↗</a>
           </span>
         </div>
-
-        {!loading && homeRankingFonte === "seed" && (
-          <p style={{ fontSize: 12, color: '#888', marginBottom: 16, lineHeight: 1.5 }}>
-            Exibindo a lista oficial do seed (nomes da Câmara). Poucos perfis locais cruzaram com o Firestore — os cards abrem o perfil em ranking.org.br.
-          </p>
-        )}
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '48px', color: '#AAA', fontSize: 14 }}>Carregando ranking...</div>
