@@ -506,19 +506,52 @@ function parseCamaraValorReais(raw) {
   return n;
 }
 
+/** Anos civis da legislatura atual (57ª: 2023–2026) para CEAP — inclui ano corrente */
+function defaultCeapAnos() {
+  const y = new Date().getFullYear();
+  return [y, y - 1, y - 2, y - 3].filter((a) => a >= 2023 && a <= y);
+}
+
+async function fetchDespesasAno(deputadoId, ano, maxPages = 12) {
+  const out = [];
+  for (let p = 1; p <= maxPages; p++) {
+    const url = `https://dadosabertos.camara.leg.br/api/v2/deputados/${deputadoId}/despesas?ano=${ano}&pagina=${p}&itens=100&ordem=DESC&ordenarPor=dataDocumento`;
+    let j;
+    try {
+      j = await fetchJson(url);
+    } catch {
+      break;
+    }
+    const dados = j?.dados ?? [];
+    if (dados.length === 0) break;
+    out.push(...dados);
+    if (dados.length < 100) break;
+  }
+  return out;
+}
+
 exports.getAuditoriaPolitico = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
 
-  const { nome, idCamara, ano = new Date().getFullYear() - 1 } = req.data || {};
+  const body = req.data || {};
+  const { nome, idCamara } = body;
+  /** @type {number[]} */
+  let anos = Array.isArray(body.anos) ? body.anos.map(Number).filter((n) => n >= 2000 && n <= 2100) : null;
+  if (!anos || anos.length === 0) {
+    const legacy = body.ano != null ? Number(body.ano) : null;
+    anos = legacy && Number.isFinite(legacy) ? [legacy] : defaultCeapAnos();
+  }
+  anos = [...new Set(anos)].sort((a, b) => b - a);
+
   if (!idCamara && !nome) throw new HttpsError('invalid-argument', 'idCamara ou nome obrigatório.');
 
   let deputadoId = idCamara;
 
-  // Se não tiver idCamara, busca pelo nome
+  // Se não tiver idCamara, busca pelo nome (legislatura 57)
   if (!deputadoId && nome) {
     try {
-      const searchUrl = `https://dadosabertos.camara.leg.br/api/v2/deputados?nome=${encodeURIComponent(nome)}&ordem=ASC&ordenarPor=nome`;
+      const searchUrl = `https://dadosabertos.camara.leg.br/api/v2/deputados?nome=${encodeURIComponent(nome)}&ordem=ASC&ordenarPor=nome&idLegislatura=57`;
       const searchRes = await fetchJson(searchUrl);
       const dep = searchRes?.dados?.[0];
       if (dep?.id) deputadoId = dep.id;
@@ -532,13 +565,18 @@ exports.getAuditoriaPolitico = onCall(OPTS, async (req) => {
   }
 
   try {
-    // Busca até 3 páginas de despesas (300 registros)
-    const pagePromises = [1, 2, 3].map(p =>
-      fetchJson(`https://dadosabertos.camara.leg.br/api/v2/deputados/${deputadoId}/despesas?ano=${ano}&pagina=${p}&itens=100&ordem=DESC&ordenarPor=dataDocumento`)
-        .catch(() => ({ dados: [] }))
-    );
-    const pages = await Promise.all(pagePromises);
-    const despesas = (pages.flatMap(p => p?.dados ?? [])).map((d) => {
+    const byKey = new Map();
+    for (const ano of anos) {
+      const chunk = await fetchDespesasAno(deputadoId, ano);
+      for (const d of chunk) {
+        const k = d?.urlDocumento
+          ? String(d.urlDocumento)
+          : `${d?.codDocumento ?? ''}|${d?.dataDocumento ?? ''}|${d?.numDocumento ?? ''}|${d?.valorLiquido ?? d?.valorDocumento ?? ''}|${d?.tipoDespesa ?? ''}`;
+        if (!byKey.has(k)) byKey.set(k, d);
+      }
+    }
+
+    const despesas = [...byKey.values()].map((d) => {
       const vlr = d?.vlrLiquido ?? d?.valorLiquido ?? d?.valorDocumento ?? 0;
       const reais = parseCamaraValorReais(vlr);
       return {
@@ -548,11 +586,17 @@ exports.getAuditoriaPolitico = onCall(OPTS, async (req) => {
       };
     });
 
+    despesas.sort((a, b) => {
+      const ta = new Date(a.dataDocumento || 0).getTime();
+      const tb = new Date(b.dataDocumento || 0).getTime();
+      return tb - ta;
+    });
+
     return {
       despesas,
       total: despesas.length,
       deputadoId,
-      ano,
+      anosCeap: anos,
       fonte: 'camara_api_v2',
     };
   } catch (e) {

@@ -23,6 +23,7 @@ import {
   RANKING_ORG_PAGE,
   RANKING_ORG_CRITERIA,
 } from "../utils/rankingOrg";
+import { anosCeapLegislaturaAtual } from "../utils/legislatura";
 
 function fmtMoney(value) {
   const n = parseCamaraValorReais(value ?? 0);
@@ -34,16 +35,28 @@ function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function absolutizeCamaraUrl(u) {
+  const s = String(u || "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("//")) return `https:${s}`;
+  if (s.startsWith("/")) return `https://www.camara.leg.br${s}`;
+  return s;
+}
+
 function normalizeDespesa(item, index) {
-  const rawNome = item?.txtFornecedor || item?.fornecedorNome;
+  const rawNome = item?.txtFornecedor || item?.fornecedorNome || item?.nomeFornecedor;
+  const urlDoc = absolutizeCamaraUrl(item?.urlDocumento);
+  const cod = item?.codDocumento ?? item?.numDocumento ?? "";
   return {
-    id: item?.id || item?.urlDocumento || `${item?.txtFornecedor || "fornecedor"}-${item?.datEmissao || index}-${index}`,
-    valorLiquido: parseCamaraValorReais(item?.vlrLiquido ?? item?.valorLiquido ?? 0),
+    id: item?.id || urlDoc || `${cod}-${item?.dataDocumento || index}-${index}`,
+    valorLiquido: parseCamaraValorReais(item?.vlrLiquido ?? item?.valorLiquido ?? item?.valorDocumento ?? 0),
     tipoDespesa: item?.txtDescricao || item?.tipoDespesa || "Sem categoria",
     fornecedorNome: rawNome && String(rawNome).trim() ? String(rawNome).trim() : null,
     dataDocumento: item?.datEmissao || item?.dataDocumento || "",
-    urlDocumento: item?.urlDocumento || "",
-    cnpjCpf: item?.txtCNPJCPF || item?.cnpjCpf || "",
+    urlDocumento: urlDoc,
+    cnpjCpf: item?.txtCNPJCPF || item?.cnpjCpf || item?.cnpjCpfFornecedor || "",
+    anoRef: item?.ano,
     analiseForense: item?.analise_forense || item?.analiseForense || "🟢 MONITORAMENTO",
     isLocked: Boolean(item?.isLocked),
   };
@@ -112,6 +125,8 @@ export default function PoliticoPage() {
   const [loading, setLoading] = useState(true);
   const [auditError, setAuditError] = useState("");
   const [pageError, setPageError] = useState("");
+  const [ceapAnos, setCeapAnos] = useState(() => anosCeapLegislaturaAtual());
+  const CEAP_LIST_MAX = 80;
 
   useEffect(() => {
     let isMounted = true;
@@ -140,20 +155,29 @@ export default function PoliticoPage() {
         } catch {/* seed / Firestore opcional */}
         if (isMounted) setPol(politico);
 
-        const nomeDoPolitico = data?.nome || "";
+        const anosCeap = anosCeapLegislaturaAtual();
+        const nomeBusca = String(politico.nome || politico.nomeCompleto || data?.nome || "").trim();
+        const idCamaraBusca = politico.idCamara != null ? Number(politico.idCamara) : null;
         const promises = [];
 
-        if (nomeDoPolitico) {
+        if (nomeBusca || Number.isFinite(idCamaraBusca)) {
           promises.push((async () => {
             try {
               const getAuditoriaPolitico = httpsCallable(functions, "getAuditoriaPolitico");
               const result = await getAuditoriaPolitico({
-                nome: nomeDoPolitico,
-                idCamara: data?.idCamara ?? null,
-                ano: 2024,
+                nome: nomeBusca || undefined,
+                idCamara: Number.isFinite(idCamaraBusca) ? idCamaraBusca : null,
+                anos: anosCeap,
               });
               const despesas = safeArray(result?.data?.despesas).map(normalizeDespesa);
-              if (isMounted) setGastos(despesas);
+              if (isMounted) {
+                setGastos(despesas);
+                if (Array.isArray(result?.data?.anosCeap) && result.data.anosCeap.length) {
+                  setCeapAnos(result.data.anosCeap);
+                } else {
+                  setCeapAnos(anosCeap);
+                }
+              }
             } catch (error) {
               console.error("Erro ao carregar auditoria:", error);
               if (isMounted) { setGastos([]); setAuditError("Auditoria forense temporariamente indisponível."); }
@@ -278,9 +302,15 @@ export default function PoliticoPage() {
                     textDecoration: "none",
                   }}
                 >
-                  {pol.ranking_org.semNotaPublicada
-                    ? `Posição #${pol.ranking_org.posicao} (seed) · sem nota no ranking.org ↗`
-                    : `Ranking.org #${pol.ranking_org.posicao} · nota ${Number(pol.ranking_org.nota).toFixed(2)} ↗`}
+                  {pol.ranking_org.semNotaPublicada ? (
+                    `Posição #${pol.ranking_org.posicao} (seed) · sem nota no ranking.org ↗`
+                  ) : (
+                    <>
+                      Ranking.org #{pol.ranking_org.posicao} · nota{" "}
+                      <span style={{ textDecoration: "underline" }}>{Number(pol.ranking_org.nota).toFixed(2)}</span>
+                      {" "}↗
+                    </>
+                  )}
                 </a>
               )}
             </div>
@@ -302,8 +332,12 @@ export default function PoliticoPage() {
               <>
                 <strong>Posição e nota</strong> conforme o{" "}
                 <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", fontWeight: 700 }}>Ranking dos Políticos</a>
-                {" "}(Câmara).{" "}
-                <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", textDecoration: "underline" }}>Critérios e metodologia ↗</a>
+                {" "}(Câmara) — nota{" "}
+                <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", fontWeight: 800, textDecoration: "underline" }}>
+                  {Number(pol.ranking_org.nota).toFixed(2)}
+                </a>
+                .{" "}
+                <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: "#15803D", textDecoration: "underline" }}>Metodologia ↗</a>
               </>
             )}
             {pol.score != null && (
@@ -338,13 +372,19 @@ export default function PoliticoPage() {
           </div>
 
           <div className="bg-white border border-[#EDEBE8] rounded-xl p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-6 border-b border-[#EDEBE8] pb-4">
-              <h3 className="text-xl text-[#2D2D2D] font-space font-bold flex items-center gap-2">
-                <span>🔍</span>Dossiê de Notas Fiscais
-              </h3>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6 border-b border-[#EDEBE8] pb-4">
+              <div>
+                <h3 className="text-xl text-[#2D2D2D] font-space font-bold flex items-center gap-2">
+                  <span>🔍</span>Dossiê de Notas Fiscais (CEAP)
+                </h3>
+                <p className="text-[11px] text-[#9ca3af] mt-1">
+                  Legislatura atual · anos {ceapAnos.length ? ceapAnos.slice().sort((a, b) => a - b).join(", ") : "—"} · API{" "}
+                  <a href="https://dadosabertos.camara.leg.br/swagger/api.html" target="_blank" rel="noopener noreferrer" className="underline text-[#6b7280]">dados abertos Câmara ↗</a>
+                </p>
+              </div>
               <a href={`https://portaldatransparencia.gov.br/verbas-indenizatorias/consulta?nome=${encodeURIComponent(pol.nome)}`}
                 target="_blank" rel="noopener noreferrer"
-                className="text-[11px] text-[#6b7280] border border-[#EDEBE8] rounded-md px-3 py-1 hover:bg-[#f9fafb] transition-colors no-underline">
+                className="text-[11px] text-[#6b7280] border border-[#EDEBE8] rounded-md px-3 py-1 hover:bg-[#f9fafb] transition-colors no-underline shrink-0">
                 🔗 Portal da Transparência ↗
               </a>
             </div>
@@ -353,9 +393,15 @@ export default function PoliticoPage() {
             )}
             <div className="space-y-3">
               {gastos.length === 0 ? (
-                <div className="text-center py-10 text-[#9ca3af] text-sm">Nenhuma despesa auditada disponível para exibição.</div>
+                <div className="text-center py-10 text-[#9ca3af] text-sm">
+                  Nenhuma despesa CEAP retornada para este mandato. Verifique o cadastro do deputado ou tente mais tarde.
+                </div>
               ) : (
-                gastos.slice(0, 15).map((g) => (
+                <>
+                <p className="text-[11px] text-[#6b7280] mb-3">
+                  Exibindo {Math.min(CEAP_LIST_MAX, gastos.length)} de {gastos.length} lançamentos · cada linha com link abre o PDF oficial na Câmara (dados para análise por IA).
+                </p>
+                {gastos.slice(0, CEAP_LIST_MAX).map((g) => (
                   <div key={g.id}
                     className={`flex justify-between items-center gap-4 p-4 rounded-lg border transition-all ${
                       g.isLocked ? "bg-red-50 border-red-200 cursor-pointer hover:bg-red-100" : "bg-[#FAFAF8] border-[#EDEBE8] hover:bg-[#f3f4f6]"
@@ -370,7 +416,10 @@ export default function PoliticoPage() {
                       ) : (
                         <p className="text-sm text-gray-500 italic">Fornecedor não informado (Dados da Câmara)</p>
                       )}
-                      <p className="text-xs text-[#9ca3af] mt-1">{g.tipoDespesa}</p>
+                      <p className="text-xs text-[#9ca3af] mt-1">
+                        {g.anoRef ? <span className="font-semibold text-[#6b7280]">{g.anoRef} · </span> : null}
+                        {g.tipoDespesa}
+                      </p>
                       <p className={`text-[11px] mt-1 font-semibold uppercase tracking-wide ${getStatusTone(g.analiseForense)}`}>{g.analiseForense}</p>
                     </div>
                     <div className="text-right shrink-0">
@@ -378,13 +427,22 @@ export default function PoliticoPage() {
                       {g.isLocked ? (
                         <button type="button" className="text-[10px] bg-[#2D2D2D] text-white px-3 py-1.5 rounded mt-2 font-bold hover:bg-[#444] transition-colors">🔓 VER PROVA (1 CRÉDITO)</button>
                       ) : g.urlDocumento ? (
-                        <a href={g.urlDocumento} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#6b7280] underline mt-2 block hover:text-[#2D2D2D]">🔗 Nota Oficial ↗</a>
+                        <a
+                          href={g.urlDocumento}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block text-[10px] font-bold text-white bg-[#15803D] px-3 py-1.5 rounded-md mt-2 no-underline hover:bg-[#166534] shadow-sm"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          📄 Abrir nota (PDF) ↗
+                        </a>
                       ) : (
-                        <span className="text-[10px] text-[#d1d5db] mt-2 block">Sem nota pública</span>
+                        <span className="text-[10px] text-[#d1d5db] mt-2 block">Sem URL pública da nota</span>
                       )}
                     </div>
                   </div>
-                ))
+                ))}
+                </>
               )}
             </div>
           </div>

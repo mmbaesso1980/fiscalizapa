@@ -210,6 +210,12 @@ export function mergeDeputadoRankingOrg(base, externo) {
   };
   return {
     ...base,
+    idCamara:
+      base.idCamara != null && Number.isFinite(Number(base.idCamara))
+        ? Number(base.idCamara)
+        : externo.idCamara != null && Number.isFinite(Number(externo.idCamara))
+          ? Number(externo.idCamara)
+          : base.idCamara,
     nome: !missing(nomeBase) ? nomeBase : (nomeSeed || base.nome),
     nomeCompleto: !missing(nomeCompBase)
       ? nomeCompBase
