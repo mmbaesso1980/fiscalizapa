@@ -123,6 +123,7 @@ export default function PoliticoPage() {
   const [gastos, setGastos] = useState([]);
   const [emendas, setEmendas] = useState([]);
   const [emendasOverride, setEmendasOverride] = useState(null);
+  const [emendasTotaisPortal, setEmendasTotaisPortal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [auditError, setAuditError] = useState("");
   const [pageError, setPageError] = useState("");
@@ -137,6 +138,7 @@ export default function PoliticoPage() {
         setPageError("");
         setAuditError("");
         setEmendasOverride(null);
+        setEmendasTotaisPortal(null);
         window.scrollTo({ top: 0, behavior: "smooth" });
 
         const snap = await getDoc(doc(db, col, id));
@@ -199,6 +201,7 @@ export default function PoliticoPage() {
           }
 
           let fromPortal = [];
+          let totaisPortal = null;
           if (nomeBusca) {
             try {
               const getEmendasParlamentar = httpsCallable(functions, "getEmendasParlamentar");
@@ -208,35 +211,27 @@ export default function PoliticoPage() {
                 anos: anosCeap,
                 maxEmendasComDocumentos: 15,
               });
-              fromPortal = safeArray(er?.data?.emendas);
+              fromPortal = safeArray(er?.data?.emendas).map((e) => ({
+                ...e,
+                parlamentarId: id,
+              }));
+              totaisPortal = er?.data?.totaisAgregados ?? null;
             } catch (error) {
               console.error("Erro ao carregar emendas Portal:", error);
             }
           }
 
-          const byCod = new Map();
-          for (const e of fromFs) {
-            const k = String(e.codigo || e.id || "").trim();
-            if (k) byCod.set(k, { ...e, id: k });
-          }
-          for (const e of fromPortal) {
-            const k = String(e.codigo || e.id || "").trim();
-            if (!k) continue;
-            const prev = byCod.get(k);
-            byCod.set(k, {
-              ...(prev || {}),
-              ...e,
-              id: k,
-              parlamentarId: id,
-            });
-          }
-          const merged = [...byCod.values()].sort(
-            (a, b) => (Number(b.valorEmpenhado) || Number(b.valor) || 0) - (Number(a.valorEmpenhado) || Number(a.valor) || 0),
-          );
+          const mergedFs = fromFs
+            .map((e) => ({ ...e, id: String(e.codigo || e.id || "").trim() || e.id }))
+            .filter((e) => e.id)
+            .sort((a, b) => (Number(b.valorEmpenhado) || Number(b.valor) || 0) - (Number(a.valorEmpenhado) || Number(a.valor) || 0));
+
+          const listaFinal = fromPortal.length > 0 ? fromPortal : mergedFs;
 
           if (isMounted) {
-            setEmendas(merged);
-            setEmendasOverride(merged);
+            setEmendas(listaFinal);
+            setEmendasOverride(listaFinal);
+            setEmendasTotaisPortal(fromPortal.length > 0 ? totaisPortal : null);
           }
         })());
 
@@ -255,7 +250,10 @@ export default function PoliticoPage() {
     () => gastos.reduce((acc, item) => acc + parseCamaraValorReais(item?.valorLiquido ?? 0), 0),
     [gastos],
   );
-  const totalEmendas = useMemo(() => emendas.reduce((acc, item) => acc + Number(item?.valorEmpenhado || 0), 0), [emendas]);
+  const totalEmendas = useMemo(() => {
+    if (emendasTotaisPortal?.valorEmpenhado != null) return Number(emendasTotaisPortal.valorEmpenhado);
+    return emendas.reduce((acc, item) => acc + Number(item?.valorEmpenhado || item?.valor || 0), 0);
+  }, [emendas, emendasTotaisPortal]);
   const qtdNotas = gastos.length;
   const foto = getFotoPolitico(pol);
 
@@ -505,7 +503,12 @@ export default function PoliticoPage() {
           )}
           <div className="bg-white rounded-xl border border-[#EDEBE8] p-6 shadow-sm">
             <h3 className="text-lg text-[#2D2D2D] font-bold mb-4 border-b border-[#EDEBE8] pb-2">Rastro de Emendas</h3>
-            <EmendasAba deputadoId={id} nomeDeputado={pol.nome} emendasOverride={emendasOverride} />
+            <EmendasAba
+              deputadoId={id}
+              nomeDeputado={pol.nome}
+              emendasOverride={emendasOverride}
+              totaisAgregadosOverride={emendasTotaisPortal}
+            />
           </div>
         </div>
       </div>

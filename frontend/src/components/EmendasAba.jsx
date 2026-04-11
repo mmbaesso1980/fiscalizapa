@@ -49,8 +49,9 @@ function faseResumo(porFase) {
  * @param {string} props.colecao
  * @param {string} props.nomeDeputado
  * @param {Array|null} props.emendasOverride — quando definido (ex.: vindo do Portal via CF), não relê a coleção inteira
+ * @param {{valorEmpenhado?:number,valorLiquidado?:number,valorPago?:number}|null} props.totaisAgregadosOverride — totais oficiais somados no servidor (evita somar lista parcial)
  */
-export default function EmendasAba({ deputadoId, nomeDeputado, emendasOverride }) {
+export default function EmendasAba({ deputadoId, nomeDeputado, emendasOverride, totaisAgregadosOverride }) {
   const [firestoreEmendas, setFirestoreEmendas] = useState([]);
   const [loadingRemote, setLoadingRemote] = useState(true);
   const [expanded, setExpanded] = useState(null);
@@ -117,9 +118,15 @@ export default function EmendasAba({ deputadoId, nomeDeputado, emendasOverride }
     );
   }
 
-  const totalEmpenhado = emendas.reduce((s, e) => s + safeNum(e.valorEmpenhado ?? e.valor), 0);
-  const totalPago      = emendas.reduce((s, e) => s + safeNum(e.valorPago), 0);
-  const totalLiq       = emendas.reduce((s, e) => s + safeNum(e.valorLiquidado), 0);
+  const totalEmpenhado = totaisAgregadosOverride?.valorEmpenhado != null
+    ? Number(totaisAgregadosOverride.valorEmpenhado)
+    : emendas.reduce((s, e) => s + safeNum(e.valorEmpenhado ?? e.valor), 0);
+  const totalPago = totaisAgregadosOverride?.valorPago != null
+    ? Number(totaisAgregadosOverride.valorPago)
+    : emendas.reduce((s, e) => s + safeNum(e.valorPago), 0);
+  const totalLiq = totaisAgregadosOverride?.valorLiquidado != null
+    ? Number(totaisAgregadosOverride.valorLiquidado)
+    : emendas.reduce((s, e) => s + safeNum(e.valorLiquidado), 0);
   const municipios = [...new Set(emendas.map(e => e.municipioNome || e.municipio).filter(Boolean))];
 
   return (
@@ -129,7 +136,10 @@ export default function EmendasAba({ deputadoId, nomeDeputado, emendasOverride }
         <a href="https://api.portaldatransparencia.gov.br/" target="_blank" rel="noopener noreferrer" style={{ color: "#15803d", textDecoration: "underline" }}>
           API Portal da Transparência
         </a>
-        {" "}· anos {anosTxt} · valores empenhado / liquidado / pago · documentos por fase (execução) nos primeiros itens.
+        {" "}· anos {anosTxt} · totais dos cards = soma de todas as emendas retornadas pela API (visão consolidada por código).
+        {totaisAgregadosOverride && (
+          <span> Documentos detalhados (fases) carregados para as primeiras emendas da lista.</span>
+        )}
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginBottom: '20px' }}>
         <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>

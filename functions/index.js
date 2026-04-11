@@ -718,13 +718,30 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   const nomeQuery = normalizeNomePortalAutor(nomeAutor);
   const byCodigo = new Map();
 
+  function anoDoCodigoEmenda(cod) {
+    const m = String(cod || '').match(/^(\d{4})/);
+    return m ? Number(m[1]) : null;
+  }
+
+  /** Mantém o registro com maior valor empenhado (visão consolidada); evita misturar linhas por ano da mesma emenda. */
+  function mergeEmendaRow(prev, next) {
+    if (!prev) return next;
+    const ePrev = parsePortalValorBRL(prev.valorEmpenhado);
+    const eNext = parsePortalValorBRL(next.valorEmpenhado);
+    if (eNext > ePrev) return next;
+    if (eNext < ePrev) return prev;
+    const yPrev = Number(prev.ano) || anoDoCodigoEmenda(prev.codigoEmenda) || 0;
+    const yNext = Number(next.ano) || anoDoCodigoEmenda(next.codigoEmenda) || 0;
+    return yNext >= yPrev ? next : prev;
+  }
+
   try {
     for (const ano of anos) {
       const chunk = await portalFetchEmendasPorAno(nomeQuery, ano);
       for (const e of chunk) {
         const cod = e?.codigoEmenda;
         if (!cod) continue;
-        if (!byCodigo.has(cod)) byCodigo.set(cod, e);
+        byCodigo.set(cod, mergeEmendaRow(byCodigo.get(cod), e));
       }
       await sleepMs(400);
     }
@@ -787,15 +804,68 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
       await sleepMs(400);
     }
 
+    const totaisAgregados = emendas.reduce(
+      (acc, e) => ({
+        valorEmpenhado: acc.valorEmpenhado + (e.valorEmpenhado || 0),
+        valorLiquidado: acc.valorLiquidado + (e.valorLiquidado || 0),
+        valorPago: acc.valorPago + (e.valorPago || 0),
+      }),
+      { valorEmpenhado: 0, valorLiquidado: 0, valorPago: 0 },
+    );
+
     return {
       emendas,
       total: emendas.length,
       anosConsulta: anos,
+      totaisAgregados,
       fonte: 'portal_transparencia_api',
     };
   } catch (e) {
     console.error('getEmendasParlamentar:', e.message);
     return { emendas: [], total: 0, fonte: 'portal_transparencia_api', erro: e.message, anosConsulta: anos };
+  }
+});
+
+/** Prefixos permitidos para proxy GET à API de Dados do Portal (segurança). */
+const PORTAL_PROXY_PREFIXES = [
+  '/api-de-dados/emendas',
+  '/api-de-dados/contratos',
+  '/api-de-dados/despesas',
+  '/api-de-dados/servidores',
+  '/api-de-dados/cnep',
+  '/api-de-dados/ceis',
+  '/api-de-dados/licitacoes',
+  '/api-de-dados/transferencias',
+];
+
+/**
+ * Proxy autenticado para GET na API de Dados do Portal da Transparência.
+ * pathAndQuery: ex. "/api-de-dados/emendas?ano=2024&nomeAutor=X&pagina=1"
+ * Só aceita prefixos em PORTAL_PROXY_PREFIXES (evita abuso da chave).
+ */
+exports.portalTransparenciaProxy = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+
+  let raw = String(req.data?.path || req.data?.pathAndQuery || '').trim();
+  if (!raw.startsWith('/')) raw = `/${raw}`;
+  if (raw.length > 900) throw new HttpsError('invalid-argument', 'path muito longo.');
+
+  const pathOnly = raw.split('?')[0];
+  const allowed = PORTAL_PROXY_PREFIXES.some((p) => pathOnly === p || pathOnly.startsWith(`${p}/`));
+  if (!allowed) {
+    throw new HttpsError(
+      'invalid-argument',
+      `Rota não permitida. Use um dos prefixos: ${PORTAL_PROXY_PREFIXES.join(', ')}`,
+    );
+  }
+
+  try {
+    const data = await portalApiGet(raw);
+    return { ok: true, data, path: raw, fonte: 'portal_transparencia_api' };
+  } catch (e) {
+    console.error('portalTransparenciaProxy:', raw, e.message);
+    return { ok: false, erro: e.message, path: raw };
   }
 });
 

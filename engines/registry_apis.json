@@ -3,7 +3,9 @@
     "version":      "2.0.0",
     "description":  "TransparenciaBR — Registro Central de APIs (O Mapa das 1.000 APIs)",
     "total_active": 20,
-    "last_updated": "2026-04-08",
+    "last_updated": "2026-04-11",
+    "portal_proxy_function": "portalTransparenciaProxy",
+    "portal_proxy_note": "Chamada autenticada via Firebase Callable; path GET sob prefixos /api-de-dados/emendas|contratos|despesas|servidores|cnep|ceis|licitacoes|transferencias. Variável PORTAL_TRANSPARENCIA_API_KEY nas Cloud Functions.",
     "schema_fields": ["id","name","type","url","headers","params","bq_table","bode_detection","rate_limit_ms","priority","active","tags","pagination","bode_keywords"]
   },
 
