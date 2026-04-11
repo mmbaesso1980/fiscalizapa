@@ -471,6 +471,47 @@ exports.getPerfilParlamentar = onCall(OPTS, async (req) => {
 //     Proxy para a API aberta da Câmara Federal.
 //     Frontend nunca acessa APIs externas diretamente.
 // ─────────────────────────────────────────────
+/** Valores monetários do Portal ("3.000.000,00") → número */
+function parsePortalValorBRL(raw) {
+  if (raw == null || raw === '') return 0;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+  const s = String(raw).trim().replace(/\s/g, '').replace(/R\$\s?/gi, '');
+  if (!s) return 0;
+  const n = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeNomePortalAutor(nome) {
+  return String(nome || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function portalApiGet(pathWithLeadingSlash) {
+  const key = process.env.PORTAL_TRANSPARENCIA_API_KEY || '717a95e01b072090f41940282eab700a';
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: 'api.portaldatransparencia.gov.br',
+      path: pathWithLeadingSlash,
+      headers: { Accept: 'application/json', 'chave-api-dados': key },
+    };
+    https.get(opts, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error('Portal API JSON: ' + e.message));
+        }
+      });
+    }).on('error', reject);
+  });
+}
+
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
     https.get(url, { headers: { 'Accept': 'application/json' } }, (res) => {
@@ -602,6 +643,159 @@ exports.getAuditoriaPolitico = onCall(OPTS, async (req) => {
   } catch (e) {
     console.error('Erro ao buscar despesas CEAP:', e.message);
     return { despesas: [], fonte: 'camara', erro: e.message };
+  }
+});
+
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function portalFetchEmendasPorAno(nomeAutorUpper, ano) {
+  const out = [];
+  for (let p = 1; p <= 50; p++) {
+    const path = `/api-de-dados/emendas?ano=${ano}&nomeAutor=${encodeURIComponent(nomeAutorUpper)}&pagina=${p}`;
+    let page;
+    try {
+      page = await portalApiGet(path);
+    } catch (e) {
+      console.error('portal emendas page', ano, p, e.message);
+      break;
+    }
+    if (!Array.isArray(page) || page.length === 0) break;
+    out.push(...page);
+    if (page.length < 15) break;
+    await sleepMs(350);
+  }
+  return out;
+}
+
+async function portalFetchDocumentosEmenda(codigoEmenda, maxPages = 4) {
+  const out = [];
+  for (let p = 1; p <= maxPages; p++) {
+    const path = `/api-de-dados/emendas/documentos/${encodeURIComponent(codigoEmenda)}?pagina=${p}`;
+    let page;
+    try {
+      page = await portalApiGet(path);
+    } catch (e) {
+      console.error('portal emendas docs', codigoEmenda, p, e.message);
+      break;
+    }
+    if (!Array.isArray(page) || page.length === 0) break;
+    out.push(...page);
+    if (page.length < 15) break;
+    await sleepMs(350);
+  }
+  return out;
+}
+
+function parsePtDataSortKey(dataStr) {
+  const p = String(dataStr || '').split('/');
+  if (p.length !== 3) return 0;
+  const [dd, mm, yy] = p;
+  const t = new Date(`${yy}-${mm}-${dd}`).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+/**
+ * Emendas parlamentares (Portal da Transparência) + documentos por fase (empenho → … → pagamento).
+ * Chave API: env PORTAL_TRANSPARENCIA_API_KEY ou fallback público de desenvolvimento.
+ */
+exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+
+  const body = req.data || {};
+  const nomeAutor = String(body.nomeAutor || body.nome || '').trim();
+  const politicoDocId = String(body.politicoDocId || body.deputadoId || '').trim();
+  const maxComDocs = Math.min(20, Math.max(0, Number(body.maxEmendasComDocumentos) || 12));
+
+  let anos = Array.isArray(body.anos) ? body.anos.map(Number).filter((n) => n >= 2000 && n <= 2100) : null;
+  if (!anos || anos.length === 0) anos = defaultCeapAnos();
+  anos = [...new Set(anos)].sort((a, b) => b - a);
+
+  if (!nomeAutor || !politicoDocId) {
+    throw new HttpsError('invalid-argument', 'nomeAutor e politicoDocId são obrigatórios.');
+  }
+
+  const nomeQuery = normalizeNomePortalAutor(nomeAutor);
+  const byCodigo = new Map();
+
+  try {
+    for (const ano of anos) {
+      const chunk = await portalFetchEmendasPorAno(nomeQuery, ano);
+      for (const e of chunk) {
+        const cod = e?.codigoEmenda;
+        if (!cod) continue;
+        if (!byCodigo.has(cod)) byCodigo.set(cod, e);
+      }
+      await sleepMs(400);
+    }
+
+    const emendas = [...byCodigo.values()].map((raw) => {
+      const cod = String(raw.codigoEmenda);
+      const emp = parsePortalValorBRL(raw.valorEmpenhado);
+      const liq = parsePortalValorBRL(raw.valorLiquidado);
+      const pag = parsePortalValorBRL(raw.valorPago);
+      const taxa = emp > 0 ? Math.round((pag / emp) * 1000) / 10 : 0;
+      const loc = String(raw.localidadeDoGasto || '').trim();
+      const municipioNome = loc.replace(/\s*\(UF\)\s*$/i, '').trim() || loc;
+      return {
+        id: cod,
+        codigo: cod,
+        parlamentarId: politicoDocId,
+        autorNome: raw.nomeAutor || raw.autor || nomeAutor,
+        ano: Number(raw.ano) || null,
+        tipo: raw.tipoEmenda || '',
+        municipioNome,
+        municipio: municipioNome,
+        localidade: loc,
+        funcao: raw.funcao || '',
+        subfuncao: raw.subfuncao || '',
+        objetoResumo: [raw.funcao, raw.subfuncao].filter(Boolean).join(' · '),
+        valorEmpenhado: emp,
+        valorLiquidado: liq,
+        valorPago: pag,
+        taxaExecucao: taxa,
+        linkPortal: `https://portaldatransparencia.gov.br/emendas/consulta?codigoEmenda=${encodeURIComponent(cod)}`,
+        urlPortal: `https://portaldatransparencia.gov.br/emendas/consulta?codigoEmenda=${encodeURIComponent(cod)}`,
+      };
+    });
+
+    emendas.sort((a, b) => (b.valorEmpenhado || 0) - (a.valorEmpenhado || 0));
+
+    const comDoc = emendas.slice(0, maxComDocs);
+    for (const em of comDoc) {
+      const docs = await portalFetchDocumentosEmenda(em.codigo);
+      const porFase = {};
+      const timeline = [];
+      for (const d of docs) {
+        const fase = String(d.fase || 'Documento');
+        porFase[fase] = (porFase[fase] || 0) + 1;
+        timeline.push({
+          data: d.data,
+          fase: d.fase,
+          codigoDocumento: d.codigoDocumento,
+          codigoDocumentoResumido: d.codigoDocumentoResumido,
+          especieTipo: d.especieTipo,
+          linkConsultaDocumento: d.codigoDocumento
+            ? `https://portaldatransparencia.gov.br/consulta?q=${encodeURIComponent(d.codigoDocumento)}`
+            : '',
+        });
+      }
+      timeline.sort((a, b) => parsePtDataSortKey(b.data) - parsePtDataSortKey(a.data));
+      em.documentosPorFase = porFase;
+      em.documentosTimeline = timeline.slice(0, 60);
+      em.totalDocumentosRastreados = docs.length;
+      await sleepMs(400);
+    }
+
+    return {
+      emendas,
+      total: emendas.length,
+      anosConsulta: anos,
+      fonte: 'portal_transparencia_api',
+    };
+  } catch (e) {
+    console.error('getEmendasParlamentar:', e.message);
+    return { emendas: [], total: 0, fonte: 'portal_transparencia_api', erro: e.message, anosConsulta: anos };
   }
 });
 

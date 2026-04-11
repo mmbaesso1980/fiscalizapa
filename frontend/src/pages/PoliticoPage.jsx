@@ -122,6 +122,7 @@ export default function PoliticoPage() {
   const [pol, setPol] = useState(null);
   const [gastos, setGastos] = useState([]);
   const [emendas, setEmendas] = useState([]);
+  const [emendasOverride, setEmendasOverride] = useState(null);
   const [loading, setLoading] = useState(true);
   const [auditError, setAuditError] = useState("");
   const [pageError, setPageError] = useState("");
@@ -135,6 +136,7 @@ export default function PoliticoPage() {
         setLoading(true);
         setPageError("");
         setAuditError("");
+        setEmendasOverride(null);
         window.scrollTo({ top: 0, behavior: "smooth" });
 
         const snap = await getDoc(doc(db, col, id));
@@ -186,14 +188,55 @@ export default function PoliticoPage() {
         } else if (isMounted) setGastos([]);
 
         promises.push((async () => {
+          let fromFs = [];
           try {
             const emendasRef = collection(db, "emendas");
             const emendasQuery = query(emendasRef, where("parlamentarId", "==", id));
             const eSnap = await getDocs(emendasQuery);
-            if (isMounted) setEmendas(eSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            fromFs = eSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
           } catch (error) {
-            console.error("Erro ao carregar emendas:", error);
-            if (isMounted) setEmendas([]);
+            console.error("Erro ao carregar emendas Firestore:", error);
+          }
+
+          let fromPortal = [];
+          if (nomeBusca) {
+            try {
+              const getEmendasParlamentar = httpsCallable(functions, "getEmendasParlamentar");
+              const er = await getEmendasParlamentar({
+                nomeAutor: nomeBusca,
+                politicoDocId: id,
+                anos: anosCeap,
+                maxEmendasComDocumentos: 15,
+              });
+              fromPortal = safeArray(er?.data?.emendas);
+            } catch (error) {
+              console.error("Erro ao carregar emendas Portal:", error);
+            }
+          }
+
+          const byCod = new Map();
+          for (const e of fromFs) {
+            const k = String(e.codigo || e.id || "").trim();
+            if (k) byCod.set(k, { ...e, id: k });
+          }
+          for (const e of fromPortal) {
+            const k = String(e.codigo || e.id || "").trim();
+            if (!k) continue;
+            const prev = byCod.get(k);
+            byCod.set(k, {
+              ...(prev || {}),
+              ...e,
+              id: k,
+              parlamentarId: id,
+            });
+          }
+          const merged = [...byCod.values()].sort(
+            (a, b) => (Number(b.valorEmpenhado) || Number(b.valor) || 0) - (Number(a.valorEmpenhado) || Number(a.valor) || 0),
+          );
+
+          if (isMounted) {
+            setEmendas(merged);
+            setEmendasOverride(merged);
           }
         })());
 
@@ -462,7 +505,7 @@ export default function PoliticoPage() {
           )}
           <div className="bg-white rounded-xl border border-[#EDEBE8] p-6 shadow-sm">
             <h3 className="text-lg text-[#2D2D2D] font-bold mb-4 border-b border-[#EDEBE8] pb-2">Rastro de Emendas</h3>
-            <EmendasAba deputadoId={id} colecao={col} nomeDeputado={pol.nome} />
+            <EmendasAba deputadoId={id} nomeDeputado={pol.nome} emendasOverride={emendasOverride} />
           </div>
         </div>
       </div>

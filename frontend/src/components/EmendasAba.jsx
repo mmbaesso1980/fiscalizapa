@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { normalizeUF } from "./SocialContext";
+import { anosCeapLegislaturaAtual } from "../utils/legislatura";
 
-// UF válidas brasileiras (2 chars)
 const UF_VALIDAS = new Set(["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"]);
 
 const FORCED_UF_BY_TEXTO = [
@@ -35,30 +35,48 @@ function safeNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
-export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
-  const [emendas, setEmendas] = useState([]);
-  const [loading, setLoading] = useState(true);
+function faseResumo(porFase) {
+  if (!porFase || typeof porFase !== "object") return "";
+  return Object.entries(porFase)
+    .map(([k, v]) => `${k}: ${v}`)
+    .slice(0, 6)
+    .join(" · ");
+}
+
+/**
+ * @param {object} props
+ * @param {string} props.deputadoId
+ * @param {string} props.colecao
+ * @param {string} props.nomeDeputado
+ * @param {Array|null} props.emendasOverride — quando definido (ex.: vindo do Portal via CF), não relê a coleção inteira
+ */
+export default function EmendasAba({ deputadoId, nomeDeputado, emendasOverride }) {
+  const [firestoreEmendas, setFirestoreEmendas] = useState([]);
+  const [loadingRemote, setLoadingRemote] = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [rastreamento, setRastreamento] = useState({});
 
+  const emendas = emendasOverride != null ? emendasOverride : firestoreEmendas;
+  const loading = emendasOverride != null ? false : loadingRemote;
+
   useEffect(() => {
+    if (emendasOverride != null) return;
     if (!deputadoId) return;
     async function load() {
-      setLoading(true);
+      setLoadingRemote(true);
       try {
-        // Read from NEW emendas collection (not the existing subcollection)
         const snap = await getDocs(collection(db, "emendas"));
         const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const mine = all.filter(e => e.parlamentarId === deputadoId || e.autorId === deputadoId);
         mine.sort((a, b) => (b.valorEmpenhado || b.valor || 0) - (a.valorEmpenhado || a.valor || 0));
-        setEmendas(mine);
-      } catch (err) {
-        console.log("EmendasAba: colecao emendas ainda nao disponivel", err.message);
+        setFirestoreEmendas(mine);
+      } catch {
+        setFirestoreEmendas([]);
       }
-      setLoading(false);
+      setLoadingRemote(false);
     }
     load();
-  }, [deputadoId]);
+  }, [deputadoId, emendasOverride]);
 
   async function loadRastreamento(emendaId) {
     if (rastreamento[emendaId]) {
@@ -66,15 +84,12 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
       return;
     }
     try {
-      // Load municipio_compras linked to this emenda
       const cSnap = await getDocs(collection(db, "municipio_compras"));
       const compras = cSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.emendaId === emendaId);
-      // Load fornecedor relations
       const fSnap = await getDocs(collection(db, "relacoes_parlamentar_fornecedor"));
       const fornRel = fSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(f => f.emendaId === emendaId);
       setRastreamento(prev => ({ ...prev, [emendaId]: { compras, fornRel } }));
-    } catch (err) {
-      console.log("Rastreamento nao disponivel", err.message);
+    } catch {
       setRastreamento(prev => ({ ...prev, [emendaId]: { compras: [], fornRel: [] } }));
     }
     setExpanded(emendaId);
@@ -84,16 +99,18 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
     return <div style={{ padding: '20px', color: 'var(--text-muted)', textAlign: 'center' }}>Carregando emendas parlamentares...</div>;
   }
 
+  const anosTxt = anosCeapLegislaturaAtual().join(", ");
+
   if (emendas.length === 0) {
     return (
       <div style={{ padding: '20px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <p>Nenhuma emenda encontrada na base de dados enriquecida.</p>
-        <p style={{ fontSize: '11px', marginTop: '8px' }}>Os dados de emendas estao sendo coletados gradualmente. Em breve estarao disponiveis.</p>
+        <p>Nenhuma emenda retornada para este deputado.</p>
+        <p style={{ fontSize: '11px', marginTop: '8px' }}>Dados agregados do Portal da Transparência (API) para os anos {anosTxt} quando você estiver logado.</p>
         {nomeDeputado && (
           <a href={`https://portaldatransparencia.gov.br/emendas/consulta?de=01%2F01%2F2023&ate=31%2F12%2F2026&autor=${encodeURIComponent(nomeDeputado)}`}
             target="_blank" rel="noopener noreferrer"
             style={{ display: 'inline-block', marginTop: '12px', padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, background: 'var(--accent-green)', color: '#fff', textDecoration: 'none' }}>
-            Consultar no Portal da Transparencia
+            Consultar no Portal da Transparência
           </a>
         )}
       </div>
@@ -102,11 +119,18 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
 
   const totalEmpenhado = emendas.reduce((s, e) => s + safeNum(e.valorEmpenhado ?? e.valor), 0);
   const totalPago      = emendas.reduce((s, e) => s + safeNum(e.valorPago), 0);
-  const municipios = [...new Set(emendas.map(e => e.municipioNome).filter(Boolean))];
+  const totalLiq       = emendas.reduce((s, e) => s + safeNum(e.valorLiquidado), 0);
+  const municipios = [...new Set(emendas.map(e => e.municipioNome || e.municipio).filter(Boolean))];
 
   return (
     <div>
-      {/* Summary cards */}
+      <p style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 14, lineHeight: 1.5 }}>
+        Fonte:{" "}
+        <a href="https://api.portaldatransparencia.gov.br/" target="_blank" rel="noopener noreferrer" style={{ color: "#15803d", textDecoration: "underline" }}>
+          API Portal da Transparência
+        </a>
+        {" "}· anos {anosTxt} · valores empenhado / liquidado / pago · documentos por fase (execução) nos primeiros itens.
+      </p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginBottom: '20px' }}>
         <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
           <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--accent-gold)' }}>{emendas.length}</div>
@@ -114,24 +138,33 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
         </div>
         <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
           <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent-orange)' }}>{fmt(totalEmpenhado)}</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>TOTAL EMPENHADO</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>EMPENHADO</div>
+        </div>
+        <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
+          <div style={{ fontSize: '20px', fontWeight: 700, color: '#0d9488' }}>{fmt(totalLiq)}</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>LIQUIDADO</div>
         </div>
         <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
           <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent-green)' }}>{fmt(totalPago)}</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>TOTAL PAGO</div>
-        </div>
-        <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)' }}>{municipios.length}</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>MUNICIPIOS</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>PAGO</div>
         </div>
       </div>
+      {municipios.length > 0 && (
+        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 12 }}>
+          Municípios distintos: <strong>{municipios.length}</strong>
+        </div>
+      )}
 
-      {/* Emendas list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {emendas.map(e => {
           const isExpanded = expanded === e.id;
           const rast = rastreamento[e.id];
           const ufLabel = safeUF(e.uf, e.estado || e.estadoNome, e.municipioNome);
+          const portalUrl = e.linkPortal || e.urlPortal;
+          const taxa = e.taxaExecucao != null ? `${Number(e.taxaExecucao).toFixed(1)}%` : null;
+          const docLine = faseResumo(e.documentosPorFase);
+          const timeline = Array.isArray(e.documentosTimeline) ? e.documentosTimeline : [];
+
           return (
             <div key={e.id} style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', overflow: 'hidden' }}>
               <div
@@ -146,28 +179,62 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
                     {ufLabel ? ` — ${ufLabel}` : ''}
                   </p>
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                    {e.objetoResumo || e.funcao || e.programa || ''}
-                    {e.status ? ` | ${e.status}` : ''}
-                    {e.ano ? ` | ${e.ano}` : ''}
+                    <span style={{ fontWeight: 600 }}>{e.codigo || e.id}</span>
+                    {e.tipo ? ` · ${e.tipo}` : ''}
+                    {e.ano ? ` · ${e.ano}` : ''}
                   </p>
-                  {e.favorecido && <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>Favorecido: {e.favorecido}</p>}
+                  <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                    {e.objetoResumo || [e.funcao, e.subfuncao].filter(Boolean).join(" · ") || ""}
+                  </p>
+                  {docLine && (
+                    <p style={{ fontSize: '10px', color: '#57534e', margin: '6px 0 0', lineHeight: 1.4 }}>
+                      <strong>Execução (documentos):</strong> {docLine}
+                    </p>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <span style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-gold)', fontSize: '15px' }}>{fmt(e.valorEmpenhado ?? e.valor)}</span>
+                  {safeNum(e.valorLiquidado) > 0 && (
+                    <p style={{ fontSize: '11px', color: '#0d9488', margin: '2px 0 0' }}>Liq.: {fmt(e.valorLiquidado)}</p>
+                  )}
                   {safeNum(e.valorPago) > 0 && <p style={{ fontSize: '11px', color: 'var(--accent-green)', margin: '2px 0 0' }}>Pago: {fmt(e.valorPago)}</p>}
-                  {(e.linkPortal || e.urlPortal) && (
-                    <a href={e.linkPortal || e.urlPortal} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginTop: 2 }}>
-                      🔗 Fonte ↗
+                  {taxa && <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Taxa pago/emp.: {taxa}</p>}
+                  {portalUrl && (
+                    <a href={portalUrl} target="_blank" rel="noopener noreferrer"
+                      onClick={(ev) => ev.stopPropagation()}
+                      style={{ fontSize: '10px', fontWeight: 700, color: '#fff', background: '#15803d', padding: '4px 10px', borderRadius: 6, display: 'inline-block', marginTop: 6, textDecoration: 'none' }}>
+                      Emenda no Portal ↗
                     </a>
                   )}
                 </div>
               </div>
-              {/* Rastreamento expandido */}
+
+              {timeline.length > 0 && (
+                <div style={{ padding: "0 16px 12px", borderTop: "1px solid var(--border-light)", background: "#fafafa" }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text-primary)", margin: "10px 0 6px" }}>
+                    Linha do tempo (amostra — empenho → pagamento)
+                  </p>
+                  <div style={{ maxHeight: 160, overflowY: "auto" }}>
+                    {timeline.slice(0, 12).map((d, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 10, padding: "4px 0", borderBottom: "1px solid #eee" }}>
+                        <span style={{ color: "var(--text-secondary)" }}>{d.data} · <strong>{d.fase}</strong></span>
+                        {d.linkConsultaDocumento ? (
+                          <a href={d.linkConsultaDocumento} target="_blank" rel="noopener noreferrer" style={{ color: "#15803d", fontWeight: 600, flexShrink: 0 }}>
+                            doc ↗
+                          </a>
+                        ) : (
+                          <span style={{ color: "#ccc" }}>—</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {isExpanded && rast && (
                 <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-light)', background: 'var(--bg-secondary)' }}>
                   {rast.compras.length === 0 && rast.fornRel.length === 0 && (
-                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Rastreamento de compras municipais ainda nao disponivel para esta emenda.</p>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Sem compras municipais extras vinculadas no Firestore.</p>
                   )}
                   {rast.compras.length > 0 && (
                     <div style={{ marginBottom: '10px' }}>
@@ -181,10 +248,10 @@ export default function EmendasAba({ deputadoId, colecao, nomeDeputado }) {
                   )}
                   {rast.fornRel.length > 0 && (
                     <div>
-                      <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent-red)', marginBottom: '6px' }}>Relacoes Fornecedor-Parlamentar:</p>
+                      <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent-red)', marginBottom: '6px' }}>Relações Fornecedor-Parlamentar:</p>
                       {rast.fornRel.map((f, i) => (
                         <div key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', padding: '4px 0' }}>
-                          {f.fornecedorNome || f.cnpj || 'N/A'} - {f.tipo || 'vinculo detectado'}
+                          {f.fornecedorNome || f.cnpj || 'N/A'} - {f.tipo || 'vínculo detectado'}
                         </div>
                       ))}
                     </div>
