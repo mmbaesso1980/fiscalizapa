@@ -85,6 +85,32 @@ exports.listTables = onCall(OPTS, async (req) => {
 });
 
 // ─────────────────────────────────────────────
+// 3b. RANKING (BigQuery — leitura pública, sem auth)
+//     Agrega nota TransparenciaBR / CEAP para cards na UI.
+// ─────────────────────────────────────────────
+exports.getRanking = onCall(OPTS, async (req) => {
+  const limitN = Math.min(Math.max(Number(req.data?.limit) || 513, 1), 513);
+  const query = `
+    SELECT idCamara, nome, partido, estado,
+           notaTransparencia, totalGastos, percentualPresenca
+    FROM \`projeto-codex-br.${DATASET}.auditoria_completa_2023\`
+    ORDER BY notaTransparencia DESC NULLS LAST
+    LIMIT ${limitN}
+  `;
+  try {
+    const [rows] = await bq.query({ query, location: BQ_LOCATION });
+    return {
+      rows,
+      count: rows.length,
+      fonte: 'bigquery_auditoria_completa_2023',
+    };
+  } catch (e) {
+    console.error('getRanking:', e.message);
+    return { rows: [], count: 0, erro: e.message, fonte: 'bigquery' };
+  }
+});
+
+// ─────────────────────────────────────────────
 // 4. QUERY CONTROLADA NO BIGQUERY
 //    Aceita: tabela + filtros opcionais
 //    Retorna: até 500 linhas (seguro)
@@ -201,8 +227,12 @@ exports.getWalletCredits = onCall(OPTS, async (req) => {
     const leg = await db.doc(`users/${uid}`).get();
     if (leg.data()?.plan === 'premium') plano = 'premium';
   }
+  const comprado = d.creditos ?? d.credits ?? 0;
+  const bonus = d.creditos_bonus ?? 0;
   return {
-    saldo: d.creditos ?? d.credits ?? 0,
+    saldo: comprado + bonus,
+    saldoComprado: comprado,
+    saldoBonus: bonus,
     plano,
     totalComprado: d.totalComprado ?? 0,
     totalConsumido: d.totalConsumido ?? 0
@@ -304,7 +334,9 @@ exports.getUser = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
   const d = (await db.doc(`usuarios/${uid}`).get()).data() || {};
-  return { credits: d.creditos ?? d.credits ?? 0 };
+  const comprado = d.creditos ?? d.credits ?? 0;
+  const bonus = d.creditos_bonus ?? 0;
+  return { credits: comprado + bonus };
 });
 
 exports.consumeCredit = onCall(OPTS, async (req) => {
@@ -313,11 +345,22 @@ exports.consumeCredit = onCall(OPTS, async (req) => {
   const ref = db.doc(`usuarios/${uid}`);
   return db.runTransaction(async tx => {
     const snap = await tx.get(ref);
-    const cur = snap.data()?.creditos ?? snap.data()?.credits ?? 0;
-    if (cur < 1) return { ok: false, reason: 'Saldo insuficiente.' };
+    const d = snap.data() || {};
+    const comprado = d.creditos ?? d.credits ?? 0;
+    const bonus = d.creditos_bonus ?? 0;
+    const total = comprado + bonus;
+    if (total < 1) return { ok: false, reason: 'Saldo insuficiente.' };
+    let novoBonus = bonus;
+    let novoComprado = comprado;
+    if (novoBonus >= 1) novoBonus -= 1;
+    else novoComprado -= 1;
     tx.set(
       ref,
-      { creditos: cur - 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() },
+      {
+        creditos: novoComprado,
+        creditos_bonus: novoBonus,
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
+      },
       { merge: true }
     );
     return { ok: true, source: 'firestore' };
@@ -490,8 +533,16 @@ function normalizeNomePortalAutor(nome) {
     .trim();
 }
 
+function getPortalTransparenciaApiKey() {
+  const key = process.env.PORTAL_TRANSPARENCIA_API_KEY;
+  if (!key || String(key).trim() === '') {
+    throw new Error('PORTAL_TRANSPARENCIA_API_KEY não configurada nas Cloud Functions.');
+  }
+  return String(key).trim();
+}
+
 function portalApiGet(pathWithLeadingSlash) {
-  const key = process.env.PORTAL_TRANSPARENCIA_API_KEY || '717a95e01b072090f41940282eab700a';
+  const key = getPortalTransparenciaApiKey();
   return new Promise((resolve, reject) => {
     const opts = {
       hostname: 'api.portaldatransparencia.gov.br',
@@ -696,7 +747,7 @@ function parsePtDataSortKey(dataStr) {
 
 /**
  * Emendas parlamentares (Portal da Transparência) + documentos por fase (empenho → … → pagamento).
- * Chave API: env PORTAL_TRANSPARENCIA_API_KEY ou fallback público de desenvolvimento.
+ * Chave API: variável de ambiente PORTAL_TRANSPARENCIA_API_KEY (header chave-api-dados).
  */
 exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;

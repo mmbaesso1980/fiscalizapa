@@ -9,7 +9,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../lib/firebase";
 import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
@@ -134,6 +135,14 @@ function DeputadoRow({ dep, total }) {
           </span>
         </div>
 
+        {/* Score plataforma (BigQuery) */}
+        <div className="text-right shrink-0 min-w-[52px] hidden md:block">
+          <p className="text-[10px]" style={{ color: "#CCC" }}>TBR</p>
+          <p className="text-xs font-semibold tabular-nums" style={{ color: "#555" }}>
+            {dep.score_plataforma != null ? Number(dep.score_plataforma).toFixed(1) : "—"}
+          </p>
+        </div>
+
         {/* CEAP — oculto em mobile */}
         <div className="text-right shrink-0 min-w-[96px] hidden sm:block">
           <p className="text-[10px]" style={{ color: "#CCC" }}>CEAP total</p>
@@ -160,6 +169,14 @@ const SEL_STYLE = {
   outline: "none",
 };
 
+function parseBQMoney(v) {
+  if (v == null || v === "") return 0;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const s = String(v).trim().replace(/\s/g, "").replace(/R\$\s?/gi, "");
+  const n = parseFloat(s.replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function RankingPage() {
   const [deputies,   setDeputies]   = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -168,14 +185,64 @@ export default function RankingPage() {
   const [filterPart, setFilterPart] = useState("");
   const [rankingListCount, setRankingListCount] = useState(0);
   const [mandatosSeed, setMandatosSeed] = useState(0);
+  const [bqRows, setBqRows] = useState([]);
+
+  const insightGastador = useMemo(() => {
+    if (!bqRows.length) return null;
+    let best = bqRows[0];
+    let max = parseBQMoney(best?.totalGastos);
+    for (const r of bqRows) {
+      const t = parseBQMoney(r.totalGastos);
+      if (t > max) {
+        max = t;
+        best = r;
+      }
+    }
+    return max > 0 ? { row: best, total: max } : null;
+  }, [bqRows]);
+
+  const insightMaiorNota = useMemo(() => {
+    if (!bqRows.length) return null;
+    const sorted = [...bqRows].sort(
+      (a, b) => (Number(b.notaTransparencia) || 0) - (Number(a.notaTransparencia) || 0),
+    );
+    const top = sorted[0];
+    if (!top || top.notaTransparencia == null) return null;
+    return top;
+  }, [bqRows]);
+
+  const insightMenorNota = useMemo(() => {
+    if (!bqRows.length) return null;
+    const withNote = bqRows.filter((r) => r.notaTransparencia != null && Number.isFinite(Number(r.notaTransparencia)));
+    if (!withNote.length) return null;
+    withNote.sort((a, b) => Number(a.notaTransparencia) - Number(b.notaTransparencia));
+    return withNote[0];
+  }, [bqRows]);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchAll() {
       try {
-        const { map, mapByIdCamara, listCount, mandatosNoSeed } = await loadRankingOrgExternoMap(db);
-        const snap = await getDocs(collection(db, "deputados_federais"));
+        const [rankRes, orgRes, snap] = await Promise.all([
+          httpsCallable(functions, "getRanking")({ limit: 513 }).catch((e) => {
+            console.warn("getRanking:", e.message);
+            return { data: { rows: [] } };
+          }),
+          loadRankingOrgExternoMap(db),
+          getDocs(collection(db, "deputados_federais")),
+        ]);
         if (cancelled) return;
+
+        const rows = rankRes.data?.rows || [];
+        setBqRows(rows);
+
+        const bqByIdCamara = new Map();
+        for (const r of rows) {
+          const id = Number(r.idCamara);
+          if (Number.isFinite(id)) bqByIdCamara.set(id, r);
+        }
+
+        const { map, mapByIdCamara, listCount, mandatosNoSeed } = orgRes;
         const data = snap.docs.map((docSnap) => {
           const raw = docSnap.data();
           const base = {
@@ -190,10 +257,18 @@ export default function RankingPage() {
             lookupRankingOrgExterno(map, base.nome) ||
             (Number.isFinite(idC) ? lookupRankingOrgExternoById(mapByIdCamara, idC) : null);
           const m = mergeDeputadoRankingOrg(base, ext);
+          const bq = Number.isFinite(idC) ? bqByIdCamara.get(idC) : null;
+          const scorePlat =
+            bq?.notaTransparencia != null && Number.isFinite(Number(bq.notaTransparencia))
+              ? Number(bq.notaTransparencia)
+              : null;
+          const ceapBq = parseBQMoney(bq?.totalGastos);
           return {
             ...m,
             rank: m.rank_externo ?? 9999,
             nota_ranking_org: m.nota_ranking_org ?? 0,
+            score_plataforma: scorePlat,
+            gastosCeapTotal: ceapBq > 0 ? ceapBq : m.gastosCeapTotal,
           };
         });
         data.sort((a, b) => {
@@ -203,10 +278,8 @@ export default function RankingPage() {
           return String(a.nome).localeCompare(String(b.nome), "pt-BR");
         });
         setDeputies(data);
-        if (!cancelled) {
-          setRankingListCount(listCount || 0);
-          setMandatosSeed(mandatosNoSeed || 0);
-        }
+        setRankingListCount(listCount || 0);
+        setMandatosSeed(mandatosNoSeed || 0);
       } catch (err) {
         console.error("Ranking — erro Firestore:", err);
       } finally {
@@ -278,6 +351,33 @@ export default function RankingPage() {
             maxWidth: 320, opacity: 0.7,
           }} />
         </div>
+
+        {/* Cards destaque (BigQuery) */}
+        {!loading && bqRows.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 22 }}>
+            {insightGastador && (
+              <div style={{ background: "rgba(255,255,255,0.85)", border: "1px solid #EDEBE8", borderRadius: 12, padding: "14px 16px" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 6px" }}>Maior volume CEAP (auditoria)</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#2D2D2D", margin: "0 0 4px" }}>{insightGastador.row.nome || "—"}</p>
+                <p style={{ fontSize: 12, color: "#64748b", margin: 0 }}>{fmtBRL(insightGastador.total)} · {insightGastador.row.partido} · {insightGastador.row.estado}</p>
+              </div>
+            )}
+            {insightMaiorNota && (
+              <div style={{ background: "rgba(255,255,255,0.85)", border: "1px solid #EDEBE8", borderRadius: 12, padding: "14px 16px" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: "#15803d", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 6px" }}>Maior nota TransparenciaBR</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#2D2D2D", margin: "0 0 4px" }}>{insightMaiorNota.nome || "—"}</p>
+                <p style={{ fontSize: 12, color: "#64748b", margin: 0 }}>Nota {Number(insightMaiorNota.notaTransparencia).toFixed(1)} · {insightMaiorNota.partido} · {insightMaiorNota.estado}</p>
+              </div>
+            )}
+            {insightMenorNota && (!insightMaiorNota || String(insightMenorNota.idCamara) !== String(insightMaiorNota.idCamara)) && (
+              <div style={{ background: "rgba(255,255,255,0.85)", border: "1px solid #EDEBE8", borderRadius: 12, padding: "14px 16px" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 6px" }}>Menor nota (atenção)</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#2D2D2D", margin: "0 0 4px" }}>{insightMenorNota.nome || "—"}</p>
+                <p style={{ fontSize: 12, color: "#64748b", margin: 0 }}>Nota {Number(insightMenorNota.notaTransparencia).toFixed(1)} · {insightMenorNota.partido} · {insightMenorNota.estado}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Filtros */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>

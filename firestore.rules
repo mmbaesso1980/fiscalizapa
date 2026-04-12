@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// A.S.M.O.D.E.U.S. — Firestore Security Rules v2.1
-// Projeto: fiscallizapa
+// Firestore Security Rules v2.1
+// Projeto: fiscallizapa (Codex)
 // Última atualização: 08/04/2026 (Protocolo Hotpage Elite)
 //
 // Modelo de segurança:
@@ -50,7 +50,7 @@ service cloud.firestore {
     // Inclui dossies_gratuitos_restantes: cliente só pode DECREMENTAR (via isValidQuotaDeduction)
     function touchesCriticalFields() {
       return fieldsDiff().hasAny([
-        'creditos', 'isAdmin', 'role', 'uid', 'criadoEm',
+        'creditos', 'creditos_bonus', 'isAdmin', 'role', 'uid', 'criadoEm',
         'dossies_gratuitos_restantes'   // cota → só decrementar via função específica
       ]);
     }
@@ -64,6 +64,22 @@ service cloud.firestore {
       let is_decrease   = request.resource.data.creditos < resource.data.creditos;
       let no_negative   = request.resource.data.creditos >= 0;
       return only_creditos && is_decrease && no_negative;
+    }
+
+    // Consumo de carteira: saldo comprado (creditos) + promocional (creditos_bonus).
+    // Nunca aumenta totais; só diminui um ou ambos; totais finais >= 0.
+    function isValidWalletSpend() {
+      let diff = fieldsDiff();
+      let only = diff.hasOnly(['creditos', 'creditos_bonus', 'atualizadoEm']);
+      if (!only) return false;
+      let c0 = resource.data.creditos;
+      let c1 = request.resource.data.creditos;
+      let b0 = resource.data.keys().hasAny(['creditos_bonus']) ? resource.data.creditos_bonus : 0;
+      let b1 = request.resource.data.creditos_bonus;
+      let t0 = c0 + b0;
+      let t1 = c1 + b1;
+      return c0 is number && c1 is number && b1 is number
+          && c1 <= c0 && b1 <= b0 && c1 >= 0 && b1 >= 0 && t1 < t0;
     }
 
     // Regra para consumo de 1 cota diária gratuita pelo cliente (useQuota() runTransaction):
@@ -87,7 +103,9 @@ service cloud.firestore {
           && d.creditos  >= 0
           && d.isAdmin   == false     // jamais admin via signup
           && (d.get('role', 'user') == 'user')
-          && d.get('dossies_gratuitos_restantes', 2) <= 2; // máximo 2 cotas no signup
+          && d.get('dossies_gratuitos_restantes', 2) <= 2 // máximo 2 cotas no signup
+          && (!d.keys().hasAny(['creditos_bonus'])
+              || (d.creditos_bonus is number && d.creditos_bonus >= 0 && d.creditos_bonus <= 10));
     }
 
     // Valida campos de um novo dossiê desbloqueado
@@ -123,10 +141,26 @@ service cloud.firestore {
       allow update: if isAdmin()
                     || (isOwner(uid) && !touchesCriticalFields())
                     || (isOwner(uid) && isValidCreditDeduction())
+                    || (isOwner(uid) && isValidWalletSpend())
                     || (isOwner(uid) && isValidQuotaDeduction());
 
       // Deleção: proibida via cliente (apenas Admin SDK pode deletar contas)
       allow delete: if false;
+
+      // ── Subcoleção: historico_creditos/{id} (consumo via cliente) ────────
+      match /historico_creditos/{histId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid)
+            && request.resource.data.keys().hasOnly(['tipo', 'valor', 'descricao', 'ts'])
+            && request.resource.data.tipo == 'uso'
+            && request.resource.data.valor is number
+            && request.resource.data.valor <= -1
+            && request.resource.data.valor >= -500
+            && request.resource.data.descricao is string
+            && request.resource.data.descricao.size() <= 500
+            && request.resource.data.ts == request.time;
+        allow update, delete: if false;
+      }
 
       // ── Subcoleção: dossies_desbloqueados/{dossieId} ─────────────────────
       match /dossies_desbloqueados/{dossieId} {

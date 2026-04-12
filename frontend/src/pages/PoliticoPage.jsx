@@ -14,6 +14,7 @@ import AlertasFretamento from "../components/AlertasFretamento";
 import NepotismoCard from "../components/NepotismoCard";
 import VerbaGabineteSection from "../components/VerbaGabineteSection";
 import EncaminhamentoEmendas from "../components/EncaminhamentoEmendas";
+import { CreditGate } from "../components/CreditGate";
 import { parseCamaraValorReais } from "../utils/moneyCamara";
 import {
   loadRankingOrgExternoMap,
@@ -438,61 +439,60 @@ export default function PoliticoPage() {
                   Nenhuma despesa CEAP retornada para este mandato. Verifique o cadastro do deputado ou tente mais tarde.
                 </div>
               ) : (
-                <>
-                <p className="text-[11px] text-[#6b7280] mb-3">
-                  Exibindo {Math.min(CEAP_LIST_MAX, gastos.length)} de {gastos.length} lançamentos · cada linha com link abre o PDF oficial na Câmara (dados para análise por IA).
-                </p>
-                {gastos.slice(0, CEAP_LIST_MAX).map((g) => (
-                  <div key={g.id}
-                    className={`flex justify-between items-center gap-4 p-4 rounded-lg border transition-all ${
-                      g.isLocked ? "bg-red-50 border-red-200 cursor-pointer hover:bg-red-100" : "bg-[#FAFAF8] border-[#EDEBE8] hover:bg-[#f3f4f6]"
-                    }`}
-                    onClick={() => { if (g.isLocked) navigate("/creditos"); }}
-                  >
-                    <div className={`min-w-0 ${g.isLocked ? "blur-[3px] select-none" : ""}`}>
-                      {g.isLocked ? (
-                        <p className="font-bold text-sm truncate text-red-500">FORNECEDOR EM SIGILO</p>
-                      ) : g.fornecedorNome ? (
-                        <p className="font-bold text-sm truncate text-[#2D2D2D]">{g.fornecedorNome}</p>
-                      ) : (
-                        <p className="text-sm text-gray-500 italic">Fornecedor não informado (Dados da Câmara)</p>
-                      )}
-                      <p className="text-xs text-[#9ca3af] mt-1">
-                        {g.anoRef ? <span className="font-semibold text-[#6b7280]">{g.anoRef} · </span> : null}
-                        {g.tipoDespesa}
-                      </p>
-                      <p className={`text-[11px] mt-1 font-semibold uppercase tracking-wide ${getStatusTone(g.analiseForense)}`}>{g.analiseForense}</p>
+                <CreditGate custo={2} descricao="CEAP completo — deputado">
+                  <>
+                    <p className="text-[11px] text-[#6b7280] mb-3">
+                      Exibindo {Math.min(CEAP_LIST_MAX, gastos.length)} de {gastos.length} lançamentos · cada linha com link abre o PDF oficial na Câmara (dados para análise por IA).
+                    </p>
+                    {gastos.slice(0, CEAP_LIST_MAX).map((g) => (
+                      <div key={g.id}
+                        className={`flex justify-between items-center gap-4 p-4 rounded-lg border transition-all ${
+                          g.isLocked ? "bg-red-50 border-red-200 cursor-pointer hover:bg-red-100" : "bg-[#FAFAF8] border-[#EDEBE8] hover:bg-[#f3f4f6]"
+                        }`}
+                        onClick={() => { if (g.isLocked) navigate("/creditos"); }}
+                      >
+                        <div className={`min-w-0 ${g.isLocked ? "blur-[3px] select-none" : ""}`}>
+                          {g.isLocked ? (
+                            <p className="font-bold text-sm truncate text-red-500">FORNECEDOR EM SIGILO</p>
+                          ) : g.fornecedorNome ? (
+                            <p className="font-bold text-sm truncate text-[#2D2D2D]">{g.fornecedorNome}</p>
+                          ) : (
+                            <p className="text-sm text-gray-500 italic">Fornecedor não informado (Dados da Câmara)</p>
+                          )}
+                          <p className="text-xs text-[#9ca3af] mt-1">
+                            {g.anoRef ? <span className="font-semibold text-[#6b7280]">{g.anoRef} · </span> : null}
+                            {g.tipoDespesa}
+                          </p>
+                          <p className={`text-[11px] mt-1 font-semibold uppercase tracking-wide ${getStatusTone(g.analiseForense)}`}>{g.analiseForense}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className={`font-space font-bold ${g.isLocked ? "text-red-500" : "text-[#2E7F6E]"}`}>{fmtMoney(g.valorLiquido)}</p>
+                          {g.isLocked ? (
+                            <button type="button" className="text-[10px] bg-[#2D2D2D] text-white px-3 py-1.5 rounded mt-2 font-bold hover:bg-[#444] transition-colors">🔓 VER PROVA (1 CRÉDITO)</button>
+                          ) : g.urlDocumento ? (
+                            <a
+                              href={g.urlDocumento}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block text-[10px] font-bold text-white bg-[#15803D] px-3 py-1.5 rounded-md mt-2 no-underline hover:bg-[#166534] shadow-sm"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              📄 Abrir nota (PDF) ↗
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-[#d1d5db] mt-2 block">Sem URL pública da nota</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="bg-[#FAFAF8] border border-[#EDEBE8] rounded-xl p-6 shadow-sm mt-6">
+                      <GastosChart data={gastos} />
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className={`font-space font-bold ${g.isLocked ? "text-red-500" : "text-[#2E7F6E]"}`}>{fmtMoney(g.valorLiquido)}</p>
-                      {g.isLocked ? (
-                        <button type="button" className="text-[10px] bg-[#2D2D2D] text-white px-3 py-1.5 rounded mt-2 font-bold hover:bg-[#444] transition-colors">🔓 VER PROVA (1 CRÉDITO)</button>
-                      ) : g.urlDocumento ? (
-                        <a
-                          href={g.urlDocumento}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block text-[10px] font-bold text-white bg-[#15803D] px-3 py-1.5 rounded-md mt-2 no-underline hover:bg-[#166534] shadow-sm"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          📄 Abrir nota (PDF) ↗
-                        </a>
-                      ) : (
-                        <span className="text-[10px] text-[#d1d5db] mt-2 block">Sem URL pública da nota</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                </>
+                  </>
+                </CreditGate>
               )}
             </div>
           </div>
-
-          {gastos.length > 0 && (
-            <div className="bg-white border border-[#EDEBE8] rounded-xl p-6 shadow-sm">
-              <GastosChart data={gastos} />
-            </div>
-          )}
         </div>
 
         <div className="space-y-8">
@@ -503,12 +503,14 @@ export default function PoliticoPage() {
           )}
           <div className="bg-white rounded-xl border border-[#EDEBE8] p-6 shadow-sm">
             <h3 className="text-lg text-[#2D2D2D] font-bold mb-4 border-b border-[#EDEBE8] pb-2">Rastro de Emendas</h3>
-            <EmendasAba
-              deputadoId={id}
-              nomeDeputado={pol.nome}
-              emendasOverride={emendasOverride}
-              totaisAgregadosOverride={emendasTotaisPortal}
-            />
+            <CreditGate custo={1} descricao="Emendas do deputado">
+              <EmendasAba
+                deputadoId={id}
+                nomeDeputado={pol.nome}
+                emendasOverride={emendasOverride}
+                totaisAgregadosOverride={emendasTotaisPortal}
+              />
+            </CreditGate>
           </div>
         </div>
       </div>

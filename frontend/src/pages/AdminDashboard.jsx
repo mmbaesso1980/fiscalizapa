@@ -232,8 +232,9 @@ export default function AdminDashboard() {
         let creditosGastos = 0;
         usersSnap.docs.forEach(d => {
           const dados = d.data();
-          const inicial  = 10;
-          const atual    = dados.creditos ?? 0;
+          const inicial = 10;
+          const atual =
+            (dados.creditos ?? 0) + (dados.creditos_bonus ?? 0);
           creditosGastos += Math.max(0, inicial - atual);
         });
 
