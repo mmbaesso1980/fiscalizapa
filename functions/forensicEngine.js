@@ -638,6 +638,7 @@ function registerForensicFunctions(deps) {
    * Input: { deputadoId }
    */
   const getForensicCache = onCall(OPTS, async (req) => {
+    // Leitura de cache agregado — permitida sem login (preview público do score)
     const { deputadoId } = req.data || {};
     if (!deputadoId) throw new HttpsError('invalid-argument', 'deputadoId obrigatório.');
 
@@ -660,9 +661,7 @@ function registerForensicFunctions(deps) {
    * Input: { idCamara, nome }
    */
   const getAtividadeParlamentar = onCall(OPTS, async (req) => {
-    const uid = req.auth?.uid;
-    if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
-
+    // Dados públicos da Câmara — não requer autenticação
     const { idCamara, nome } = req.data || {};
     if (!idCamara && !nome) {
       throw new HttpsError('invalid-argument', 'idCamara ou nome obrigatório.');

@@ -133,7 +133,28 @@ export default function PoliticoPage() {
   const [auditError, setAuditError] = useState("");
   const [pageError, setPageError] = useState("");
   const [ceapAnos, setCeapAnos] = useState(() => anosCeapLegislaturaAtual());
+  const [atividadeData, setAtividadeData] = useState(null);
   const CEAP_LIST_MAX = 80;
+
+  useEffect(() => {
+    if (!pol?.idCamara || col !== "deputados_federais") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const fn = httpsCallable(functions, "getAtividadeParlamentar");
+        const idC = Number(pol.idCamara);
+        const result = await fn({
+          idCamara: Number.isFinite(idC) ? idC : undefined,
+          nome: pol.nome || pol.nomeCompleto,
+        });
+        if (!cancelled) setAtividadeData(result.data);
+      } catch (e) {
+        console.error("PoliticoPage atividade:", e);
+        if (!cancelled) setAtividadeData(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pol?.idCamara, pol?.nome, pol?.nomeCompleto, col]);
 
   useEffect(() => {
     let isMounted = true;
@@ -395,6 +416,29 @@ export default function PoliticoPage() {
         </div>
       )}
 
+      {pol.idCamara && (
+        <div className="max-w-6xl mx-auto px-6 mb-4">
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12,
+            padding: "16px 24px", background: "rgba(255,255,255,0.72)",
+            borderRadius: 16, border: "1px solid #EDEBE8",
+          }}>
+            {[
+              { icon: "📝", label: "Proposições", value: atividadeData?.totalProposicoes ?? "..." },
+              { icon: "🎤", label: "Discursos", value: atividadeData?.discursos?.total ?? "..." },
+              { icon: "🤝", label: "Frentes", value: atividadeData?.totalFrentes ?? "..." },
+              { icon: "🏛️", label: "Comissões", value: atividadeData?.totalOrgaos ?? "..." },
+            ].map((s, i) => (
+              <div key={i} style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 20 }}>{s.icon}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: "#1f2937" }}>{s.value}</div>
+                <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Disclaimer IA */}
       <div className="max-w-6xl mx-auto px-6 mb-4">
         <div style={{ background: "#FBF7E8", border: "1px solid #F0E4A0", borderRadius: 8, padding: "10px 16px", display: "flex", alignItems: "flex-start", gap: 8 }}>
@@ -522,9 +566,17 @@ export default function PoliticoPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 mt-8 space-y-8">
-        {/* Motor Forense TransparenciaBR */}
         <SectionCard title="Motor Forense" icon="🔬" tone="danger">
-          <CreditGate custo={3} descricao="Análise forense completa">
+          <ForensicDashboard
+            idCamara={pol.idCamara || id}
+            nome={pol.nome}
+            cpf={pol.cpf}
+            preview
+          />
+        </SectionCard>
+
+        <SectionCard title="Análise Forense Detalhada" icon="🛡️">
+          <CreditGate custo={3} descricao="Alertas forenses detalhados">
             <ForensicDashboard
               idCamara={pol.idCamara || id}
               nome={pol.nome}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "../lib/firebase";
 import ScoreBadge from "./ScoreBadge";
@@ -16,8 +17,41 @@ import { ShieldCheck, Activity, BarChart3, FileText, Users, AlertTriangle } from
  *   nome: string
  *   cpf?: string
  *   compact?: boolean (modo compacto para sidebar)
+ *   preview?: boolean — score e componentes visíveis; alertas só com resumo + CTA
  */
-export default function ForensicDashboard({ idCamara, nome, cpf, compact = false }) {
+function normalizeForensicPayload(raw) {
+  if (!raw || raw.erro) return raw;
+  const d = raw.dados;
+  if (!d || d.ceap?.total != null) return raw;
+  return {
+    ...raw,
+    dados: {
+      ceap: {
+        total: d.ceapTotal ?? 0,
+        count: d.ceapCount ?? 0,
+      },
+      emendas: {
+        count: d.emendasCount ?? 0,
+        taxaExecucao: d.emendasTaxaExecucao ?? 0,
+      },
+      proposicoes: {
+        total: d.proposicoesTotal ?? 0,
+        tipos: d.proposicoesTipos ?? {},
+      },
+      discursos: {
+        total: d.discursosTotal ?? 0,
+      },
+      frentes: {
+        total: d.frentesTotal ?? 0,
+      },
+      sancoes: {
+        total: d.sancoesTotal ?? 0,
+      },
+    },
+  };
+}
+
+export default function ForensicDashboard({ idCamara, nome, cpf, compact = false, preview = false }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,10 +75,9 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
           const getCache = httpsCallable(functions, "getForensicCache");
           const cacheResult = await getCache({ deputadoId: idCamara });
           if (cacheResult?.data?.found && mounted) {
-            setData(cacheResult.data);
+            setData(normalizeForensicPayload(cacheResult.data));
             setLoading(false);
-            // Still fetch fresh in background
-            refreshInBackground();
+            if (!preview) refreshInBackground();
             return;
           }
         }
@@ -60,7 +93,7 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
         const engine = httpsCallable(functions, "forensicEngine");
         const result = await engine({ idCamara, nome, cpf });
         if (mounted) {
-          setData(result.data);
+          setData(normalizeForensicPayload(result.data));
           setLoading(false);
         }
       } catch (e) {
@@ -74,7 +107,7 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
 
     load();
     return () => { mounted = false; };
-  }, [idCamara, nome, cpf]);
+  }, [idCamara, nome, cpf, preview]);
 
   if (loading) {
     return (
@@ -226,8 +259,37 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
         })}
       </div>
 
-      {/* Flags */}
-      {sortedFlags.length > 0 && (
+      {preview && sortedFlags.length > 0 && (
+        <div style={{
+          padding: "16px 20px", borderRadius: 12,
+          background: "linear-gradient(135deg, #FEF9C3 0%, #FEF2F2 100%)",
+          border: "1.5px solid #FDE68A",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexWrap: "wrap", gap: 12,
+        }}>
+          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+            {(redCount > 0 || yellowCount > 0) && (
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#92400E", margin: "0 0 4px" }}>
+                {redCount > 0 ? `⚠️ ${redCount} alerta(s) crítico(s)` : ""}
+                {redCount > 0 && yellowCount > 0 ? " · " : ""}
+                {yellowCount > 0 ? `${yellowCount} ponto(s) de atenção` : ""}
+              </p>
+            )}
+            <p style={{ fontSize: 12, color: "#78716C", margin: 0 }}>
+              {sortedFlags.length} alerta(s) encontrado(s) — desbloqueie para ver os detalhes de cada alerta forense.
+            </p>
+          </div>
+          <Link to="/creditos" style={{
+            padding: "8px 16px", borderRadius: 99,
+            background: "#1B5E3B", color: "#fff",
+            fontSize: 12, fontWeight: 700, textDecoration: "none", textAlign: "center", whiteSpace: "nowrap", alignSelf: "center",
+          }}>
+            🔓 Ver análise completa
+          </Link>
+        </div>
+      )}
+
+      {!preview && sortedFlags.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <p style={{
             fontSize: 11, fontWeight: 700, textTransform: "uppercase",
