@@ -23,7 +23,8 @@ import {
   doc, getDoc, setDoc, collection, query, where,
   orderBy, limit, getDocs, serverTimestamp,
 } from "firebase/firestore";
-import { db }            from "../lib/firebase";
+import { db, functions } from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
 import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
@@ -1106,6 +1107,7 @@ export default function DossiePage() {
   const [activeTab,      setActiveTab     ] = useState("dossie");
   const [nivel5Alertas,  setNivel5Alertas ] = useState([]);
   const [familiaRede,    setFamiliaRede   ] = useState(null);
+  const [atividadeData,  setAtividadeData ] = useState(null);
 
   const pdfRef = useRef(null);
 
@@ -1214,6 +1216,27 @@ export default function DossiePage() {
     loadData();
     return () => { cancelled = true; };
   }, [id]);
+
+  useEffect(() => {
+    const idC = politico?.idCamara != null ? Number(politico.idCamara) : null;
+    const nome = politico?.nome || politico?.nomeCompleto;
+    if (!politico || (!Number.isFinite(idC) && !nome)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const fn = httpsCallable(functions, "getAtividadeParlamentar");
+        const result = await fn({
+          idCamara: Number.isFinite(idC) ? idC : undefined,
+          nome: nome || undefined,
+        });
+        if (!cancelled) setAtividadeData(result.data);
+      } catch (e) {
+        console.error("DossiePage atividade resumo:", e);
+        if (!cancelled) setAtividadeData(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [politico?.idCamara, politico?.nome, politico?.nomeCompleto]);
 
   // ── Desbloquear completo (200 créditos) ───────────────────────────────────
   const handlePayFull = useCallback(async () => {
@@ -1560,7 +1583,7 @@ export default function DossiePage() {
               <CeapMonitorSection politico={politico} />
             </CreditGate>
 
-            {/* ─── SEÇÃO 2B: Motor Forense TransparenciaBR ────────────── */}
+            {/* ─── SEÇÃO 2B: Motor Forense (preview grátis + detalhada paga) ── */}
             <div style={{
               background: "rgba(255,255,255,0.72)", borderRadius: 20,
               border: "1px solid rgba(237,235,232,0.9)", padding: "22px 24px",
@@ -1575,19 +1598,36 @@ export default function DossiePage() {
                 </h2>
                 <span style={{
                   fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 99,
-                  color: "#C82538", background: "rgba(200,37,56,0.08)",
-                  border: "1px solid rgba(200,37,56,0.2)",
+                  color: "#2E7F18", background: "rgba(46,127,24,0.08)",
+                  border: "1px solid rgba(46,127,24,0.2)",
                 }}>
-                  ANÁLISE CRUZADA
+                  GRÁTIS · SCORE
                 </span>
               </div>
-              <CreditGate custo={3} descricao="Análise forense completa">
-                <ForensicDashboard
-                  idCamara={politico?.idCamara || id}
-                  nome={politico?.nome || politico?.nomeCompleto}
-                  cpf={politico?.cpf}
-                />
-              </CreditGate>
+              <ForensicDashboard
+                idCamara={politico?.idCamara || id}
+                nome={politico?.nome || politico?.nomeCompleto}
+                cpf={politico?.cpf}
+                preview
+              />
+              <div style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid rgba(237,235,232,0.9)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <span style={{ fontSize: 18 }}>🛡️</span>
+                  <h2 style={{
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    fontSize: 15, fontWeight: 700, color: "#2D2D2D", margin: 0, flex: 1,
+                  }}>
+                    Análise Forense Detalhada
+                  </h2>
+                </div>
+                <CreditGate custo={3} descricao="Alertas forenses detalhados">
+                  <ForensicDashboard
+                    idCamara={politico?.idCamara || id}
+                    nome={politico?.nome || politico?.nomeCompleto}
+                    cpf={politico?.cpf}
+                  />
+                </CreditGate>
+              </div>
             </div>
 
             {/* ─── SEÇÃO 2C: Atividade Parlamentar Completa ────────────── */}
@@ -1611,6 +1651,31 @@ export default function DossiePage() {
                   PROPOSIÇÕES · DISCURSOS · COMISSÕES
                 </span>
               </div>
+              {(politico?.idCamara || politico?.nome || politico?.nomeCompleto) && (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: 10,
+                  marginBottom: 16,
+                  padding: "12px 16px",
+                  background: "rgba(248,250,252,0.9)",
+                  borderRadius: 12,
+                  border: "1px solid rgba(237,235,232,0.9)",
+                }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, marginBottom: 4 }}>Proposições (total)</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: "#1f2937" }}>
+                      {atividadeData?.totalProposicoes ?? "—"}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, marginBottom: 4 }}>Discursos (total)</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: "#1f2937" }}>
+                      {atividadeData?.discursos?.total ?? "—"}
+                    </div>
+                  </div>
+                </div>
+              )}
               <CreditGate custo={2} descricao="Atividade parlamentar completa">
                 <AtividadeParlamentarSection
                   deputadoId={id}
