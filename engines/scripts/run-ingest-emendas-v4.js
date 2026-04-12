@@ -10,7 +10,11 @@ if (!admin.apps.length) {
   admin.initializeApp({ projectId: "fiscallizapa" });
 }
 const db = admin.firestore();
-const API_KEY = process.env.PORTAL_API_KEY || "717a95e01b072090f41940282eab700a";
+const API_KEY = process.env.PORTAL_TRANSPARENCIA_API_KEY || process.env.PORTAL_API_KEY;
+if (!API_KEY) {
+  console.error("Defina PORTAL_TRANSPARENCIA_API_KEY no ambiente (chave em api.portaldatransparencia.gov.br).");
+  process.exit(1);
+}
 const BASE = "https://api.portaldatransparencia.gov.br/api-de-dados";
 
 const IDH_UF = {

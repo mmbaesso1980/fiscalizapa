@@ -490,8 +490,16 @@ function normalizeNomePortalAutor(nome) {
     .trim();
 }
 
+function getPortalTransparenciaApiKey() {
+  const key = process.env.PORTAL_TRANSPARENCIA_API_KEY;
+  if (!key || String(key).trim() === '') {
+    throw new Error('PORTAL_TRANSPARENCIA_API_KEY não configurada nas Cloud Functions.');
+  }
+  return String(key).trim();
+}
+
 function portalApiGet(pathWithLeadingSlash) {
-  const key = process.env.PORTAL_TRANSPARENCIA_API_KEY || '717a95e01b072090f41940282eab700a';
+  const key = getPortalTransparenciaApiKey();
   return new Promise((resolve, reject) => {
     const opts = {
       hostname: 'api.portaldatransparencia.gov.br',
@@ -696,7 +704,7 @@ function parsePtDataSortKey(dataStr) {
 
 /**
  * Emendas parlamentares (Portal da Transparência) + documentos por fase (empenho → … → pagamento).
- * Chave API: env PORTAL_TRANSPARENCIA_API_KEY ou fallback público de desenvolvimento.
+ * Chave API: variável de ambiente PORTAL_TRANSPARENCIA_API_KEY (Firebase Console → Functions → variáveis).
  */
 exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
