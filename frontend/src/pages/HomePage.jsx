@@ -225,13 +225,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
             }}
           >
             Rastreio de emendas parlamentares, gastos CEAP e votações de {MANDATOS_CAMARA} deputados federais com dados abertos.
-            {rankingListCount > 0 ? (
-              <> Posição no{" "}
-                <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: "#1B5E3B", textDecoration: "underline", textUnderlineOffset: 3 }}>
-                  Ranking dos Políticos
-                </a>{" "}
-                ({rankingListCount} com nota publicada).</>
-            ) : null}
           </p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
             <Link
@@ -244,17 +237,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
             >
               Explorar ranking →
             </Link>
-            <a
-              href="#ranking-section"
-              style={{
-                padding: "12px 24px", borderRadius: 100, background: "transparent",
-                color: "#1a1a1a", fontSize: 14, fontWeight: 500,
-                textDecoration: "underline", textDecorationColor: "#1B5E3B", textUnderlineOffset: 3,
-                border: "1.5px solid var(--border-light)",
-              }}
-            >
-              Top 10 / Bottom 10
-            </a>
           </div>
         </div>
       </section>
@@ -413,10 +395,10 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
 
       <footer style={{ textAlign: "center", padding: "32px 24px", fontSize: 13, color: "#9ca3af", borderTop: "1px solid var(--border-light)" }}>
         <div style={{ display: "flex", justifyContent: "center", gap: 20, marginBottom: 10, flexWrap: "wrap" }}>
-          <Link to="/metodologia" style={{ color: "#1B5E3B", textDecoration: "underline", textUnderlineOffset: 3 }}>Metodologia</Link>
-          <Link to="/alertas" style={{ color: "#1B5E3B", textDecoration: "underline", textUnderlineOffset: 3 }}>Alertas</Link>
-          <Link to="/mapa" style={{ color: "#1B5E3B", textDecoration: "underline", textUnderlineOffset: 3 }}>Mapa</Link>
-          <Link to="/emendas" style={{ color: "#1B5E3B", textDecoration: "underline", textUnderlineOffset: 3 }}>Emendas</Link>
+          <Link to="/metodologia" style={{ color: "#6b7280", textDecoration: "underline", textUnderlineOffset: 3 }}>Metodologia</Link>
+          <Link to="/alertas" style={{ color: "#6b7280", textDecoration: "underline", textUnderlineOffset: 3 }}>Alertas</Link>
+          <Link to="/mapa" style={{ color: "#6b7280", textDecoration: "underline", textUnderlineOffset: 3 }}>Mapa</Link>
+          <Link to="/emendas" style={{ color: "#6b7280", textDecoration: "underline", textUnderlineOffset: 3 }}>Emendas</Link>
         </div>
         transparenciabr · dados 100% públicos · apartidário
       </footer>

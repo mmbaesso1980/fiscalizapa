@@ -142,20 +142,26 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
     );
   }
 
+  const previewPlaceholder = (
+    <div style={{
+      padding: 24, textAlign: "center", borderRadius: 16,
+      background: "#eef5f0",
+    }}>
+      <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", marginBottom: 4 }}>
+        Motor Forense TransparenciaBR
+      </p>
+      <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>
+        Análise forense será ativada quando um usuário solicitar a primeira análise deste deputado.
+      </p>
+    </div>
+  );
+
+  if (preview && !loading && !data && !error) {
+    return previewPlaceholder;
+  }
+
   if (preview && !loading && (error || !data || data?.erro)) {
-    return (
-      <div style={{
-        padding: 24, textAlign: "center", borderRadius: 16,
-        background: "#eef5f0",
-      }}>
-        <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", marginBottom: 4 }}>
-          Motor Forense TransparenciaBR
-        </p>
-        <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>
-          Análise forense será ativada quando um usuário solicitar a primeira análise deste deputado.
-        </p>
-      </div>
-    );
+    return previewPlaceholder;
   }
 
   if (error || !data || data.erro) {
