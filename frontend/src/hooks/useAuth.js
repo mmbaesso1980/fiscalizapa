@@ -76,6 +76,8 @@ export function useAuth() {
   const [user,         setUser        ] = useState(null);
   const [loading,      setLoading     ] = useState(true);
   const [credits,      setCredits     ] = useState(null);
+  const [creditsComprado, setCreditsComprado] = useState(null);
+  const [creditsBonus, setCreditsBonus] = useState(null);
   const [dailyQuota,   setDailyQuota  ] = useState(null); // dossies_gratuitos_restantes
   const [isAdmin,      setIsAdmin     ] = useState(null); // null = carregando
   const [sessionError, setSessionError] = useState(null);
@@ -96,6 +98,8 @@ export function useAuth() {
 
       if (!u) {
         setCredits(null);
+        setCreditsComprado(null);
+        setCreditsBonus(null);
         localStorage.removeItem("userCredits");
         return;
       }
@@ -162,15 +166,20 @@ export function useAuth() {
       (snap) => {
         if (snap.exists()) {
           const data     = snap.data();
-          const total =
-            (data?.creditos ?? 0) + (data?.creditos_bonus ?? 0);
+          const comprado = data?.creditos ?? 0;
+          const bonus = data?.creditos_bonus ?? 0;
+          const total = comprado + bonus;
           setCredits(total);
+          setCreditsComprado(comprado);
+          setCreditsBonus(bonus);
           localStorage.setItem("userCredits", String(total));
           setIsAdmin(data?.isAdmin === true);
           setDailyQuota(data?.dossies_gratuitos_restantes ?? 0);
         } else {
           setIsAdmin(false);
           setDailyQuota(0);
+          setCreditsComprado(0);
+          setCreditsBonus(0);
         }
       },
       (err) => {
@@ -277,6 +286,8 @@ export function useAuth() {
     registerWithEmail,
     logout,
     credits,
+    creditsComprado,
+    creditsBonus,
     deductCredits,
     dailyQuota,
     useQuota,

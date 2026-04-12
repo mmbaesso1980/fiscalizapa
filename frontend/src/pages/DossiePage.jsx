@@ -32,6 +32,7 @@ import {
   MANDATOS_CAMARA,
 } from "../utils/rankingOrg";
 import { useAuth }       from "../hooks/useAuth";
+import { CreditGate }    from "../components/CreditGate";
 import { getRiskColor, getRiskColorAlpha, getRiskLabel } from "../utils/colorUtils";
 import { Helmet }         from "react-helmet-async";
 import PageSkeleton       from "../components/PageSkeleton";
@@ -1552,8 +1553,10 @@ export default function DossiePage() {
             {/* ─── SEÇÃO 1: Identidade & Atividade ───────────────────── */}
             <IdentitySection politico={politico} />
 
-            {/* ─── SEÇÃO 2: Monitor de Gastos CEAP ───────────────────── */}
-            <CeapMonitorSection politico={politico} />
+            {/* ─── SEÇÃO 2: Monitor de Gastos CEAP (2 créditos) ─────── */}
+            <CreditGate custo={2} descricao="Dossiê — CEAP detalhado">
+              <CeapMonitorSection politico={politico} />
+            </CreditGate>
 
             {/* ─── SEÇÃO 3: Diários Oficiais ──────────────────────────── */}
             <DiariosMencoesSection

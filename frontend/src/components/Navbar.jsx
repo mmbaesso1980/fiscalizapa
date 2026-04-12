@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import LoginModal from "./LoginModal";
 import CreditWallet from "./CreditWallet";
 import GlobalSearch from "./GlobalSearch";
 import { AuditSealCompact } from "./AuditSeal";
@@ -30,9 +29,8 @@ const LogoOrb = ({ size = 32 }) => (
   </svg>
 );
 
-export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits, isAdmin }) {
+export default function Navbar({ user, logout, credits, isAdmin }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
@@ -93,6 +91,7 @@ export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, r
                   <div style={{ fontWeight: 600, fontSize: 14, color: '#2D2D2D' }}>{user.displayName || 'Usuario'}</div>
                   <div style={{ fontSize: 12, color: '#888' }}>{user.email}</div>
                 </div>
+                        <button onClick={() => { setDropdownOpen(false); navigate('/usuario'); }} style={dropItem}>👤 Minha conta</button>
                         <button onClick={() => { setDropdownOpen(false); navigate('/perfil'); }} style={dropItem}>🗄️ Meu Cofre</button>
                         <button onClick={() => { setDropdownOpen(false); navigate('/creditos'); }} style={dropItem}>💳 Comprar Créditos</button>
                         <button onClick={() => { setDropdownOpen(false); navigate('/dashboard'); }} style={dropItem}>⚡ Meu Painel</button>
@@ -104,10 +103,7 @@ export default function Navbar({ user, login, loginWithGitHub, loginWithEmail, r
             )}
           </div>
         ) : (
-          <>
-            <button onClick={() => setShowLogin(true)} style={{ padding: '8px 18px', borderRadius: 100, border: 'none', background: '#2D2D2D', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Entrar</button>
-            {showLogin && <LoginModal onClose={() => setShowLogin(false)} onGoogle={login} onGitHub={loginWithGitHub} onEmail={loginWithEmail} onRegister={registerWithEmail} />}
-          </>
+          <button type="button" onClick={() => navigate('/login')} style={{ padding: '8px 18px', borderRadius: 100, border: 'none', background: '#2D2D2D', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Entrar</button>
         )}
       </div>
     </nav>

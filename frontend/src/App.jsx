@@ -24,6 +24,8 @@ const MapaPage         = lazy(() => import("./pages/MapaPage"));
 const PerfilPage       = lazy(() => import("./pages/PerfilPage"));
 const HealthMap        = lazy(() => import("./pages/HealthMap"));
 const NotFoundPage     = lazy(() => import("./pages/NotFoundPage"));
+const LoginPage        = lazy(() => import("./pages/LoginPage"));
+const UsuarioPage      = lazy(() => import("./pages/UsuarioPage"));
 
 export default function App() {
   const { user, loading, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits, isAdmin } = useAuth();
@@ -49,19 +51,11 @@ export default function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <Layout>
-        <Navbar
-          user={user}
-          login={login}
-          loginWithGitHub={loginWithGitHub}
-          loginWithEmail={loginWithEmail}
-          registerWithEmail={registerWithEmail}
-          logout={logout}
-          credits={credits}
-          isAdmin={isAdmin}
-        />
+        <Navbar user={user} logout={logout} credits={credits} isAdmin={isAdmin} />
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/" element={<HomePage user={user} login={login} loginWithGitHub={loginWithGitHub} loginWithEmail={loginWithEmail} registerWithEmail={registerWithEmail} />} />
+            <Route path="/login" element={<LoginPage />} />
             <Route path="/ranking" element={<RankingPage />} />
             <Route path="/alertas" element={<AlertasPage />} />
             <Route path="/mapa" element={<MapaPage />} />
@@ -70,8 +64,9 @@ export default function App() {
             {user ? (
               <>
                 <Route path="/dashboard" element={<DashboardPage user={user} />} />
-                        <Route path="/creditos" element={<CreditosPage user={user} />} />
-                        <Route path="/perfil"   element={<PerfilPage />} />
+                <Route path="/creditos" element={<CreditosPage user={user} />} />
+                <Route path="/perfil" element={<PerfilPage />} />
+                <Route path="/usuario" element={<UsuarioPage />} />
                 <Route path="/politico/:colecao/:id" element={<PoliticoPage user={user} />} />
                 <Route path="/deputado/:nome" element={<PoliticoPage user={user} />} />
                 <Route path="/emenda/:id" element={<EmendaPage />} />

@@ -85,6 +85,32 @@ exports.listTables = onCall(OPTS, async (req) => {
 });
 
 // ─────────────────────────────────────────────
+// 3b. RANKING (BigQuery — leitura pública, sem auth)
+//     Agrega nota TransparenciaBR / CEAP para cards na UI.
+// ─────────────────────────────────────────────
+exports.getRanking = onCall(OPTS, async (req) => {
+  const limitN = Math.min(Math.max(Number(req.data?.limit) || 513, 1), 513);
+  const query = `
+    SELECT idCamara, nome, partido, estado,
+           notaTransparencia, totalGastos, percentualPresenca
+    FROM \`projeto-codex-br.${DATASET}.auditoria_completa_2023\`
+    ORDER BY notaTransparencia DESC NULLS LAST
+    LIMIT ${limitN}
+  `;
+  try {
+    const [rows] = await bq.query({ query, location: BQ_LOCATION });
+    return {
+      rows,
+      count: rows.length,
+      fonte: 'bigquery_auditoria_completa_2023',
+    };
+  } catch (e) {
+    console.error('getRanking:', e.message);
+    return { rows: [], count: 0, erro: e.message, fonte: 'bigquery' };
+  }
+});
+
+// ─────────────────────────────────────────────
 // 4. QUERY CONTROLADA NO BIGQUERY
 //    Aceita: tabela + filtros opcionais
 //    Retorna: até 500 linhas (seguro)

@@ -31,7 +31,7 @@ export default function LoginModal({ onClose, onGoogle, onGitHub, onEmail, onReg
         width: 360, maxWidth: "90vw", boxShadow: "0 8px 32px rgba(0,0,0,0.2)"
       }}>
         <h3 style={{ margin: "0 0 20px", textAlign: "center", fontSize: 18 }}>
-          {mode === "choose" ? "Entrar no FiscalizaPA" : mode === "register" ? "Criar Conta" : "Entrar com Email"}
+          {mode === "choose" ? "Entrar no TransparenciaBR" : mode === "register" ? "Criar Conta" : "Entrar com Email"}
         </h3>
 
         {mode === "choose" ? (

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useCreditSystem } from "../hooks/useCreditSystem";
 import { useAuth } from "../hooks/useAuth";
 import ModalCompraCreditos from "./ModalCompraCreditos";
@@ -9,6 +9,7 @@ import ModalCompraCreditos from "./ModalCompraCreditos";
  */
 export function CreditGate({ custo, descricao, children, onDesbloqueado }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { checkCredits, consumirCreditos } = useCreditSystem();
   const [desbloqueado, setDesbloqueado] = useState(false);
@@ -19,7 +20,8 @@ export function CreditGate({ custo, descricao, children, onDesbloqueado }) {
   const tentar = async () => {
     setErro(null);
     if (!user) {
-      navigate("/");
+      const from = `${location.pathname}${location.search || ""}`;
+      navigate("/login", { state: { from }, replace: false });
       return;
     }
     setLoading(true);

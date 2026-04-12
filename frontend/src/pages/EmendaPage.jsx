@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import SocialContext from "../components/SocialContext";
+import { CreditGate } from "../components/CreditGate";
 
 function fmt(v) {
     if (!v || v === "0,00" || v === "0.00") return "R$ 0,00";
@@ -68,6 +69,7 @@ export default function EmendaPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#fafaf8' }}>
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '32px 16px' }}>
+        <CreditGate custo={1} descricao={`Emenda ${emenda.codigo} — detalhe`}>
 
         {/* Breadcrumb */}
         <div style={{ fontSize: 13, color: '#8a8a9e', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -214,6 +216,7 @@ export default function EmendaPage() {
           </Link>
         </div>
 
+        </CreditGate>
       </div>
     </div>
   );
