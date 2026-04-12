@@ -26,6 +26,7 @@ import {
   getRiskColorDark,
   getRiskLabel,
 } from "../utils/colorUtils";
+import ScoreBadge from "../components/ScoreBadge";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtBRL(val) {
@@ -136,11 +137,8 @@ function DeputadoRow({ dep, total }) {
         </div>
 
         {/* Score plataforma (BigQuery) */}
-        <div className="text-right shrink-0 min-w-[52px] hidden md:block">
-          <p className="text-[10px]" style={{ color: "#CCC" }}>TBR</p>
-          <p className="text-xs font-semibold tabular-nums" style={{ color: "#555" }}>
-            {dep.score_plataforma != null ? Number(dep.score_plataforma).toFixed(1) : "—"}
-          </p>
+        <div className="shrink-0 hidden md:block">
+          <ScoreBadge score={dep.score_plataforma} size="sm" />
         </div>
 
         {/* CEAP — oculto em mobile */}

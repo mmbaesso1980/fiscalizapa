@@ -15,6 +15,8 @@ import NepotismoCard from "../components/NepotismoCard";
 import VerbaGabineteSection from "../components/VerbaGabineteSection";
 import EncaminhamentoEmendas from "../components/EncaminhamentoEmendas";
 import { CreditGate } from "../components/CreditGate";
+import ScoreBadge from "../components/ScoreBadge";
+import AlertaForense from "../components/AlertaForense";
 import { parseCamaraValorReais } from "../utils/moneyCamara";
 import {
   loadRankingOrgExternoMap,
@@ -383,7 +385,9 @@ export default function PoliticoPage() {
               </>
             )}
             {pol.score != null && (
-              <> · Índice TransparenciaBR (plataforma): <strong>{parseFloat(pol.score).toFixed(1)}</strong></>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, marginLeft: 4 }}>
+                · Índice TransparenciaBR: <ScoreBadge score={parseFloat(pol.score)} size="sm" />
+              </span>
             )}
           </div>
         </div>

@@ -61,26 +61,26 @@ export default function App() {
             <Route path="/mapa" element={<MapaPage />} />
             <Route path="/saude" element={<HealthMap />} />
             <Route path="/metodologia" element={<MetodologiaPage />} />
+
+            {/* Rotas públicas — conteúdo premium protegido por CreditGate dentro da página */}
+            <Route path="/politico/:colecao/:id" element={<PoliticoPage user={user} />} />
+            <Route path="/deputado/:nome" element={<PoliticoPage user={user} />} />
+            <Route path="/emenda/:id" element={<EmendaPage />} />
+            <Route path="/emendas" element={<BancoEmendasPage />} />
+            <Route path="/dossie/:id" element={<DossiePage />} />
+
+            {/* Rotas autenticadas */}
             {user ? (
               <>
                 <Route path="/dashboard" element={<DashboardPage user={user} />} />
                 <Route path="/creditos" element={<CreditosPage user={user} />} />
                 <Route path="/perfil" element={<PerfilPage />} />
                 <Route path="/usuario" element={<UsuarioPage />} />
-                <Route path="/politico/:colecao/:id" element={<PoliticoPage user={user} />} />
-                <Route path="/deputado/:nome" element={<PoliticoPage user={user} />} />
-                <Route path="/emenda/:id" element={<EmendaPage />} />
-                <Route path="/emendas" element={<BancoEmendasPage />} />
                 <Route path="/comparador" element={<ComparadorPage />} />
-                <Route path="/dossie/:id" element={<DossiePage />} />
                 {isAdmin && <Route path="/admin" element={<AdminDashboard />} />}
-                <Route path="*" element={<NotFoundPage />} />
               </>
-            ) : (
-              <>
-                <Route path="*" element={<NotFoundPage />} />
-              </>
-            )}
+            ) : null}
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
         </Layout>
