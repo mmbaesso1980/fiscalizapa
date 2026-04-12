@@ -3,10 +3,9 @@
  *
  * Responsabilidades:
  *  • Gerencia estado de autenticação Firebase (Google, GitHub, e-mail)
- *  • Ao criar conta nova, escreve documento em Firestore: usuarios/{uid}
- *    com campo creditos: 10
- *  • Mantém créditos em tempo real via onSnapshot (Firestore)
- *  • Expõe deductCredits(amount) — transação atômica que desconta créditos
+ *  • Ao criar conta nova, escreve usuarios/{uid} com creditos_bonus de boas-vindas
+ *  • Saldo exibido = creditos + creditos_bonus (onSnapshot)
+ *  • deductCredits — consome bônus primeiro (mesma regra que CreditGate)
  *  • Mantém compatibilidade com Cloud Functions legadas (getUser, session mgmt)
  */
 
@@ -28,14 +27,18 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, googleProvider, githubProvider, functions, db } from "../lib/firebase";
+import { spendUserCredits } from "../lib/creditsFirestore";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function generateSessionId() {
   return "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
 }
 
-const CREDITOS_INICIAIS    = 10;
-const DAILY_QUOTA_DEFAULT  = 2;  // cotas gratuitas por dia (resetadas por 12_reset_quotes.py)
+/** Créditos comprados iniciais (compras via Stripe somam aqui). */
+const CREDITOS_INICIAIS = 0;
+/** Bônus de boas-vindas (consumido antes do saldo comprado). */
+const CREDITOS_BONUS_INICIAIS = 10;
+const DAILY_QUOTA_DEFAULT = 2; // cotas gratuitas por dia (resetadas por 12_reset_quotes.py)
 
 /**
  * Garante que o documento usuarios/{uid} existe no Firestore.
@@ -53,17 +56,19 @@ async function ensureUserDoc(u) {
       nome:                        u.displayName ?? "",
       photoURL:                    u.photoURL ?? "",
       creditos:                    CREDITOS_INICIAIS,
+      creditos_bonus:              CREDITOS_BONUS_INICIAIS,
       dossies_gratuitos_restantes: DAILY_QUOTA_DEFAULT,
       plano:                       "free",
       isAdmin:                     false,
       criadoEm:                    serverTimestamp(),
       atualizadoEm:                serverTimestamp(),
     });
-    return CREDITOS_INICIAIS;
+    return CREDITOS_BONUS_INICIAIS;
   }
 
   // Doc já existe: não escreve nada — onSnapshot já lê os dados em tempo real.
-  return snap.data()?.creditos ?? 0;
+  const d = snap.data();
+  return (d?.creditos ?? 0) + (d?.creditos_bonus ?? 0);
 }
 
 // ─── Hook principal ───────────────────────────────────────────────────────────
@@ -157,9 +162,10 @@ export function useAuth() {
       (snap) => {
         if (snap.exists()) {
           const data     = snap.data();
-          const creditos = data?.creditos ?? 0;
-          setCredits(creditos);
-          localStorage.setItem("userCredits", String(creditos));
+          const total =
+            (data?.creditos ?? 0) + (data?.creditos_bonus ?? 0);
+          setCredits(total);
+          localStorage.setItem("userCredits", String(total));
           setIsAdmin(data?.isAdmin === true);
           setDailyQuota(data?.dossies_gratuitos_restantes ?? 0);
         } else {
@@ -212,15 +218,16 @@ export function useAuth() {
         nome:                        "",
         photoURL:                    "",
         creditos:                    CREDITOS_INICIAIS,
+        creditos_bonus:              CREDITOS_BONUS_INICIAIS,
         dossies_gratuitos_restantes: DAILY_QUOTA_DEFAULT,
         plano:                       "free",
         isAdmin:                     false,
         criadoEm:                    serverTimestamp(),
         atualizadoEm:                serverTimestamp(),
       });
-      setCredits(CREDITOS_INICIAIS);
+      setCredits(CREDITOS_BONUS_INICIAIS);
       setDailyQuota(DAILY_QUOTA_DEFAULT);
-      localStorage.setItem("userCredits", String(CREDITOS_INICIAIS));
+      localStorage.setItem("userCredits", String(CREDITOS_BONUS_INICIAIS));
     } catch (e) {
       console.warn("Erro ao criar documento de usuário:", e.message);
     }
@@ -234,18 +241,9 @@ export function useAuth() {
    * Lança Error se saldo insuficiente ou usuário não autenticado.
    * O onSnapshot atualizará setCredits automaticamente após a transação.
    */
-  const deductCredits = async (amount) => {
+  const deductCredits = async (amount, descricao = "Consumo de créditos") => {
     if (!user) throw new Error("Usuário não autenticado.");
-
-    const ref = doc(db, "usuarios", user.uid);
-    await runTransaction(db, async (tx) => {
-      const snap    = await tx.get(ref);
-      const current = snap.data()?.creditos ?? 0;
-      if (current < amount) {
-        throw new Error(`Saldo insuficiente: você tem ${current} crédito(s), necessário ${amount}.`);
-      }
-      tx.update(ref, { creditos: current - amount, atualizadoEm: serverTimestamp() });
-    });
+    await spendUserCredits(db, user.uid, amount, descricao);
   };
 
   /**
