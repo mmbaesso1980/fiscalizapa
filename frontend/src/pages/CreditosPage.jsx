@@ -6,48 +6,48 @@ import { useAuth } from '../hooks/useAuth';
 
 const PACKAGES = [
   {
-    id: 'price_starter_10',
+    id: 'price_starter_50',
     name: 'Starter',
-    credits: 10,
-    price: 'R$ 9,90',
-    perCredit: 'R$ 0,99',
+    credits: 50,
+    price: 'R$ 19,90',
+    perCredit: 'R$ 0,40',
     color: '#22c55e',
     icon: '\u26A1',
     popular: false,
-        descricao: '10 análises de políticos',
+    descricao: '50 créditos — ideal para explorar a plataforma',
   },
   {
-    id: 'price_pro_50',
-    name: 'Pro',
-    credits: 50,
-    price: 'R$ 39,90',
-    perCredit: 'R$ 0,80',
+    id: 'price_pro_200',
+    name: 'Profissional',
+    credits: 200,
+    price: 'R$ 59,90',
+    perCredit: 'R$ 0,30',
     color: '#3b82f6',
     icon: '\uD83D\uDE80',
     popular: true,
-        descricao: '50 análises de políticos – melhor custo-benefício',
+    descricao: '200 créditos — melhor custo-benefício',
   },
   {
-    id: 'price_ultra_200',
-    name: 'Ultra',
-    credits: 200,
-    price: 'R$ 99,90',
-    perCredit: 'R$ 0,50',
+    id: 'price_analista_500',
+    name: 'Analista',
+    credits: 500,
+    price: 'R$ 129,90',
+    perCredit: 'R$ 0,26',
     color: '#8b5cf6',
     icon: '\uD83D\uDC8E',
     popular: false,
-        descricao: '200 análises de políticos para uso intensivo',
+    descricao: '500 créditos para uso intensivo e dossiês completos',
   },
   {
-    id: 'price_ilimitado',
-    name: 'Ilimitado',
+    id: 'price_enterprise',
+    name: 'Enterprise',
     credits: 999999,
-    price: 'R$ 199,90/mês',
+    price: 'R$ 299/mês',
     perCredit: 'Ilimitado',
     color: '#f59e0b',
     icon: '\u221E',
     popular: false,
-    descricao: 'Análises e chats ilimitados + acesso à barra de perguntas subjetivas à nossa IA',
+    descricao: 'Créditos ilimitados + API dedicada + suporte prioritário',
   },
 ];
 
@@ -255,10 +255,15 @@ export default function CreditosPage() {
       <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 12, padding: 20, marginTop: 32 }}>
         <strong style={{ color: '#1e293b' }}>Como funcionam os créditos?</strong>
         <ul style={{ marginTop: 12, color: '#64748b', lineHeight: 2, paddingLeft: 20 }}>
-          <li>Chat com IA (apenas Ilimitado): <strong>1 crédito</strong> por mensagem</li>
-          <li>Análise completa de político: <strong>2 créditos</strong></li>
-          <li>Novos usuários recebem <strong>5 créditos grátis</strong></li>
-          <li>Plano Ilimitado inclui acesso à <strong>barra de perguntas subjetivas à nossa IA</strong></li>
+          <li>Ver ranking de deputados e score público: <strong>Gratuito</strong></li>
+          <li>Detalhes CEAP de um deputado: <strong>2 créditos</strong></li>
+          <li>Lista de emendas de um deputado: <strong>1 crédito</strong></li>
+          <li>Score detalhado com alertas: <strong>3 créditos</strong></li>
+          <li>Dossiê PDF básico: <strong>5 créditos</strong></li>
+          <li>Análise forense de funcionários: <strong>10 créditos</strong></li>
+          <li>Cruzamento CNPJ + CEIS + emendas: <strong>15 créditos</strong></li>
+          <li>Dossiê completo: <strong>20 créditos</strong></li>
+          <li>Novos usuários recebem <strong>10 créditos bônus</strong></li>
           <li>Pagamento seguro via Stripe (cartão)</li>
         </ul>
       </div>
