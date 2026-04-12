@@ -10,6 +10,10 @@ import {
   serverTimestamp,
   collection,
 } from "firebase/firestore";
+import {
+  CREDITOS_COMPRADOS_INICIAIS,
+  CREDITOS_BONUS_BOAS_VINDAS,
+} from "./creditConstants";
 
 function histDocId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -37,8 +41,8 @@ export async function spendUserCredits(db, userId, custo, descricao) {
     const snap = await tx.get(ref);
     if (!snap.exists()) {
       tx.set(ref, {
-        creditos: 0,
-        creditos_bonus: 5,
+        creditos: CREDITOS_COMPRADOS_INICIAIS,
+        creditos_bonus: CREDITOS_BONUS_BOAS_VINDAS,
         criadoEm: serverTimestamp(),
         atualizadoEm: serverTimestamp(),
       });
@@ -84,7 +88,7 @@ export async function spendUserCredits(db, userId, custo, descricao) {
 
   if (perfilCriadoBoasVindas) {
     throw new Error(
-      "Bem-vindo! Você recebeu 5 créditos de boas-vindas. Tente novamente.",
+      `Bem-vindo! Você recebeu ${CREDITOS_BONUS_BOAS_VINDAS} créditos de boas-vindas. Tente novamente.`,
     );
   }
 }
