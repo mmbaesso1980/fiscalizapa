@@ -932,7 +932,19 @@ exports.portalTransparenciaProxy = onCall(OPTS, async (req) => {
 });
 
 // ─────────────────────────────────────────────
-// 10. RANKING SEMANAL (scheduled — toda segunda 03:00 Belém)
+// 10. MOTOR FORENSE (análise cruzada + scoring + flags)
+//     Módulo separado: forensicEngine.js
+// ─────────────────────────────────────────────
+const { registerForensicFunctions } = require('./forensicEngine');
+const forensic = registerForensicFunctions({
+  onCall, HttpsError, db, bq, DATASET, BQ_LOCATION, OPTS,
+});
+exports.forensicEngine = forensic.forensicEngine;
+exports.getForensicCache = forensic.getForensicCache;
+exports.getAtividadeParlamentar = forensic.getAtividadeParlamentar;
+
+// ─────────────────────────────────────────────
+// 11. RANKING SEMANAL (scheduled — toda segunda 03:00 Belém)
 // ─────────────────────────────────────────────
 exports.atualizarRankingSemanal = onSchedule(
   { schedule: 'every monday 03:00', timeZone: 'America/Belem', ...OPTS },
