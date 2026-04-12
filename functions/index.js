@@ -209,9 +209,14 @@ const APP_PUBLIC_ORIGIN =
   process.env.APP_PUBLIC_ORIGIN || 'https://fiscallizapa.web.app';
 
 const PACKAGE_CREDITS = {
+  // Pacotes novos (roteiro v2)
+  price_starter_50: 50,
+  price_pro_200: 200,
+  price_analista_500: 500,
+  // Pacotes legados (backward compat)
   price_starter_10: 10,
   price_pro_50: 50,
-  price_ultra_200: 200
+  price_ultra_200: 200,
 };
 
 // ─────────────────────────────────────────────
@@ -270,16 +275,22 @@ exports.buyCredits = onCall(OPTS, async (req) => {
   if (!packageId) throw new HttpsError('invalid-argument', 'packageId obrigatório.');
 
   const priceEnvMap = {
-    price_starter_10: process.env.STRIPE_PRICE_STARTER_10,
-    price_pro_50: process.env.STRIPE_PRICE_PRO_50,
-    price_ultra_200: process.env.STRIPE_PRICE_ULTRA_200,
-    price_ilimitado: process.env.STRIPE_PRICE_ILIMITADO
+    // Pacotes novos (roteiro v2)
+    price_starter_50:    process.env.STRIPE_PRICE_STARTER_50,
+    price_pro_200:       process.env.STRIPE_PRICE_PRO_200,
+    price_analista_500:  process.env.STRIPE_PRICE_ANALISTA_500,
+    price_enterprise:    process.env.STRIPE_PRICE_ENTERPRISE,
+    // Pacotes legados (backward compat)
+    price_starter_10:    process.env.STRIPE_PRICE_STARTER_10,
+    price_pro_50:        process.env.STRIPE_PRICE_PRO_50,
+    price_ultra_200:     process.env.STRIPE_PRICE_ULTRA_200,
+    price_ilimitado:     process.env.STRIPE_PRICE_ILIMITADO,
   };
   const priceId = priceEnvMap[packageId];
   if (!priceId) {
     throw new HttpsError(
       'failed-precondition',
-      'Stripe não configurado: defina STRIPE_PRICE_STARTER_10, STRIPE_PRICE_PRO_50, STRIPE_PRICE_ULTRA_200 e/ou STRIPE_PRICE_ILIMITADO nas variáveis de ambiente das Functions.'
+      `Stripe n\u00e3o configurado para pacote "${packageId}". Defina a vari\u00e1vel STRIPE_PRICE_* correspondente nas Functions.`
     );
   }
 
@@ -309,7 +320,7 @@ exports.buyCredits = onCall(OPTS, async (req) => {
     }
   })(origin);
 
-  const mode = packageId === 'price_ilimitado' ? 'subscription' : 'payment';
+  const mode = (packageId === 'price_ilimitado' || packageId === 'price_enterprise') ? 'subscription' : 'payment';
   const session = await stripe.checkout.sessions.create({
     mode,
     payment_method_types: ['card'],
@@ -412,7 +423,7 @@ exports.stripeWebhook = onRequest(
         const pkg = session.metadata?.packageId || '';
 
         if (session.mode === 'subscription') {
-          const plano = pkg === 'price_ilimitado' ? 'ilimitado' : 'premium';
+          const plano = (pkg === 'price_ilimitado' || pkg === 'price_enterprise') ? 'ilimitado' : 'premium';
           await ref.set(
             {
               plano,

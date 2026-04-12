@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import CreditWallet from "./CreditWallet";
+import CreditBadge from "./CreditBadge";
 import GlobalSearch from "./GlobalSearch";
 import { AuditSealCompact } from "./AuditSeal";
 
@@ -62,7 +62,7 @@ export default function Navbar({ user, logout, credits, isAdmin }) {
         <Link to="/alertas" style={navLink}>Alertas</Link>
         <Link to="/mapa"    style={navLink}>Mapa</Link>
         <Link to="/metodologia" style={navLink}>Metodologia</Link>
-        {user && <Link to="/emendas" style={navLink}>Emendas</Link>}
+        <Link to="/emendas" style={navLink}>Emendas</Link>
         {user && <Link to="/comparador" style={navLink}>Comparar</Link>}
       </div>
 
@@ -83,7 +83,7 @@ export default function Navbar({ user, logout, credits, isAdmin }) {
               }
               <span style={{ fontSize: 13, fontWeight: 500, color: '#2D2D2D' }}>{firstName}</span>
               <AuditSealCompact />
-              <CreditWallet credits={credits} compact />
+              <CreditBadge credits={credits} compact />
             </button>
             {dropdownOpen && (
               <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: '#fff', borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.12)', minWidth: 210, border: '1px solid #EDEBE8', zIndex: 200, overflow: 'hidden' }}>
