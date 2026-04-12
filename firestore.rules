@@ -68,18 +68,18 @@ service cloud.firestore {
 
     // Consumo de carteira: saldo comprado (creditos) + promocional (creditos_bonus).
     // Nunca aumenta totais; só diminui um ou ambos; totais finais >= 0.
+    // NOTA: Firestore Rules NÃO suporta if/else dentro de funções — usar somente
+    //       let + return com expressões booleanas encadeadas.
     function isValidWalletSpend() {
-      let diff = fieldsDiff();
-      let only = diff.hasOnly(['creditos', 'creditos_bonus', 'atualizadoEm']);
-      if (!only) return false;
-      let c0 = resource.data.creditos;
-      let c1 = request.resource.data.creditos;
-      let b0 = resource.data.keys().hasAny(['creditos_bonus']) ? resource.data.creditos_bonus : 0;
-      let b1 = request.resource.data.creditos_bonus;
-      let t0 = c0 + b0;
-      let t1 = c1 + b1;
-      return c0 is number && c1 is number && b1 is number
-          && c1 <= c0 && b1 <= b0 && c1 >= 0 && b1 >= 0 && t1 < t0;
+      let only = fieldsDiff().hasOnly(['creditos', 'creditos_bonus', 'atualizadoEm']);
+      let c0   = resource.data.creditos;
+      let c1   = request.resource.data.creditos;
+      let b0   = resource.data.creditos_bonus;
+      let b1   = request.resource.data.creditos_bonus;
+      return only
+          && c0 is number && c1 is number && b0 is number && b1 is number
+          && c1 <= c0 && b1 <= b0 && c1 >= 0 && b1 >= 0
+          && (c1 + b1) < (c0 + b0);
     }
 
     // Regra para consumo de 1 cota diária gratuita pelo cliente (useQuota() runTransaction):
