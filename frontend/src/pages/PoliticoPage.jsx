@@ -17,6 +17,8 @@ import EncaminhamentoEmendas from "../components/EncaminhamentoEmendas";
 import { CreditGate } from "../components/CreditGate";
 import ScoreBadge from "../components/ScoreBadge";
 import AlertaForense from "../components/AlertaForense";
+import ForensicDashboard from "../components/ForensicDashboard";
+import AtividadeParlamentarSection from "../components/AtividadeParlamentarSection";
 import { parseCamaraValorReais } from "../utils/moneyCamara";
 import {
   loadRankingOrgExternoMap,
@@ -520,11 +522,34 @@ export default function PoliticoPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 mt-8 space-y-8">
+        {/* Motor Forense TransparenciaBR */}
+        <SectionCard title="Motor Forense" icon="🔬" tone="danger">
+          <CreditGate custo={3} descricao="Análise forense completa">
+            <ForensicDashboard
+              idCamara={pol.idCamara || id}
+              nome={pol.nome}
+              cpf={pol.cpf}
+            />
+          </CreditGate>
+        </SectionCard>
+
+        {/* Atividade Parlamentar Completa */}
+        <SectionCard title="Atividade Parlamentar" icon="📊">
+          <CreditGate custo={2} descricao="Atividade parlamentar completa">
+            <AtividadeParlamentarSection
+              deputadoId={id}
+              idCamara={pol.idCamara || id}
+              nome={pol.nome}
+              colecao={col}
+            />
+          </CreditGate>
+        </SectionCard>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <SectionCard title="Assiduidade em Plenário" icon="🏛️">
             <PresencaSection politico={pol} colecao={col} politicoId={id} />
           </SectionCard>
-          <SectionCard title="Produção Legislativa" icon="📚">
+          <SectionCard title="Produção Legislativa (Resumo)" icon="📚">
             <ProjetosSection deputadoId={id} colecao={col} />
           </SectionCard>
         </div>
