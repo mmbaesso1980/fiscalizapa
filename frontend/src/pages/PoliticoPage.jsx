@@ -19,6 +19,7 @@ import ScoreBadge from "../components/ScoreBadge";
 import AlertaForense from "../components/AlertaForense";
 import ForensicDashboard from "../components/ForensicDashboard";
 import AtividadeParlamentarSection from "../components/AtividadeParlamentarSection";
+import ComparadorEmbed from "../components/ComparadorEmbed";
 import { parseCamaraValorReais } from "../utils/moneyCamara";
 import {
   loadRankingOrgExternoMap,
@@ -418,11 +419,14 @@ export default function PoliticoPage() {
 
       {pol.idCamara && (
         <div className="max-w-6xl mx-auto px-6 mb-4">
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12,
-            padding: "16px 24px", background: "rgba(255,255,255,0.72)",
-            borderRadius: 16, border: "1px solid #EDEBE8",
-          }}>
+          <div
+            className="stats-grid"
+            style={{
+              display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12,
+              padding: "16px 24px", background: "var(--bg-mint, #eef5f0)",
+              borderRadius: 16,
+            }}
+          >
             {[
               { icon: "📝", label: "Proposições", value: atividadeData?.totalProposicoes ?? "..." },
               { icon: "🎤", label: "Discursos", value: atividadeData?.discursos?.total ?? "..." },
@@ -455,9 +459,9 @@ export default function PoliticoPage() {
       </div>
 
       {/* ── CONTEÚDO ── */}
-      <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-3 gap-8 grid-responsive">
         <div className="lg:col-span-2 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 grid-responsive">
             <StatCard label="Gasto CEAP Auditado" value={fmtMoney(totalGastos)} accent="gold" />
             <StatCard label="Notas Fiscais" value={qtdNotas} accent="white" />
             <StatCard label="Total de Emendas" value={fmtMoney(totalEmendas)} accent="teal" />
@@ -597,7 +601,11 @@ export default function PoliticoPage() {
           </CreditGate>
         </SectionCard>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <SectionCard title="Comparar com outro deputado" icon="⚖️">
+          <ComparadorEmbed currentDeputadoId={id} />
+        </SectionCard>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 grid-responsive">
           <SectionCard title="Assiduidade em Plenário" icon="🏛️">
             <PresencaSection politico={pol} colecao={col} politicoId={id} />
           </SectionCard>
@@ -605,7 +613,7 @@ export default function PoliticoPage() {
             <ProjetosSection deputadoId={id} colecao={col} />
           </SectionCard>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 grid-responsive">
           {gastos.length > 0 ? (
             <SectionCard title="Radar de Fretamento" icon="✈️" tone="danger">
               <AlertasFretamento gastos={gastos} politico={pol} />
@@ -619,7 +627,7 @@ export default function PoliticoPage() {
             <NepotismoCard deputadoId={id} colecao={col} />
           </SectionCard>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10 grid-responsive">
           <SectionCard title="Folha do Gabinete" icon="🏢">
             <VerbaGabineteSection colecao={col} politicoId={id} idCamara={pol.idCamara || id} />
           </SectionCard>

@@ -188,37 +188,74 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#FAFAF8', fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-primary)", fontFamily: "'Inter', system-ui, sans-serif" }}>
 
-      {/* HERO */}
-      <section style={{ maxWidth: 860, margin: '0 auto', padding: '64px 24px 44px', textAlign: 'center' }}>
-        <p style={{ fontSize: 11, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#A8D8B0', fontWeight: 600, marginBottom: 14 }}>
-          inteligência sobre o poder público
-        </p>
-        <h1 style={{ fontSize: 'clamp(28px,5vw,50px)', fontWeight: 700, color: '#2D2D2D', lineHeight: 1.1, marginBottom: 16, letterSpacing: '-1px' }}>
-          Cada real gasto por <br />
-          <span style={{ background: 'linear-gradient(90deg,#FBD87F,#F7B98B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            {MANDATOS_CAMARA} deputados federais
-          </span>
-          <br />
-          <span style={{ fontSize: 'clamp(14px,2.8vw,20px)', fontWeight: 600, color: '#666', letterSpacing: 0 }}>
-            na Câmara · posição no{' '}
-            <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: '#444', textDecoration: 'underline' }}>
-              Ranking dos Políticos
+      <section style={{ maxWidth: 1040, margin: "0 auto", padding: "48px 16px 40px" }}>
+        <div
+          className="hero-title"
+          style={{
+            borderRadius: 20,
+            padding: "clamp(32px, 6vw, 64px) clamp(16px, 4vw, 40px)",
+            textAlign: "center",
+            background: "linear-gradient(135deg, #FEF3E2 0%, #FDF8F0 20%, #F0F7F2 50%, #EEF2F9 80%, #F5F0F8 100%)",
+          }}
+        >
+          <h1
+            style={{
+              fontFamily: "'Fraunces', Georgia, serif",
+              fontSize: "clamp(24px, 5vw, 52px)",
+              fontWeight: 600,
+              color: "var(--text-heading-serif)",
+              lineHeight: 1.15,
+              letterSpacing: "-0.5px",
+              marginBottom: 20,
+            }}
+          >
+            Cada real público, cada<br />
+            emenda, cada voto —<br />
+            sob análise forense
+          </h1>
+          <p
+            style={{
+              fontSize: "clamp(14px, 2vw, 16px)",
+              color: "var(--text-secondary)",
+              maxWidth: 480,
+              margin: "0 auto 28px",
+              lineHeight: 1.7,
+            }}
+          >
+            Rastreio de emendas parlamentares, gastos CEAP e votações de {MANDATOS_CAMARA} deputados federais com dados abertos.
+            {rankingListCount > 0 ? (
+              <> Posição no{" "}
+                <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: "#1B5E3B", textDecoration: "underline", textUnderlineOffset: 3 }}>
+                  Ranking dos Políticos
+                </a>{" "}
+                ({rankingListCount} com nota publicada).</>
+            ) : null}
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            <Link
+              to="/ranking"
+              style={{
+                padding: "12px 28px", borderRadius: 100,
+                background: "#1B5E3B", color: "#fff",
+                fontSize: 15, fontWeight: 600, textDecoration: "none",
+              }}
+            >
+              Explorar ranking →
+            </Link>
+            <a
+              href="#ranking-section"
+              style={{
+                padding: "12px 24px", borderRadius: 100, background: "transparent",
+                color: "#1a1a1a", fontSize: 14, fontWeight: 500,
+                textDecoration: "underline", textDecorationColor: "#1B5E3B", textUnderlineOffset: 3,
+                border: "1.5px solid var(--border-light)",
+              }}
+            >
+              Top 10 / Bottom 10
             </a>
-            {rankingListCount > 0 ? ` (${rankingListCount} com nota publicada)` : ''}
-          </span>
-        </h1>
-        <p style={{ fontSize: 15, color: '#666', maxWidth: 500, margin: '0 auto 28px', lineHeight: 1.7 }}>
-          Análise de CEAP, emendas e atividade parlamentar. Flags de risco, dossiês e relatórios prontos.
-        </p>
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link to="/ranking" style={{ padding: '12px 24px', borderRadius: 100, background: '#2D2D2D', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
-            Ver ranking completo
-          </Link>
-          <a href="#ranking-section" style={{ padding: '12px 24px', borderRadius: 100, background: 'transparent', color: '#2D2D2D', fontSize: 14, fontWeight: 500, textDecoration: 'none', border: '1.5px solid #DEDBD6' }}>
-            Top 10 / Bottom 10
-          </a>
+          </div>
         </div>
       </section>
 
@@ -238,7 +275,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         {loading ? (
           <div style={{ textAlign: 'center', padding: '48px', color: '#AAA', fontSize: 14 }}>Carregando ranking...</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', gap: 24 }}>
+          <div className="grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', gap: 24 }}>
             {/* TOP 10 */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
@@ -267,7 +304,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       </section>
 
       {/* STATS — abaixo do ranking para não interromper o fluxo principal */}
-      <div style={{ maxWidth: 760, margin: '0 auto 52px', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 14 }}>
+      <div className="stats-grid" style={{ maxWidth: 760, margin: '0 auto 52px', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 14 }}>
         {[
           { n: String(MANDATOS_CAMARA), label: 'Mandatos na Câmara dos Deputados' },
           { n: String(mandatosNoSeed), label: 'Deputados no seed (posição + dados Câmara)' },
@@ -276,9 +313,9 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           { n: '10+', label: 'APIs públicas integradas' },
           { n: 'IA',  label: 'Score e flags automáticos' },
         ].map((s, i) => (
-          <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '18px 16px', textAlign: 'center', border: '1px solid #EDEBE8' }}>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#2D2D2D', marginBottom: 4 }}>{s.n}</div>
-            <div style={{ fontSize: 12, color: '#AAA', lineHeight: 1.4 }}>{s.label}</div>
+          <div key={i} style={{ background: '#eef5f0', borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>{s.n}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -318,7 +355,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
                   <span style={{ fontSize: 12, color: '#AAA' }}>ou</span>
                   <div style={{ flex: 1, height: 1, background: '#EDEBE8' }} />
                 </div>
-                <button onClick={() => setAuthMode('email')} style={btn('#2D2D2D')}>Entrar com Email</button>
+                <button onClick={() => setAuthMode('email')} style={btn('#1B5E3B')}>Entrar com Email</button>
                 <p style={{ textAlign: 'center', fontSize: 12, color: '#AAA', marginTop: 12 }}>
                   Novo?{' '}
                   <span onClick={() => setAuthMode('register')} style={{ color: '#2D2D2D', cursor: 'pointer', fontWeight: 600 }}>Criar conta grátis</span>
@@ -328,7 +365,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
               <form onSubmit={handleEmailSubmit}>
                 <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required style={inputSt} />
                 <input type="password" placeholder="Senha (min 6 caracteres)" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} style={inputSt} />
-                <button type="submit" disabled={authLoading} style={btn('#2D2D2D')}>
+                <button type="submit" disabled={authLoading} style={btn('#1B5E3B')}>
                   {authLoading ? 'Aguarde...' : authMode === 'register' ? 'Criar Conta' : 'Entrar'}
                 </button>
                 <div style={{ textAlign: 'center', marginTop: 10, fontSize: 12, color: '#AAA' }}>
@@ -348,7 +385,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       <section style={{ maxWidth: 900, margin: '0 auto 48px', padding: '0 24px' }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2D2D2D', marginBottom: 8 }}>O que você pode comprar</h2>
         <p style={{ fontSize: 14, color: '#AAA', marginBottom: 24 }}>Pague por aquilo que precisa. Sem assinatura obrigatória.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16 }}>
+        <div className="grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16 }}>
           {[
             { icon: '📋', title: 'Dossiê CEAP Básico',     price: 'R$ 9,90',          desc: 'Resumo de gastos, top fornecedores e 5 flags principais.',                           badge: 'Popular'  },
             { icon: '🔥', title: 'Dossiê CEAP Matador',    price: 'R$ 39,90',         desc: 'Análise forense completa com todos os recibos, gráficos e PDF para denúncia.',      badge: 'Premium'  },
@@ -374,8 +411,14 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         </div>
       </section>
 
-      <footer style={{ textAlign: 'center', padding: '24px', fontSize: 12, color: '#CCC', borderTop: '1px solid #EDEBE8' }}>
-        transparenciabr · dados 100% públicos · metodologia aberta · apartidário
+      <footer style={{ textAlign: "center", padding: "32px 24px", fontSize: 13, color: "#9ca3af", borderTop: "1px solid var(--border-light)" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 20, marginBottom: 10, flexWrap: "wrap" }}>
+          <Link to="/metodologia" style={{ color: "#1B5E3B", textDecoration: "underline", textUnderlineOffset: 3 }}>Metodologia</Link>
+          <Link to="/alertas" style={{ color: "#1B5E3B", textDecoration: "underline", textUnderlineOffset: 3 }}>Alertas</Link>
+          <Link to="/mapa" style={{ color: "#1B5E3B", textDecoration: "underline", textUnderlineOffset: 3 }}>Mapa</Link>
+          <Link to="/emendas" style={{ color: "#1B5E3B", textDecoration: "underline", textUnderlineOffset: 3 }}>Emendas</Link>
+        </div>
+        transparenciabr · dados 100% públicos · apartidário
       </footer>
     </div>
   );

@@ -31,9 +31,20 @@ export async function spendUserCredits(db, userId, custo, descricao) {
   const ref = doc(db, "usuarios", userId);
   const histCol = collection(db, "usuarios", userId, "historico_creditos");
 
+  let perfilCriadoBoasVindas = false;
+
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error("Perfil de usuário não encontrado.");
+    if (!snap.exists()) {
+      tx.set(ref, {
+        creditos: 0,
+        creditos_bonus: 5,
+        criadoEm: serverTimestamp(),
+        atualizadoEm: serverTimestamp(),
+      });
+      perfilCriadoBoasVindas = true;
+      return;
+    }
 
     const dados = snap.data();
     const saldoComprado = Number(dados.creditos ?? 0);
@@ -70,6 +81,12 @@ export async function spendUserCredits(db, userId, custo, descricao) {
       ts: serverTimestamp(),
     });
   });
+
+  if (perfilCriadoBoasVindas) {
+    throw new Error(
+      "Bem-vindo! Você recebeu 5 créditos de boas-vindas. Tente novamente.",
+    );
+  }
 }
 
 /**

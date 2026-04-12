@@ -90,7 +90,7 @@ function ResultItem({ dep, onSelect, isFocused }) {
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function GlobalSearch() {
+export default function GlobalSearch({ className = "" }) {
   const navigate      = useNavigate();
   const [query,       setQuery      ] = useState("");
   const [results,     setResults    ] = useState([]);
@@ -174,7 +174,7 @@ export default function GlobalSearch() {
   }, [navigate]);
 
   return (
-    <div ref={containerRef} style={{ position: "relative", width: 260 }}>
+    <div ref={containerRef} className={className} style={{ position: "relative", width: 260, maxWidth: "100%" }}>
       {/* Input */}
       <div style={{
         display:        "flex",

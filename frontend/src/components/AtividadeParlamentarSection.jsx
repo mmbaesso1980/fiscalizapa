@@ -155,7 +155,7 @@ export default function AtividadeParlamentarSection({ deputadoId, idCamara, nome
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+      <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
         {[
           { label: "Proposições", value: stats?.totalProps || 0, sub: `${stats?.propSignificativas || 0} PL/PEC/PLP`, icon: <FileText size={16} color="#4caf50" /> },
           { label: "Discursos", value: stats?.totalDiscursos || 0, sub: "em plenário", icon: <Mic size={16} color="#2196f3" /> },
@@ -191,7 +191,13 @@ export default function AtividadeParlamentarSection({ deputadoId, idCamara, nome
       )}
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex", gap: 8, flexWrap: "nowrap",
+          overflowX: "auto", WebkitOverflowScrolling: "touch",
+          paddingBottom: 4,
+        }}
+      >
         <TabButton
           active={activeTab === "proposicoes"} label="Proposições" count={stats?.totalProps}
           icon={<FileText size={14} />} onClick={() => setActiveTab("proposicoes")}

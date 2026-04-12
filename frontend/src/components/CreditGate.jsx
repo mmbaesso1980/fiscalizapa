@@ -36,7 +36,12 @@ export function CreditGate({ custo, descricao, children, onDesbloqueado }) {
       setDesbloqueado(true);
       onDesbloqueado?.();
     } catch (e) {
-      setErro(e?.message || "Não foi possível desbloquear.");
+      const msg = e?.message || "Não foi possível desbloquear.";
+      if (msg.includes("boas-vindas") || msg.includes("Bem-vindo")) {
+        setErro("🎉 " + msg);
+      } else {
+        setErro(msg);
+      }
     } finally {
       setLoading(false);
     }
