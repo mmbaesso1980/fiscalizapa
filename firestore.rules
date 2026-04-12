@@ -313,6 +313,16 @@ service cloud.firestore {
 
 
     // ────────────────────────────────────────────────────────────────────────
+    // forensic_cache — cache de análise forense (leitura pública para preview)
+    // Escrita: SOMENTE via Cloud Functions (Admin SDK)
+    // ────────────────────────────────────────────────────────────────────────
+    match /forensic_cache/{docId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+
+    // ────────────────────────────────────────────────────────────────────────
     // REGRA DEFAULT — nega tudo que não foi explicitamente coberto acima
     // Esta regra é a última linha de defesa: impede vazamento por coleções
     // que venham a ser criadas sem regra correspondente.

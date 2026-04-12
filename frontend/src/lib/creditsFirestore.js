@@ -6,6 +6,7 @@
 import {
   doc,
   getDoc,
+  setDoc,
   runTransaction,
   serverTimestamp,
   collection,
@@ -31,9 +32,30 @@ export async function spendUserCredits(db, userId, custo, descricao) {
   const ref = doc(db, "usuarios", userId);
   const histCol = collection(db, "usuarios", userId, "historico_creditos");
 
+  // Passo 0: Garantir que o doc existe (cria se não existir)
+  const preCheck = await getDoc(ref);
+  if (!preCheck.exists()) {
+    await setDoc(ref, {
+      uid: userId,
+      email: "",
+      nome: "",
+      photoURL: "",
+      creditos: 0,
+      creditos_bonus: 5,
+      dossies_gratuitos_restantes: 2,
+      plano: "free",
+      isAdmin: false,
+      criadoEm: serverTimestamp(),
+      atualizadoEm: serverTimestamp(),
+    });
+    throw new Error(
+      "Bem-vindo! Você recebeu 5 créditos de boas-vindas. Toque novamente para desbloquear.",
+    );
+  }
+
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error("Perfil de usuário não encontrado.");
+    if (!snap.exists()) throw new Error("Perfil não encontrado. Recarregue a página.");
 
     const dados = snap.data();
     const saldoComprado = Number(dados.creditos ?? 0);
