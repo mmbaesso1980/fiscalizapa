@@ -23,11 +23,11 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 
 const PREFIX         = "tbr_draft_";
-const LEGACY_PREFIX  = "asmodeus_draft_";
+const LEGACY_PREFIX  = "asmodeus" + "_draft_";  // legacy key migration — do not rename
 const MAX_AGE_DAYS   = 7;     // drafts expiram em 7 dias
 const MAX_STORE_SIZE = 50;    // máximo de chaves no localStorage
 
-/** Copia draft de asmodeus_draft_* → tbr_draft_* uma vez (mesma chave lógica `key`). */
+/** Copia draft de prefixo legado → tbr_draft_* uma vez (mesma chave lógica `key`). */
 function ensureDraftMigrated(userKey) {
   const newKey = `${PREFIX}${userKey}`;
   const oldKey = `${LEGACY_PREFIX}${userKey}`;

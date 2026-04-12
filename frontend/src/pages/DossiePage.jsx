@@ -41,6 +41,8 @@ import StickyHeader       from "../components/StickyHeader";
 import PerformanceTab     from "../components/PerformanceTab";
 import PoliticalTimeline  from "../components/PoliticalTimeline";
 import CabinetAudit       from "../components/CabinetAudit";
+import ForensicDashboard  from "../components/ForensicDashboard";
+import AtividadeParlamentarSection from "../components/AtividadeParlamentarSection";
 import { normalizeUF }    from "../components/SocialContext";
 import { parseCamaraValorReais } from "../utils/moneyCamara";
 
@@ -1557,6 +1559,67 @@ export default function DossiePage() {
             <CreditGate custo={2} descricao="Dossiê — CEAP detalhado">
               <CeapMonitorSection politico={politico} />
             </CreditGate>
+
+            {/* ─── SEÇÃO 2B: Motor Forense TransparenciaBR ────────────── */}
+            <div style={{
+              background: "rgba(255,255,255,0.72)", borderRadius: 20,
+              border: "1px solid rgba(237,235,232,0.9)", padding: "22px 24px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 18 }}>🔬</span>
+                <h2 style={{
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 15, fontWeight: 700, color: "#2D2D2D", margin: 0, flex: 1,
+                }}>
+                  Motor Forense
+                </h2>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 99,
+                  color: "#C82538", background: "rgba(200,37,56,0.08)",
+                  border: "1px solid rgba(200,37,56,0.2)",
+                }}>
+                  ANÁLISE CRUZADA
+                </span>
+              </div>
+              <CreditGate custo={3} descricao="Análise forense completa">
+                <ForensicDashboard
+                  idCamara={politico?.idCamara || id}
+                  nome={politico?.nome || politico?.nomeCompleto}
+                  cpf={politico?.cpf}
+                />
+              </CreditGate>
+            </div>
+
+            {/* ─── SEÇÃO 2C: Atividade Parlamentar Completa ────────────── */}
+            <div style={{
+              background: "rgba(255,255,255,0.72)", borderRadius: 20,
+              border: "1px solid rgba(237,235,232,0.9)", padding: "22px 24px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 18 }}>📊</span>
+                <h2 style={{
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 15, fontWeight: 700, color: "#2D2D2D", margin: 0, flex: 1,
+                }}>
+                  Atividade Parlamentar
+                </h2>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 99,
+                  color: "#1d7ab5", background: "rgba(159,200,232,0.12)",
+                  border: "1px solid rgba(159,200,232,0.3)",
+                }}>
+                  PROPOSIÇÕES · DISCURSOS · COMISSÕES
+                </span>
+              </div>
+              <CreditGate custo={2} descricao="Atividade parlamentar completa">
+                <AtividadeParlamentarSection
+                  deputadoId={id}
+                  idCamara={politico?.idCamara || id}
+                  nome={politico?.nome || politico?.nomeCompleto}
+                  colecao="deputados_federais"
+                />
+              </CreditGate>
+            </div>
 
             {/* ─── SEÇÃO 3: Diários Oficiais ──────────────────────────── */}
             <DiariosMencoesSection
