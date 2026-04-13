@@ -64,28 +64,40 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
     }
 
     let mounted = true;
+    let safetyTimeout = null;
 
     async function load() {
       setLoading(true);
       setError("");
 
-      // Try cache first for instant load
-      try {
-        if (idCamara) {
-          const getCache = httpsCallable(functions, "getForensicCache");
-          const cacheResult = await getCache({ deputadoId: idCamara });
-          if (cacheResult?.data?.found && mounted) {
-            setData(normalizeForensicPayload(cacheResult.data));
-            setLoading(false);
-            if (!preview) refreshInBackground();
-            return;
-          }
+      safetyTimeout = setTimeout(() => {
+        if (mounted) {
+          setError("Motor Forense temporariamente indisponível.");
+          setLoading(false);
         }
-      } catch {
-        // Cache miss — proceed to full analysis
-      }
+      }, 15000);
 
-      await refreshInBackground();
+      try {
+        // Try cache first for instant load
+        try {
+          if (idCamara) {
+            const getCache = httpsCallable(functions, "getForensicCache");
+            const cacheResult = await getCache({ deputadoId: idCamara });
+            if (cacheResult?.data?.found && mounted) {
+              setData(normalizeForensicPayload(cacheResult.data));
+              setLoading(false);
+              if (!preview) refreshInBackground();
+              return;
+            }
+          }
+        } catch {
+          // Cache miss — proceed to full analysis
+        }
+
+        await refreshInBackground();
+      } finally {
+        if (safetyTimeout) clearTimeout(safetyTimeout);
+      }
     }
 
     async function refreshInBackground() {
@@ -106,7 +118,10 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
     }
 
     load();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      if (safetyTimeout) clearTimeout(safetyTimeout);
+    };
   }, [idCamara, nome, cpf, preview]);
 
   if (loading) {
@@ -125,6 +140,28 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
         </div>
       </div>
     );
+  }
+
+  const previewPlaceholder = (
+    <div style={{
+      padding: 24, textAlign: "center", borderRadius: 16,
+      background: "#eef5f0",
+    }}>
+      <p style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", marginBottom: 4 }}>
+        Motor Forense TransparenciaBR
+      </p>
+      <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>
+        Análise forense será ativada quando um usuário solicitar a primeira análise deste deputado.
+      </p>
+    </div>
+  );
+
+  if (preview && !loading && !data && !error) {
+    return previewPlaceholder;
+  }
+
+  if (preview && !loading && (error || !data || data?.erro)) {
+    return previewPlaceholder;
   }
 
   if (error || !data || data.erro) {
@@ -196,6 +233,7 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
       {/* Score Header */}
       <div style={{
         display: "flex", alignItems: "center", gap: 16,
+        flexWrap: "wrap",
         padding: "20px 24px",
         background: "linear-gradient(135deg, #fff 60%, #FBF7E8 100%)",
         border: "1px solid #EDEBE8", borderRadius: 16,
@@ -218,9 +256,12 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
       </div>
 
       {/* Score Components */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8,
-      }}>
+      <div
+        className="score-components-grid"
+        style={{
+          display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8,
+        }}
+      >
         {componentes && Object.entries(componentes).map(([key, comp]) => {
           const pct = comp.max > 0 ? (comp.score / comp.max) * 100 : 0;
           const barColor = pct >= 70 ? "#16a34a" : pct >= 40 ? "#d97706" : "#dc2626";

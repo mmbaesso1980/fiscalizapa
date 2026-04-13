@@ -28,16 +28,16 @@ import {
 } from "firebase/firestore";
 import { auth, googleProvider, githubProvider, functions, db } from "../lib/firebase";
 import { spendUserCredits } from "../lib/creditsFirestore";
+import {
+  CREDITOS_COMPRADOS_INICIAIS,
+  CREDITOS_BONUS_BOAS_VINDAS,
+} from "../lib/creditConstants";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function generateSessionId() {
   return "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
 }
 
-/** Créditos comprados iniciais (compras via Stripe somam aqui). */
-const CREDITOS_INICIAIS = 0;
-/** Bônus de boas-vindas (consumido antes do saldo comprado). */
-const CREDITOS_BONUS_INICIAIS = 10;
 const DAILY_QUOTA_DEFAULT = 2; // cotas gratuitas por dia (resetadas por 12_reset_quotes.py)
 
 /**
@@ -55,15 +55,15 @@ async function ensureUserDoc(u) {
       email:                       u.email ?? "",
       nome:                        u.displayName ?? "",
       photoURL:                    u.photoURL ?? "",
-      creditos:                    CREDITOS_INICIAIS,
-      creditos_bonus:              CREDITOS_BONUS_INICIAIS,
+      creditos:                    CREDITOS_COMPRADOS_INICIAIS,
+      creditos_bonus:              CREDITOS_BONUS_BOAS_VINDAS,
       dossies_gratuitos_restantes: DAILY_QUOTA_DEFAULT,
       plano:                       "free",
       isAdmin:                     false,
       criadoEm:                    serverTimestamp(),
       atualizadoEm:                serverTimestamp(),
     });
-    return CREDITOS_BONUS_INICIAIS;
+    return CREDITOS_BONUS_BOAS_VINDAS;
   }
 
   // Doc já existe: não escreve nada — onSnapshot já lê os dados em tempo real.
@@ -216,7 +216,7 @@ export function useAuth() {
 
   /**
    * Cria conta com e-mail + senha e já provisiona o documento Firestore
-   * com creditos: 10, garantindo que o novo usuário tenha saldo inicial.
+   * com o mesmo bônus de boas-vindas que ensureUserDoc (creditConstants).
    */
   const registerWithEmail = async (email, password) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
@@ -226,17 +226,17 @@ export function useAuth() {
         email,
         nome:                        "",
         photoURL:                    "",
-        creditos:                    CREDITOS_INICIAIS,
-        creditos_bonus:              CREDITOS_BONUS_INICIAIS,
+        creditos:                    CREDITOS_COMPRADOS_INICIAIS,
+        creditos_bonus:              CREDITOS_BONUS_BOAS_VINDAS,
         dossies_gratuitos_restantes: DAILY_QUOTA_DEFAULT,
         plano:                       "free",
         isAdmin:                     false,
         criadoEm:                    serverTimestamp(),
         atualizadoEm:                serverTimestamp(),
       });
-      setCredits(CREDITOS_BONUS_INICIAIS);
+      setCredits(CREDITOS_BONUS_BOAS_VINDAS);
       setDailyQuota(DAILY_QUOTA_DEFAULT);
-      localStorage.setItem("userCredits", String(CREDITOS_BONUS_INICIAIS));
+      localStorage.setItem("userCredits", String(CREDITOS_BONUS_BOAS_VINDAS));
     } catch (e) {
       console.warn("Erro ao criar documento de usuário:", e.message);
     }

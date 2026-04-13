@@ -90,7 +90,7 @@ function ResultItem({ dep, onSelect, isFocused }) {
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function GlobalSearch() {
+export default function GlobalSearch({ className = "" }) {
   const navigate      = useNavigate();
   const [query,       setQuery      ] = useState("");
   const [results,     setResults    ] = useState([]);
@@ -174,19 +174,17 @@ export default function GlobalSearch() {
   }, [navigate]);
 
   return (
-    <div ref={containerRef} style={{ position: "relative", width: 260 }}>
+    <div ref={containerRef} className={className} style={{ position: "relative", width: 260, maxWidth: "100%" }}>
       {/* Input */}
       <div style={{
         display:        "flex",
         alignItems:     "center",
         gap:            8,
-        background:     "rgba(255,255,255,0.85)",
-        border:         `1px solid ${open ? "#C9A84C" : "#EDEBE8"}`,
+        background:     "#ffffff",
+        border:         `1px solid ${open ? "#1B5E3B" : "#e5e7eb"}`,
         borderRadius:   100,
         padding:        "6px 12px",
-        backdropFilter: "blur(8px)",
-        transition:     "border-color 0.2s, box-shadow 0.2s",
-        boxShadow:      open ? "0 0 0 3px rgba(201,168,76,0.12)" : "none",
+        transition:     "border-color 0.2s",
       }}>
         {/* Ícone lupa / spinner */}
         {loading ? (
@@ -239,12 +237,9 @@ export default function GlobalSearch() {
           left:              "50%",
           transform:         "translateX(-50%)",
           width:             340,
-          background:        "rgba(255,255,255,0.92)",
-          backdropFilter:    "blur(20px) saturate(180%)",
-          WebkitBackdropFilter: "blur(20px) saturate(180%)",
+          background:        "#ffffff",
           borderRadius:      14,
-          boxShadow:         "0 12px 40px rgba(0,0,0,0.14), 0 0 0 1px rgba(255,255,255,0.6)",
-          border:            "1px solid rgba(237,235,232,0.8)",
+          border:            "1px solid #e5e7eb",
           overflow:          "hidden",
           zIndex:            300,
           animation:         "fadeInUp 0.15s ease-out",
