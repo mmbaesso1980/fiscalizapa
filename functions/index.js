@@ -11,7 +11,6 @@
 
 const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const { BigQuery } = require('@google-cloud/bigquery');
 const { Storage } = require('@google-cloud/storage');
@@ -28,11 +27,6 @@ const DATASET = 'dados_camara';
 const BQ_LOCATION = 'us-central1'; // Iowa — onde o dataset dados_camara está armazenado
 const REGION = 'southamerica-east1'; // Functions ficam perto dos usuários BR
 const OPTS = { region: REGION };
-
-// Secret binding para Gen 2 — garante que process.env.PORTAL_TRANSPARENCIA_API_KEY
-// fica disponível no runtime sem configurar manualmente no Console GCP.
-const portalSecret = defineSecret('PORTAL_TRANSPARENCIA_API_KEY');
-const OPTS_PORTAL = { region: REGION, secrets: [portalSecret] };
 
 // Stripe inicializado lazy — evita crash quando STRIPE_SECRET_KEY não está
 // disponível em tempo de análise estática (firebase deploy --only functions)
@@ -487,7 +481,7 @@ exports.stripeWebhook = onRequest(
 // ─────────────────────────────────────────────
 // 9. PERFIL DE PARLAMENTAR (onCall premium)
 // ─────────────────────────────────────────────
-exports.getPerfilParlamentar = onCall(OPTS_PORTAL, async (req) => {
+exports.getPerfilParlamentar = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
 
@@ -766,7 +760,7 @@ function parsePtDataSortKey(dataStr) {
  * Emendas parlamentares (Portal da Transparência) + documentos por fase (empenho → … → pagamento).
  * Chave API: variável de ambiente PORTAL_TRANSPARENCIA_API_KEY (header chave-api-dados).
  */
-exports.getEmendasParlamentar = onCall(OPTS_PORTAL, async (req) => {
+exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
 
@@ -924,7 +918,7 @@ function emendaTipoPixPortal(tipoEmenda) {
  * Pontos geográficos para mapa de emendas (Nominatim + cache em memória por cold start).
  * Não substitui getEmendasParlamentar — uso leve para visualização.
  */
-exports.getEmendasMapaPontos = onCall(OPTS_PORTAL, async (req) => {
+exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
 
@@ -1163,7 +1157,7 @@ const PORTAL_PROXY_PREFIXES = [
  * pathAndQuery: ex. "/api-de-dados/emendas?ano=2024&nomeAutor=X&pagina=1"
  * Só aceita prefixos em PORTAL_PROXY_PREFIXES (evita abuso da chave).
  */
-exports.portalTransparenciaProxy = onCall(OPTS_PORTAL, async (req) => {
+exports.portalTransparenciaProxy = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
 
@@ -1195,7 +1189,7 @@ exports.portalTransparenciaProxy = onCall(OPTS_PORTAL, async (req) => {
 // ─────────────────────────────────────────────
 const { registerForensicFunctions } = require('./forensicEngine');
 const forensic = registerForensicFunctions({
-  onCall, HttpsError, db, bq, DATASET, BQ_LOCATION, OPTS: OPTS_PORTAL,
+  onCall, HttpsError, db, bq, DATASET, BQ_LOCATION, OPTS,
 });
 exports.forensicEngine = forensic.forensicEngine;
 exports.getForensicCache = forensic.getForensicCache;
