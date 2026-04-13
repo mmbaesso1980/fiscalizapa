@@ -710,10 +710,10 @@ exports.getAuditoriaPolitico = onCall(OPTS, async (req) => {
 
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function portalFetchEmendasPorAno(nomeAutorUpper, ano) {
+async function portalFetchEmendasPorAno(ano, query) {
   const out = [];
   for (let p = 1; p <= 50; p++) {
-    const path = `/api-de-dados/emendas?ano=${ano}&nomeAutor=${encodeURIComponent(nomeAutorUpper)}&pagina=${p}`;
+    const path = `/api-de-dados/emendas?ano=${ano}&${query}&pagina=${p}`;
     let page;
     try {
       page = await portalApiGet(path);
@@ -766,6 +766,10 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
 
   const body = req.data || {};
   const nomeAutor = String(body.nomeAutor || body.nome || '').trim();
+  const codigoAutorRaw = body.codigoAutor ?? body.idAutor ?? body.idCamara;
+  const codigoAutor = codigoAutorRaw != null && String(codigoAutorRaw).trim() !== ''
+    ? String(codigoAutorRaw).replace(/\D/g, '')
+    : '';
   const politicoDocId = String(body.politicoDocId || body.deputadoId || '').trim();
   const maxComDocs = Math.min(20, Math.max(0, Number(body.maxEmendasComDocumentos) || 12));
 
@@ -773,11 +777,11 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   if (!anos || anos.length === 0) anos = defaultCeapAnos();
   anos = [...new Set(anos)].sort((a, b) => b - a);
 
-  if (!nomeAutor || !politicoDocId) {
-    throw new HttpsError('invalid-argument', 'nomeAutor e politicoDocId são obrigatórios.');
+  if ((!nomeAutor && !codigoAutor) || !politicoDocId) {
+    throw new HttpsError('invalid-argument', 'politicoDocId e nomeAutor ou codigoAutor são obrigatórios.');
   }
 
-  const nomeQuery = normalizeNomePortalAutor(nomeAutor);
+  const nomeQuery = nomeAutor ? normalizeNomePortalAutor(nomeAutor) : '';
   const byCodigo = new Map();
 
   function anoDoCodigoEmenda(cod) {
@@ -799,7 +803,13 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
 
   try {
     for (const ano of anos) {
-      const chunk = await portalFetchEmendasPorAno(nomeQuery, ano);
+      let chunk = [];
+      if (codigoAutor) {
+        chunk = await portalFetchEmendasPorAno(ano, `codigoAutor=${encodeURIComponent(codigoAutor)}`);
+      }
+      if (chunk.length === 0 && nomeQuery) {
+        chunk = await portalFetchEmendasPorAno(ano, `nomeAutor=${encodeURIComponent(nomeQuery)}`);
+      }
       for (const e of chunk) {
         const cod = e?.codigoEmenda;
         if (!cod) continue;

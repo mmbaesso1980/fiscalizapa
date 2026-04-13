@@ -233,6 +233,7 @@ export default function PoliticoPage() {
               const getEmendasParlamentar = httpsCallable(functions, "getEmendasParlamentar");
               const er = await getEmendasParlamentar({
                 nomeAutor: nomeBusca,
+                codigoAutor: Number.isFinite(idCamaraBusca) ? idCamaraBusca : undefined,
                 politicoDocId: id,
                 anos: anosCeap,
                 maxEmendasComDocumentos: 15,
@@ -602,7 +603,7 @@ export default function PoliticoPage() {
             <PresencaSection politico={pol} colecao={col} politicoId={id} />
           </SectionCard>
           <SectionCard title="Produção Legislativa (Resumo)" icon="📚">
-            <ProjetosSection deputadoId={id} colecao={col} />
+            <ProjetosSection deputadoId={id} idCamara={pol.idCamara || id} colecao={col} />
           </SectionCard>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

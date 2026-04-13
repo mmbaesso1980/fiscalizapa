@@ -3,31 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import CreditBadge from "./CreditBadge";
 import GlobalSearch from "./GlobalSearch";
 import { AuditSealCompact } from "./AuditSeal";
-
-const LogoOrb = ({ size = 32 }) => (
-  <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-    <defs>
-      <linearGradient id="orbA" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FBD87F" />
-        <stop offset="35%" stopColor="#F7B98B" />
-        <stop offset="65%" stopColor="#A8D8B0" />
-        <stop offset="100%" stopColor="#9ECFE8" />
-      </linearGradient>
-      <linearGradient id="orbB" x1="100%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stopColor="#FBD87F" stopOpacity="0.7" />
-        <stop offset="50%" stopColor="#F7B98B" stopOpacity="0.5" />
-        <stop offset="100%" stopColor="#9ECFE8" stopOpacity="0.7" />
-      </linearGradient>
-      <linearGradient id="orbC" x1="0%" y1="100%" x2="100%" y2="0%">
-        <stop offset="0%" stopColor="#A8D8B0" stopOpacity="0.6" />
-        <stop offset="100%" stopColor="#F7B98B" stopOpacity="0.4" />
-      </linearGradient>
-    </defs>
-    <path d="M50 8 A42 42 0 1 1 49.9 8" stroke="url(#orbA)" strokeWidth="14" fill="none" strokeLinecap="round" />
-    <path d="M50 16 A34 34 0 1 0 49.9 16" stroke="url(#orbB)" strokeWidth="10" fill="none" strokeLinecap="round" />
-    <path d="M50 26 A24 24 0 1 1 49.9 26" stroke="url(#orbC)" strokeWidth="7" fill="none" strokeLinecap="round" />
-  </svg>
-);
+import LogoOrb from "./LogoOrb";
 
 export default function Navbar({ user, logout, credits, isAdmin }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);

@@ -110,8 +110,11 @@ export default function VerbaGabineteSection({ colecao, politicoId, idCamara }) 
         <div>
           {pessoal.length === 0 ? (
             <>
-              <p style={{ color: 'var(--text-muted)' }}>Dados de pessoal de gabinete nao encontrados no banco local.</p>
-              <a href={`https://www.camara.leg.br/deputados/${idCamara}/pessoal-gabinete`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-green)' }}>Consultar no Portal da Camara</a>
+              <p style={{ color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+                Dados de pessoal do gabinete não estão neste painel. A API pública da Câmara não expõe a folha completa de assessores; consulte o Portal da Transparência (SIAPE) ou o site oficial do deputado.
+              </p>
+              <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-green)', display: 'inline-flex', alignItems: 'center', minHeight: 44, marginRight: 12 }}>Portal da Transparência ↗</a>
+              <a href={`https://www.camara.leg.br/deputados/${idCamara}/pessoal-gabinete`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-green)', display: 'inline-flex', alignItems: 'center', minHeight: 44 }}>Página da Câmara ↗</a>
             </>
           ) : (
             pessoal.map((p, i) => (

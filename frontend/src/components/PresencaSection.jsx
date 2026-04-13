@@ -139,7 +139,11 @@ function StatCard({ value, label, color, href }) {
 
 export default function PresencaSection({ politico, colecao, politicoId }) {
   const pol = politico || {};
-  const id = politicoId || pol.id || '';
+  const idDoc = politicoId || pol.id || '';
+  const idCamara =
+    pol.idCamara != null && String(pol.idCamara).trim() !== ''
+      ? String(pol.idCamara)
+      : idDoc;
 
   const overallPct = toNum(
     pol.presencaPct ?? pol.presenca ?? pol.presenca_geral_pct
@@ -170,11 +174,11 @@ export default function PresencaSection({ politico, colecao, politicoId }) {
     sessoesTotal > 0;
 
   const year = new Date().getFullYear();
-  const camaraBase = `https://www.camara.leg.br/deputados/${id}`;
-  const linkSessoes = id ? `${camaraBase}/presenca-plenario/${year}` : null;
-  const linkEventos = id ? `${camaraBase}/agenda` : null;
-  const linkProposicoes = id
-    ? `https://www.camara.leg.br/busca-portal?contextoBusca=BuscaProposicoes&pagina=1&order=data&abaEspecifica=true&q=autores.ideCadastro:%20${id}`
+  const camaraBase = `https://www.camara.leg.br/deputados/${idCamara}`;
+  const linkSessoes = idCamara ? `${camaraBase}/presenca-plenario/${year}` : null;
+  const linkEventos = idCamara ? `${camaraBase}/agenda` : null;
+  const linkProposicoes = idCamara
+    ? `https://www.camara.leg.br/busca-portal?contextoBusca=BuscaProposicoes&pagina=1&order=data&abaEspecifica=true&q=autores.ideCadastro:%20${idCamara}`
     : null;
 
   const sectionStyle = {
@@ -221,7 +225,7 @@ export default function PresencaSection({ politico, colecao, politicoId }) {
       </h3>
 
       <p style={{ marginTop: 0, marginBottom: 18, color: 'var(--text-secondary)' }}>
-        Dados consolidados de presença em plenário, comissões e atividade legislativa.
+        Dados consolidados de presença em plenário, comissões e atividade legislativa (mandato atual — legislatura 57, 2023–2026).
       </p>
 
       {classificacao && (

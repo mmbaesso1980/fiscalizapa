@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   collection,
 } from "firebase/firestore";
+import { usuarioCreditosIlimitados } from "./creditWallet";
 
 function histDocId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -53,11 +54,19 @@ export async function spendUserCredits(db, userId, custo, descricao) {
     );
   }
 
+  const preData = preCheck.data();
+  if (usuarioCreditosIlimitados(preData)) {
+    return;
+  }
+
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("Perfil não encontrado. Recarregue a página.");
 
     const dados = snap.data();
+    if (usuarioCreditosIlimitados(dados)) {
+      return;
+    }
     const saldoComprado = Number(dados.creditos ?? 0);
     const saldoBonus = Number(dados.creditos_bonus ?? 0);
     const total = saldoComprado + saldoBonus;
@@ -105,6 +114,7 @@ export async function userHasEnoughCredits(db, userId, custo) {
   const snap = await getDoc(doc(db, "usuarios", userId));
   if (!snap.exists()) return false;
   const d = snap.data();
+  if (usuarioCreditosIlimitados(d)) return true;
   const total = Number(d.creditos ?? 0) + Number(d.creditos_bonus ?? 0);
   return total >= amount;
 }

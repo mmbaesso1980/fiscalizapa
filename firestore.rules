@@ -51,6 +51,7 @@ service cloud.firestore {
     function touchesCriticalFields() {
       return fieldsDiff().hasAny([
         'creditos', 'creditos_bonus', 'isAdmin', 'role', 'uid', 'criadoEm',
+        'creditos_ilimitados',
         'dossies_gratuitos_restantes'   // cota → só decrementar via função específica
       ]);
     }

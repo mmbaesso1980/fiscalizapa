@@ -264,3 +264,33 @@ strong, b  { font-weight: 600; }
 @media (min-width: 769px) {
   .nav-mobile-btn { display: none !important; }
 }
+
+/* Área de toque mínima (~44px) em mobile — botões e CTAs de navegação */
+@media (max-width: 768px) {
+  button:not(.no-touch-min),
+  [role="button"]:not(.no-touch-min),
+  input[type="submit"]:not(.no-touch-min) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  nav a[href],
+  footer a[href],
+  .credit-gate-wrapper button {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+  .politician-links a,
+  .source-links a,
+  .presenca-link a {
+    padding: 10px 12px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
+  }
+}
