@@ -1,0 +1,58 @@
+---
+description: Padrões de integração em escala — hubs agregadores, ERPs de transparência e alimentação do banco Codex (motor forense TransparenciaBR)
+alwaysApply: true
+globs:
+  - engines/**/*.py
+  - functions/**/*.js
+  - src/services/**/*.ts
+---
+
+# Regras de integração de APIs — TransparenciaBR.com.br
+
+Você é um engenheiro de dados sênior desenvolvendo os **motores de extração** (Python e Cloud Functions) que alimentam o banco de dados **Codex** do TransparenciaBR. O objetivo é orquestrar milhares de fontes (prefeituras, estados, tribunais, portais federais) e verificadores de compliance, **sem** multiplicar URLs hardcoded por município.
+
+## Hubs e padrões prioritários (escala)
+
+1. **PNCP (Portal Nacional de Contratações Públicas)** — agrega compras de órgãos federais, estaduais e municipais. API em torno de `pncp.gov.br/api/pncp/` com rotas como `/v1/orgaos/{cnpj}` e `/v1/orgaos/{cnpj}/unidades` para mapear entidades integradas.
+
+2. **Padrão Governo Transparente** — comum em centenas de prefeituras. Base típica: `governotransparente.com.br/transparencia/api/:versao/json/` com parâmetros (ex.: código da entidade) para empenhos, contratos e pagamentos; parametrizar `codigo_entidade` / `url_base`, não copiar URL por cidade.
+
+3. **Padrão Fiorilli** — fornecedor municipal recorrente; estruturas com parâmetros de entidade/empresa (ex. listagens de pessoal). Factory que recebe identificador da entidade e URL base.
+
+4. **Interlegis (Portal Modelo / SAPL)** — adotado por muitas câmaras; rotas como `/transparencia/dados-abertos` e documentação Swagger do processo legislativo local. Parametrizar `url_base` por casa legislativa.
+
+5. **DataJud (CNJ)** — API pública de metadados/andamentos; hosts por tribunal (ex. prefixos `api-publica.datajud.cnj.jus.br/...`). Respeitar limites e documentação oficial do CNJ.
+
+6. **Querido Diário (Open Knowledge)** — diários oficiais agregados; uso de `territory_ids` com **código IBGE** para filtrar municípios.
+
+7. **Fontes globais (due diligence)** — OpenCorporates, OpenSanctions, etc.: iterar por jurisdição/código de país conforme a API; nunca embutir chaves no repositório.
+
+## 1. Escala e agregadores municipais
+
+- **NUNCA** criar scripts hardcoded para um município específico, salvo provas de conceito isoladas em `tests/` ou pastas claramente marcadas.
+- Usar **código IBGE (7 dígitos)** como chave de unificação ao cruzar Portal da Transparência, SICONFI, Querido Diário, IBGE e ERPs municipais.
+- Para ERPs (Governo Transparente, Fiorilli, Betha, etc.) e **Interlegis/SAPL**, preferir **factories ou funções parametrizadas** que recebam `codigo_ibge`, `codigo_entidade` e/ou `url_base`. O motor deve poder iterar sobre listas grandes de entidades carregadas de config ou catálogo.
+
+## 2. Requisições e resiliência (Cloud Functions e engines)
+
+- **Rate limiting e backoff:** em APIs sensíveis (ex. legislativo federal, DataJud), usar **backoff exponencial** e jitter quando fizer sentido; tratar **429** e **503** com retentativas limitadas e logs.
+- **Paginação:** encapsular em geradores (`yield` em Python) ou loops assíncronos controlados em Node/TS; não carregar milhares de registros na memória de uma vez em uma única invocação de função.
+- **Depreciação:** se existirem cabeçalhos `Deprecation`, `Sunset` ou `Link: rel="successor"`, registrar **warning** estruturado nos logs e planejar migração da rota.
+
+## 3. Credenciais
+
+- **PROIBIDO** commitar tokens, API keys ou segredos (Portal da Transparência, OpenSanctions, OpenCorporates, LLMs, etc.).
+- **Cloud Functions (Node):** `process.env.*` / secrets do Firebase conforme o projeto.
+- **Engines Python:** `.env` local (fora do Git) e `os.getenv()` / equivalente.
+
+## 4. Padronização para o Codex
+
+- Normalizar chaves para **snake_case** ou **camelCase** de forma consistente no pipeline de ingestão.
+- Acesso defensivo a esquemas dinâmicos (ex. `.get("chave", default)` em Python); evitar supor formato estável em APIs públicas.
+
+## 5. Simplicidade
+
+- Funções curtas e testáveis; evitar hierarquias abstratas vazias sem segunda implementação real.
+- Para cada requisição HTTP relevante, logar de forma segura: **URL (sem query secrets)**, **status HTTP** e **tempo de resposta** (e correlation id se existir).
+
+Com estas regras, pedidos do tipo “crie um conector para pagamentos da prefeitura X” devem virar código **parametrizado por IBGE/URL base**, com paginação, backoff e segredos só por ambiente.
