@@ -26,7 +26,7 @@ import {
   mergeDeputadoRankingOrg,
   RANKING_ORG_PAGE,
 } from "../utils/rankingOrg";
-import { anosCeapLegislaturaAtual } from "../utils/legislatura";
+import { anosCeapHistoricoCompleto } from "../utils/legislatura";
 
 function fmtMoney(value) {
   const n = parseCamaraValorReais(value ?? 0);
@@ -137,7 +137,7 @@ export default function PoliticoPage() {
   const [loading, setLoading] = useState(true);
   const [auditError, setAuditError] = useState("");
   const [pageError, setPageError] = useState("");
-  const [ceapAnos, setCeapAnos] = useState(() => anosCeapLegislaturaAtual());
+  const [ceapAnos, setCeapAnos] = useState(() => anosCeapHistoricoCompleto());
   const [atividadeData, setAtividadeData] = useState(null);
   const CEAP_LIST_MAX = 80;
 
@@ -190,7 +190,7 @@ export default function PoliticoPage() {
         } catch {/* seed / Firestore opcional */}
         if (isMounted) setPol(politico);
 
-        const anosCeap = anosCeapLegislaturaAtual();
+        const anosCeap = anosCeapHistoricoCompleto();
         const nomeBusca = String(politico.nome || politico.nomeCompleto || data?.nome || "").trim();
         const idCamaraBusca = politico.idCamara != null ? Number(politico.idCamara) : null;
         const promises = [];

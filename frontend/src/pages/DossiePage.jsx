@@ -39,7 +39,6 @@ import { Helmet }         from "react-helmet-async";
 import PageSkeleton       from "../components/PageSkeleton";
 import NetworkGraph       from "../components/NetworkGraph";
 import StickyHeader       from "../components/StickyHeader";
-import PerformanceTab     from "../components/PerformanceTab";
 import PoliticalTimeline  from "../components/PoliticalTimeline";
 import CabinetAudit       from "../components/CabinetAudit";
 import ForensicDashboard  from "../components/ForensicDashboard";
@@ -50,7 +49,8 @@ import ScoreForense from "../components/ScoreForense";
 import BotaoCobrarDeputado from "../components/BotaoCobrarDeputado";
 import { normalizeUF }    from "../components/SocialContext";
 import { parseCamaraValorReais } from "../utils/moneyCamara";
-import { anosCeapLegislaturaAtual } from "../utils/legislatura";
+import { anosCeapHistoricoCompleto, CEAP_HISTORICO_ANO_INICIO } from "../utils/legislatura";
+import PerformanceTab, { computeCeapTetoMetrics } from "../components/PerformanceTab";
 
 const CUSTO_FULL    = 200;
 const CUSTO_RESUMO  = 10;
@@ -64,6 +64,31 @@ function fmtBRL(v) {
 }
 // Alias seguro para formatCurrency (jamais R$ NaN)
 const formatCurrency = (v) => fmtBRL(v ?? 0);
+
+function absolutizeCamaraUrl(u) {
+  const s = String(u || "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("//")) return `https:${s}`;
+  if (s.startsWith("/")) return `https://www.camara.leg.br${s}`;
+  return s;
+}
+
+function normalizeDespesaCeap(item, index) {
+  const rawNome = item?.txtFornecedor || item?.fornecedorNome || item?.nomeFornecedor;
+  const urlDoc = absolutizeCamaraUrl(item?.urlDocumento);
+  const cod = item?.codDocumento ?? item?.numDocumento ?? "";
+  return {
+    id: item?.id || urlDoc || `${cod}-${item?.dataDocumento || index}-${index}`,
+    valorLiquido: parseCamaraValorReais(item?.vlrLiquido ?? item?.valorLiquido ?? item?.valorDocumento ?? 0),
+    tipoDespesa: item?.txtDescricao || item?.tipoDespesa || "Sem categoria",
+    fornecedorNome: rawNome && String(rawNome).trim() ? String(rawNome).trim() : null,
+    dataDocumento: item?.datEmissao || item?.dataDocumento || "",
+    urlDocumento: urlDoc,
+    cnpjCpf: item?.txtCNPJCPF || item?.cnpjCpf || item?.cnpjCpfFornecedor || "",
+    ano: item?.ano,
+  };
+}
 
 function sessionKey(id, tipo = "full") {
   return `dossie_${tipo}_${id}`;
@@ -235,19 +260,29 @@ function IdentitySection({ politico, scoreForense, alertasResumo = [], custoCont
 }
 
 // ─── SEÇÃO 2: Monitor de Gastos CEAP (GRÁTIS) — resumo + link fonte oficial ───
-function CeapMonitorSection({ politico }) {
+function CeapMonitorSection({ politico, ceapTotalAcumulado, ceapPeriodoLabel, ceapLoading }) {
   const idCamara = politico?.idCamara ?? politico?.id_camara;
   const ceapUrl = idCamara
     ? `https://www.camara.leg.br/deputados/${idCamara}/despesas`
     : `https://portaldatransparencia.gov.br/verbas-indenizatorias/consulta`;
   const dossiePath = politico?.id ? `/dossie/${politico.id}` : "/ranking";
+  const gastoExibido = ceapTotalAcumulado != null
+    ? ceapTotalAcumulado
+    : parseCamaraValorReais(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0);
+  const labelGasto = ceapPeriodoLabel
+    ? `Total CEAP (${ceapPeriodoLabel})`
+    : "Gasto Total";
 
   return (
     <Card>
       <SectionHeader icon="💰" title="Monitor de Gastos CEAP" badge="GRÁTIS" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 16 }}>
         {[
-          { label: "Gasto Total", value: fmtBRL(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0), color: "#C82538" },
+          {
+            label: labelGasto,
+            value: ceapLoading ? "…" : fmtBRL(gastoExibido),
+            color: "#C82538",
+          },
           { label: "Presença", value: politico?.presenca != null ? `${politico.presenca}%` : "—", color: "#2E7F18" },
         ].map((m) => (
           <div
@@ -276,6 +311,8 @@ function CeapMonitorSection({ politico }) {
         ))}
       </div>
       <p style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.6 }}>
+        Soma das despesas CEAP na API da Câmara
+        {ceapPeriodoLabel ? ` (${ceapPeriodoLabel})` : ` (desde ${CEAP_HISTORICO_ANO_INICIO})`}.
         Detalhamento com notas fiscais, Motor Forense TransparenciaBR e gráficos está no{" "}
         <strong>Dossiê de Notas Fiscais (CEAP)</strong> na{" "}
         <Link to={dossiePath} style={{ color: "#15803D", fontWeight: 600 }}>
@@ -1010,6 +1047,13 @@ export default function DossiePage() {
   const [emendasPortalErr, setEmendasPortalErr] = useState(null);
   const [mapaEmendasData,  setMapaEmendasData ] = useState(null);
   const [forensicHeader,   setForensicHeader ] = useState(null);
+  /** CEAP agregado (2019→ano atual) via getAuditoriaPolitico — alinha teto e totais com a API da Câmara */
+  const [ceapState, setCeapState] = useState({
+    status: "idle",
+    despesas: null,
+    error: null,
+    anosCeap: null,
+  });
 
   const pdfRef = useRef(null);
 
@@ -1141,6 +1185,50 @@ export default function DossiePage() {
   }, [politico?.idCamara, politico?.nome, politico?.nomeCompleto]);
 
   useEffect(() => {
+    setCeapState({ status: "idle", despesas: null, error: null, anosCeap: null });
+  }, [id]);
+
+  useEffect(() => {
+    if (!user || !id || !politico) return;
+    let cancelled = false;
+    const nome = politico.nome || politico.nomeCompleto;
+    const idC = politico.idCamara != null ? Number(politico.idCamara) : null;
+    if (!nome && !Number.isFinite(idC)) {
+      const anos = anosCeapHistoricoCompleto();
+      setCeapState({ status: "ready", despesas: [], error: null, anosCeap: anos });
+      return;
+    }
+    const anos = anosCeapHistoricoCompleto();
+    setCeapState((s) => ({ ...s, status: "loading", error: null }));
+    (async () => {
+      try {
+        const fn = httpsCallable(functions, "getAuditoriaPolitico");
+        const result = await fn({
+          nome: nome || undefined,
+          idCamara: Number.isFinite(idC) ? idC : undefined,
+          anos,
+        });
+        if (cancelled) return;
+        const raw = Array.isArray(result?.data?.despesas) ? result.data.despesas : [];
+        const despesas = raw.map(normalizeDespesaCeap);
+        const anosCeap = Array.isArray(result?.data?.anosCeap) && result.data.anosCeap.length
+          ? result.data.anosCeap
+          : anos;
+        setCeapState({ status: "ready", despesas, error: null, anosCeap });
+      } catch (e) {
+        if (cancelled) return;
+        setCeapState({
+          status: "error",
+          despesas: null,
+          error: e?.message || "Falha ao carregar CEAP.",
+          anosCeap: anos,
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+
+  useEffect(() => {
     if (!user || !id || !politico) return;
     let cancelled = false;
     const nome = politico.nome || politico.nomeCompleto;
@@ -1153,7 +1241,7 @@ export default function DossiePage() {
           politicoDocId: id,
           nomeAutor: nome || undefined,
           codigoAutor: Number.isFinite(idC) ? idC : undefined,
-          anos: anosCeapLegislaturaAtual(),
+          anos: anosCeapHistoricoCompleto(),
         });
         if (!cancelled) {
           setEmendasPortal(result.data?.emendas ?? []);
@@ -1183,7 +1271,7 @@ export default function DossiePage() {
           politicoDocId: id,
           nomeAutor: nome || undefined,
           codigoAutor: Number.isFinite(idC) ? idC : undefined,
-          anos: anosCeapLegislaturaAtual(),
+          anos: anosCeapHistoricoCompleto(),
           maxPontos: 20,
         });
         if (!cancelled) setMapaEmendasData(result.data || null);
@@ -1215,10 +1303,15 @@ export default function DossiePage() {
     return () => { cancelled = true; };
   }, [id, politico?.idCamara]);
 
-  const custoContribuinteCeap = useMemo(
-    () => parseCamaraValorReais(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0),
-    [politico?.gastosCeapTotal, politico?.totalGasto],
-  );
+  const ceapMetricsDossie = useMemo(() => {
+    if (ceapState.status !== "ready" || !Array.isArray(ceapState.despesas)) return null;
+    return computeCeapTetoMetrics(ceapState.despesas, politico?.uf ?? politico?.estado);
+  }, [ceapState.status, ceapState.despesas, politico?.uf, politico?.estado]);
+
+  const custoContribuinteCeap = useMemo(() => {
+    if (ceapMetricsDossie) return ceapMetricsDossie.gastoTotalAcumulado;
+    return parseCamaraValorReais(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0);
+  }, [ceapMetricsDossie, politico?.gastosCeapTotal, politico?.totalGasto]);
 
   const emendasKpis = useMemo(() => {
     const list = Array.isArray(emendasPortal) ? emendasPortal : [];
@@ -1477,8 +1570,12 @@ export default function DossiePage() {
             marginBottom: 20,
           }}>
             <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>CUSTO CEAP (REFERÊNCIA)</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>{fmtBRL(custoContribuinteCeap)}</div>
+              <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>
+                CUSTO CEAP {ceapMetricsDossie ? `(${ceapMetricsDossie.labelPeriodo})` : "(REFERÊNCIA)"}
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>
+                {ceapState.status === "loading" || ceapState.status === "idle" ? "…" : fmtBRL(custoContribuinteCeap)}
+              </div>
             </div>
             <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
               <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>EMENDAS · EMPENHADO</div>
@@ -1503,6 +1600,9 @@ export default function DossiePage() {
                 onPayFull={handlePayFull}
                 unlocking={unlocking}
                 unlockError={unlockError}
+                ceapLoading={ceapState.status === "idle" || ceapState.status === "loading"}
+                ceapDespesas={ceapState.status === "ready" ? ceapState.despesas : null}
+                ceapError={ceapState.status === "error" ? ceapState.error : null}
               />
             )}
 
@@ -1646,7 +1746,12 @@ export default function DossiePage() {
 
             {/* ─── SEÇÃO 2: Monitor de Gastos CEAP (2 créditos) ─────── */}
             <CreditGate custo={2} descricao="Dossiê — CEAP detalhado">
-              <CeapMonitorSection politico={politico} />
+              <CeapMonitorSection
+                politico={politico}
+                ceapLoading={ceapState.status === "idle" || ceapState.status === "loading"}
+                ceapTotalAcumulado={ceapMetricsDossie?.gastoTotalAcumulado ?? null}
+                ceapPeriodoLabel={ceapMetricsDossie?.labelPeriodo ?? null}
+              />
             </CreditGate>
 
             {/* ─── SEÇÃO 2B: Motor Forense (preview grátis + detalhada paga) ── */}

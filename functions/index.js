@@ -609,10 +609,13 @@ function parseCamaraValorReais(raw) {
   return n;
 }
 
-/** Anos civis da legislatura atual (57ª: 2023–2026) para CEAP — inclui ano corrente */
+/** Anos CEAP quando o cliente não envia lista: 2019 → ano atual (cota por ano civil na API da Câmara) */
 function defaultCeapAnos() {
   const y = new Date().getFullYear();
-  return [y, y - 1, y - 2, y - 3].filter((a) => a >= 2023 && a <= y);
+  const minY = 2019;
+  const out = [];
+  for (let a = y; a >= minY; a--) out.push(a);
+  return out;
 }
 
 async function fetchDespesasAno(deputadoId, ano, maxPages = 12) {
@@ -801,21 +804,26 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
     return yNext >= yPrev ? next : prev;
   }
 
-  try {
+  async function ingestAnos(queryFn) {
     for (const ano of anos) {
-      let chunk = [];
-      if (codigoAutor) {
-        chunk = await portalFetchEmendasPorAno(ano, `codigoAutor=${encodeURIComponent(codigoAutor)}`);
-      }
-      if (chunk.length === 0 && nomeQuery) {
-        chunk = await portalFetchEmendasPorAno(ano, `nomeAutor=${encodeURIComponent(nomeQuery)}`);
-      }
+      const chunk = await portalFetchEmendasPorAno(ano, queryFn(ano));
       for (const e of chunk) {
         const cod = e?.codigoEmenda;
         if (!cod) continue;
         byCodigo.set(cod, mergeEmendaRow(byCodigo.get(cod), e));
       }
       await sleepMs(400);
+    }
+  }
+
+  try {
+    if (codigoAutor) {
+      await ingestAnos(() => `codigoAutor=${encodeURIComponent(codigoAutor)}`);
+    }
+    // id Câmara ≠ codigoAutor do Portal — se vier vazio, repetir com nome normalizado
+    if (byCodigo.size === 0 && nomeQuery) {
+      byCodigo.clear();
+      await ingestAnos(() => `nomeAutor=${encodeURIComponent(nomeQuery)}`);
     }
 
     const emendas = [...byCodigo.values()].map((raw) => {
@@ -1050,21 +1058,25 @@ exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
     return coords;
   }
 
-  try {
+  async function ingestMapaAnos(queryFn) {
     for (const ano of anos) {
-      let chunk = [];
-      if (codigoAutor) {
-        chunk = await portalFetchEmendasPorAno(ano, `codigoAutor=${encodeURIComponent(codigoAutor)}`);
-      }
-      if (chunk.length === 0 && nomeQuery) {
-        chunk = await portalFetchEmendasPorAno(ano, `nomeAutor=${encodeURIComponent(nomeQuery)}`);
-      }
+      const chunk = await portalFetchEmendasPorAno(ano, queryFn(ano));
       for (const e of chunk) {
         const cod = e?.codigoEmenda;
         if (!cod) continue;
         byCodigo.set(cod, mergeEmendaRow(byCodigo.get(cod), e));
       }
       await sleepMs(400);
+    }
+  }
+
+  try {
+    if (codigoAutor) {
+      await ingestMapaAnos(() => `codigoAutor=${encodeURIComponent(codigoAutor)}`);
+    }
+    if (byCodigo.size === 0 && nomeQuery) {
+      byCodigo.clear();
+      await ingestMapaAnos(() => `nomeAutor=${encodeURIComponent(nomeQuery)}`);
     }
 
     const rows = [...byCodigo.values()].map((raw) => {

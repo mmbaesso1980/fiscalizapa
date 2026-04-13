@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { normalizeUF } from "./SocialContext";
-import { anosCeapLegislaturaAtual } from "../utils/legislatura";
+import { anosCeapHistoricoCompleto } from "../utils/legislatura";
 
 const UF_VALIDAS = new Set(["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"]);
 
@@ -112,7 +112,7 @@ export default function EmendasAba({ deputadoId, nomeDeputado, emendasOverride, 
     return <div style={{ padding: '20px', color: 'var(--text-muted)', textAlign: 'center' }}>Carregando emendas parlamentares...</div>;
   }
 
-  const anosTxt = anosCeapLegislaturaAtual().join(", ");
+  const anosTxt = anosCeapHistoricoCompleto().join(", ");
 
   if (emendas.length === 0) {
     return (
