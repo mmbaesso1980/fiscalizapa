@@ -35,6 +35,18 @@ function safeNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
+function fmtEmenda(v) {
+  const n = safeNum(v);
+  if (n === 0) return "–";
+  if (Math.abs(n) >= 1_000_000) {
+    return `R$ ${(n / 1_000_000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
+  }
+  if (Math.abs(n) >= 1_000) {
+    return `R$ ${(n / 1_000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K`;
+  }
+  return fmt(v);
+}
+
 function faseResumo(porFase) {
   if (!porFase || typeof porFase !== "object") return "";
   return Object.entries(porFase)
@@ -147,15 +159,15 @@ export default function EmendasAba({ deputadoId, nomeDeputado, emendasOverride, 
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>EMENDAS</div>
         </div>
         <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
-          <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent-orange)' }}>{fmt(totalEmpenhado)}</div>
+          <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent-orange)' }}>{fmtEmenda(totalEmpenhado)}</div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>EMPENHADO</div>
         </div>
         <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
-          <div style={{ fontSize: '20px', fontWeight: 700, color: '#0d9488' }}>{fmt(totalLiq)}</div>
+          <div style={{ fontSize: '20px', fontWeight: 700, color: '#0d9488' }}>{fmtEmenda(totalLiq)}</div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>LIQUIDADO</div>
         </div>
         <div style={{ minWidth: 0, padding: '14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', textAlign: 'center' }}>
-          <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent-green)' }}>{fmt(totalPago)}</div>
+          <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent-green)' }}>{fmtEmenda(totalPago)}</div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>PAGO</div>
         </div>
       </div>
@@ -188,10 +200,15 @@ export default function EmendasAba({ deputadoId, nomeDeputado, emendasOverride, 
                     {e.municipioNome || e.municipio || e.localidade || 'Município não informado'}
                     {ufLabel ? ` — ${ufLabel}` : ''}
                   </p>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontWeight: 600 }}>{e.codigo || e.id}</span>
                     {e.tipo ? ` · ${e.tipo}` : ''}
                     {e.ano ? ` · ${e.ano}` : ''}
+                    {(e.municipioNome || e.municipio || e.localidade) && (
+                      <span style={{ fontSize: 11, color: '#6b7280' }}>
+                        📍 {e.municipioNome || e.municipio || e.localidade}
+                      </span>
+                    )}
                   </p>
                   <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
                     {e.objetoResumo || [e.funcao, e.subfuncao].filter(Boolean).join(" · ") || ""}
@@ -203,11 +220,11 @@ export default function EmendasAba({ deputadoId, nomeDeputado, emendasOverride, 
                   )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-gold)', fontSize: '15px' }}>{fmt(e.valorEmpenhado ?? e.valor)}</span>
+                  <span style={{ fontWeight: 700, fontFamily: 'Space Grotesk', color: 'var(--accent-gold)', fontSize: '15px' }}>{fmtEmenda(e.valorEmpenhado ?? e.valor)}</span>
                   {safeNum(e.valorLiquidado) > 0 && (
-                    <p style={{ fontSize: '11px', color: '#0d9488', margin: '2px 0 0' }}>Liq.: {fmt(e.valorLiquidado)}</p>
+                    <p style={{ fontSize: '11px', color: '#0d9488', margin: '2px 0 0' }}>Liq.: {fmtEmenda(e.valorLiquidado)}</p>
                   )}
-                  {safeNum(e.valorPago) > 0 && <p style={{ fontSize: '11px', color: 'var(--accent-green)', margin: '2px 0 0' }}>Pago: {fmt(e.valorPago)}</p>}
+                  {safeNum(e.valorPago) > 0 && <p style={{ fontSize: '11px', color: 'var(--accent-green)', margin: '2px 0 0' }}>Pago: {fmtEmenda(e.valorPago)}</p>}
                   {taxa && <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Taxa pago/emp.: {taxa}</p>}
                   {portalUrl && (
                     <a href={portalUrl} target="_blank" rel="noopener noreferrer"
@@ -272,6 +289,68 @@ export default function EmendasAba({ deputadoId, nomeDeputado, emendasOverride, 
           );
         })}
       </div>
+
+      {(() => {
+        const cidadesMap = {};
+        emendas.forEach((e) => {
+          const cidade = e.municipioNome || e.municipio || e.localidade;
+          if (cidade && cidade !== "–") {
+            if (!cidadesMap[cidade]) cidadesMap[cidade] = { nome: cidade, total: 0, count: 0 };
+            cidadesMap[cidade].total += safeNum(e.valorEmpenhado ?? e.valor);
+            cidadesMap[cidade].count += 1;
+          }
+        });
+        const cidades = Object.values(cidadesMap).sort((a, b) => b.total - a.total);
+        if (cidades.length === 0) return null;
+        return (
+          <div style={{ marginTop: 20 }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              🏙️ Cidades destino das emendas ({cidades.length})
+            </h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {cidades.map((c, i) => (
+                <div
+                  key={c.nome}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    background: i === 0 ? "#f0fdf4" : "#fafafa",
+                    border: i === 0 ? "1px solid #bbf7d0" : "1px solid #f0f0f0",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      background: i < 3 ? "#1B5E3B" : "#e5e7eb",
+                      color: i < 3 ? "#fff" : "#6b7280",
+                    }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{c.nome}</span>
+                  <span style={{ fontSize: 11, color: "#6b7280" }}>
+                    {c.count} emenda{c.count > 1 ? "s" : ""}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1B5E3B", fontFamily: "'Space Grotesk', sans-serif" }}>
+                    {fmtEmenda(c.total)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

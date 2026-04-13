@@ -6,7 +6,14 @@
 
 Configure com `firebase functions:secrets:set PORTAL_TRANSPARENCIA_API_KEY` ou no Console do Firebase.
 
+**Ligar o secret ao runtime (Gen 2):** após criar o secret, associe-o às functions que usam a API do Portal (ex.: `getEmendasParlamentar`, `getEmendasMapaPontos`, `forensicEngine`) no `firebase.json` / parâmetro `secrets` do `onCall`, **ou** defina a mesma variável em **Google Cloud Console → Cloud Functions → variáveis de ambiente** para o serviço. Sem isso, `process.env.PORTAL_TRANSPARENCIA_API_KEY` fica vazio e emendas/mapa retornam erro ou lista vazia.
+
 Documentação: https://api.portaldatransparencia.gov.br/
+
+## Mapa de emendas (Nominatim)
+
+- Geocodificação usa **OpenStreetMap Nominatim**; resultados são guardados em Firestore na coleção **`geocode_cache`** (TTL ~90 dias, escrita só via Cloud Function).
+- Regra: `geocode_cache` — leitura pública, escrita negada ao cliente (igual `gabinete_cache`).
 
 ## Stripe (pagamentos)
 

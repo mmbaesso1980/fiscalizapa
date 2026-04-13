@@ -1,42 +1,31 @@
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 @import "tailwindcss";
 
 :root {
-  /* ── data.gov.uk–inspired shell (páginas públicas) ─────────────────────── */
-  --bg-primary:          #ffffff;
-  --bg-secondary:        #f9fafb;
+  /* ── Paleta base (tema claro — páginas de auditoria pública) ───────────── */
+  --bg-primary:          #fafaf8;
+  --bg-secondary:        #f2f0eb;
   --bg-card:             #ffffff;
-  --bg-mint:             #eef5f0;
-  --text-primary:        #1a1a1a;
-  --text-secondary:      #6b7280;
-  --text-muted:          #9ca3af;
-  --text-heading-serif:  #3d2b1f;
-  --accent-green:        #1B5E3B;
-  --accent-green-light:  #2E7F6E;
-  --accent-green-bg:     #eef5f0;
-  --border-light:        #e5e7eb;
-  --border-medium:       #d1d5db;
-  --shadow-soft:         0 1px 3px rgba(0,0,0,0.04);
-  --radius-sm:  8px;
-  --radius-md:  12px;
-  --radius-lg:  16px;
-  --radius-xl:  20px;
-
-  /* Marca — orbe */
-  --orbe-gold:   #FBD87F;
-  --orbe-peach:  #F7B98B;
-  --orbe-mint:   #A8D8B0;
-  --orbe-sky:    #9ECFE8;
-
-  /* ── Compat: auditoria / cards legados ───────────────────────────────── */
   --bg-dark:             #1a1a2e;
+  --text-primary:        #1a1a2e;
+  --text-secondary:      #5a5a6e;
+  --text-muted:          #8a8a9e;
   --accent-gold:         #c9a84c;
   --accent-gold-light:   #e8d48b;
+  --accent-green:        #3d6b5e;
+  --accent-green-light:  #5a9e8f;
   --accent-orange:       #c4724e;
   --accent-red:          #b54a4a;
+  --border-light:        #e8e6e1;
+  --border-medium:       #d4d2cd;
+  --shadow-soft:         0 1px 3px rgba(26,26,46,0.06);
   --shadow-medium:       0 4px 12px rgba(26,26,46,0.08);
   --shadow-glow:         0 0 20px rgba(201,168,76,0.15);
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  16px;
+  --radius-xl:  24px;
 
   /* ── Protocolo A.F.R.O.D.I.T.E. — Operação D.R.A.C.U.L.A. ────────────── */
   /* Verde Médico: dados limpos, fluxos regulares, aprovações */
@@ -70,12 +59,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4 {
-  font-family: 'Fraunces', Georgia, serif;
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--text-heading-serif);
-}
+h1, h2, h3, h4 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; line-height: 1.2; color: #3d2b1f; }
 
 .logo-glow { filter: drop-shadow(0 0 8px rgba(201,168,76,0.4)); }
 .logo-glow:hover { filter: drop-shadow(0 0 14px rgba(201,168,76,0.6)); }
@@ -272,43 +256,41 @@ strong, b  { font-weight: 600; }
   animation: blinkCursor 1s step-end infinite;
 }
 
-/* ── Navbar mobile + responsive grids ───────────────────────────────────── */
-.mobile-hamburger { display: none !important; }
-.mobile-search { display: none !important; }
-
+/* ── Mobile responsive ─────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .mobile-hamburger { display: block !important; }
-  .desktop-nav-links,
-  .desktop-search { display: none !important; }
-  .desktop-entrar-btn { display: none !important; }
-  .mobile-search { display: block !important; width: 100%; }
-  .mobile-search > div { max-width: 100% !important; width: 100% !important; }
-  .comparador-embed-header {
-    grid-template-columns: 1fr !important;
-  }
-
-  .grid-responsive {
-    grid-template-columns: 1fr !important;
-  }
-  .section-card-inner {
-    padding: 16px !important;
-  }
-  .hero-title {
-    font-size: clamp(24px, 7vw, 36px) !important;
-  }
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-  .score-components-grid {
-    grid-template-columns: repeat(3, 1fr) !important;
-  }
+  .nav-desktop { display: none !important; }
+  .nav-mobile-btn { display: flex !important; }
+}
+@media (min-width: 769px) {
+  .nav-mobile-btn { display: none !important; }
 }
 
-@media (max-width: 480px) {
-  .score-components-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
+/* Área de toque mínima (~44px) em mobile — botões e CTAs de navegação */
+@media (max-width: 768px) {
+  button:not(.no-touch-min),
+  [role="button"]:not(.no-touch-min),
+  input[type="submit"]:not(.no-touch-min) {
+    min-height: 44px;
+    min-width: 44px;
   }
-  .stats-grid {
-    grid-template-columns: 1fr 1fr !important;
+  nav a[href],
+  footer a[href],
+  .credit-gate-wrapper button {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+  .politician-links a,
+  .source-links a,
+  .presenca-link a {
+    padding: 10px 12px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
   }
 }

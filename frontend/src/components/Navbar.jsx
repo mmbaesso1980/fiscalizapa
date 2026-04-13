@@ -3,35 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import CreditBadge from "./CreditBadge";
 import GlobalSearch from "./GlobalSearch";
 import { AuditSealCompact } from "./AuditSeal";
-
-const LogoOrb = ({ size = 32 }) => (
-  <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-    <defs>
-      <linearGradient id="orbA" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FBD87F" />
-        <stop offset="35%" stopColor="#F7B98B" />
-        <stop offset="65%" stopColor="#A8D8B0" />
-        <stop offset="100%" stopColor="#9ECFE8" />
-      </linearGradient>
-      <linearGradient id="orbB" x1="100%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stopColor="#FBD87F" stopOpacity="0.7" />
-        <stop offset="50%" stopColor="#F7B98B" stopOpacity="0.5" />
-        <stop offset="100%" stopColor="#9ECFE8" stopOpacity="0.7" />
-      </linearGradient>
-      <linearGradient id="orbC" x1="0%" y1="100%" x2="100%" y2="0%">
-        <stop offset="0%" stopColor="#A8D8B0" stopOpacity="0.6" />
-        <stop offset="100%" stopColor="#F7B98B" stopOpacity="0.4" />
-      </linearGradient>
-    </defs>
-    <path d="M50 8 A42 42 0 1 1 49.9 8" stroke="url(#orbA)" strokeWidth="14" fill="none" strokeLinecap="round" />
-    <path d="M50 16 A34 34 0 1 0 49.9 16" stroke="url(#orbB)" strokeWidth="10" fill="none" strokeLinecap="round" />
-    <path d="M50 26 A24 24 0 1 1 49.9 26" stroke="url(#orbC)" strokeWidth="7" fill="none" strokeLinecap="round" />
-  </svg>
-);
+import LogoOrb from "./LogoOrb";
 
 export default function Navbar({ user, logout, credits, isAdmin }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
@@ -39,287 +15,170 @@ export default function Navbar({ user, logout, credits, isAdmin }) {
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setDropdownOpen(false);
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const firstName = user?.displayName ? user.displayName.split(" ")[0] : "";
-  const initial = user?.displayName ? user.displayName.charAt(0).toUpperCase() : "?";
+  const firstName = user?.displayName ? user.displayName.split(' ')[0] : '';
+  const initial = user?.displayName ? user.displayName.charAt(0).toUpperCase() : '?';
 
   return (
-    <nav
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-        padding: "0 24px",
-        height: 64,
-        background: "#ffffff",
-        borderBottom: "1px solid #e5e7eb",
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        isolation: "isolate",
-      }}
-    >
-      <Link
-        to="/"
-        style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", flexShrink: 0 }}
-        onClick={() => setMobileMenuOpen(false)}
-      >
-        <LogoOrb size={34} />
-        <span
-          style={{
+    <>
+      <nav style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 20px', height: 60,
+        background: '#ffffff',
+        borderBottom: '1px solid #e5e7eb',
+        position: 'sticky', top: 0, zIndex: 100,
+      }}>
+        {/* Logo */}
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
+          <LogoOrb size={32} />
+          <span style={{
             fontFamily: "'Fraunces', Georgia, serif",
-            fontWeight: 600,
-            fontSize: 18,
-            color: "#1a1a1a",
-            letterSpacing: "-0.3px",
-          }}
-        >
-          transparência<span style={{ color: "#9ca3af", fontWeight: 400 }}>br</span>
-        </span>
-      </Link>
-
-      <div className="desktop-nav-links" style={{ display: "flex", gap: 24, alignItems: "center", flex: 1, justifyContent: "center" }}>
-        <Link to="/ranking" style={navLink} className="tbr-nav-link">
-          Ranking
+            fontWeight: 700, fontSize: 16,
+            color: '#1B5E3B', letterSpacing: '-0.5px',
+          }}>
+            transparência<span style={{ fontWeight: 400, color: '#6b7280' }}>br</span>
+          </span>
         </Link>
-      </div>
 
-      <div className="desktop-search" style={{ flexShrink: 0 }}>
-        <GlobalSearch />
-      </div>
-
-      <button
-        type="button"
-        className="mobile-hamburger"
-        aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
-        onClick={() => setMobileMenuOpen((o) => !o)}
-        style={{
-          display: "none",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          padding: 8,
-          flexShrink: 0,
-        }}
-      >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="2">
-          {mobileMenuOpen ? (
-            <path d="M6 6l12 12M6 18L18 6" />
-          ) : (
-            <>
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </>
-          )}
-        </svg>
-      </button>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }} className="desktop-user-block">
-        {user ? (
-          <div ref={dropdownRef} style={{ position: "relative" }}>
-            <button
-              type="button"
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                background: "transparent",
-                border: "1px solid #e5e7eb",
-                borderRadius: 100,
-                cursor: "pointer",
-                padding: "4px 10px 4px 6px",
-              }}
-            >
-              {user.photoURL ? (
-                <img src={user.photoURL} alt={firstName} style={{ width: 26, height: 26, borderRadius: "50%" }} />
-              ) : (
-                <div
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: "50%",
-                    background: "linear-gradient(135deg,#A8D8B0,#9ECFE8)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
-                    fontWeight: 700,
-                    fontSize: 12,
-                  }}
-                >
-                  {initial}
-                </div>
-              )}
-              <span style={{ fontSize: 13, fontWeight: 500, color: "#1a1a1a" }}>{firstName}</span>
-              <AuditSealCompact />
-              <CreditBadge credits={credits} compact />
-            </button>
-            {dropdownOpen && (
-              <div
-                style={{
-                  position: "absolute",
-                  right: 0,
-                  top: "calc(100% + 8px)",
-                  background: "#fff",
-                  borderRadius: 12,
-                  boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
-                  minWidth: 210,
-                  border: "1px solid #e5e7eb",
-                  zIndex: 200,
-                  overflow: "hidden",
-                }}
-              >
-                <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6" }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: "#1a1a1a" }}>{user.displayName || "Usuario"}</div>
-                  <div style={{ fontSize: 12, color: "#888" }}>{user.email}</div>
-                </div>
-                <button type="button" onClick={() => { setDropdownOpen(false); navigate("/usuario"); }} style={dropItem}>
-                  👤 Minha conta
-                </button>
-                <button type="button" onClick={() => { setDropdownOpen(false); navigate("/perfil"); }} style={dropItem}>
-                  🗄️ Meu Cofre
-                </button>
-                <button type="button" onClick={() => { setDropdownOpen(false); navigate("/creditos"); }} style={dropItem}>
-                  💳 Comprar Créditos
-                </button>
-                <button type="button" onClick={() => { setDropdownOpen(false); navigate("/dashboard"); }} style={dropItem}>
-                  ⚡ Meu Painel
-                </button>
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => { setDropdownOpen(false); navigate("/admin"); }}
-                    style={{ ...dropItem, color: "#C82538", fontWeight: 700 }}
-                  >
-                    ☠️ Sala do Trono
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => { setDropdownOpen(false); logout(); }}
-                  style={{ ...dropItem, color: "#C0392B", borderTop: "1px solid #f3f4f6" }}
-                >
-                  ← Sair
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => navigate("/login")}
-            className="desktop-entrar-btn"
-            style={{
-              padding: "10px 22px",
-              borderRadius: 100,
-              border: "none",
-              background: "#1B5E3B",
-              color: "#fff",
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: "pointer",
-            }}
-          >
-            Entrar
-          </button>
-        )}
-      </div>
-
-      {mobileMenuOpen && (
-        <div
-          style={{
-            position: "absolute",
-            top: 64,
-            left: 0,
-            right: 0,
-            background: "#ffffff",
-            borderBottom: "1px solid #e5e7eb",
-            padding: "16px 24px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            zIndex: 99,
-          }}
-        >
-          <div className="mobile-search" style={{ width: "100%", maxWidth: "100%" }}>
+        {/* Desktop: Ranking link + Search */}
+        <div className="nav-desktop" style={{ display: 'flex', alignItems: 'center', gap: 20, flex: 1, justifyContent: 'center' }}>
+          <Link to="/ranking" style={navLink}>Ranking</Link>
+          <div style={{ maxWidth: 320, flex: 1 }}>
             <GlobalSearch />
           </div>
-          <Link
-            to="/ranking"
-            style={{ fontSize: 16, color: "#1a1a1a", textDecoration: "underline", textDecorationColor: "#1B5E3B", padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            Ranking
-          </Link>
-          {user && (
-            <>
-              <Link
-                to="/usuario"
-                style={{ fontSize: 16, color: "#1a1a1a", textDecoration: "underline", textDecorationColor: "#1B5E3B", padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Minha conta
-              </Link>
-              <Link
-                to="/creditos"
-                style={{ fontSize: 16, color: "#1a1a1a", textDecoration: "underline", textDecorationColor: "#1B5E3B", padding: "8px 0" }}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Créditos
-              </Link>
-            </>
-          )}
-          {!user && (
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                navigate("/login");
-              }}
-              style={{
-                padding: "12px 0",
-                background: "#1B5E3B",
-                color: "#fff",
-                borderRadius: 10,
-                border: "none",
-                fontWeight: 600,
-                fontSize: 15,
-                cursor: "pointer",
-              }}
-            >
+        </div>
+
+        {/* Desktop: user area */}
+        <div className="nav-desktop" style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          {user ? (
+            <div ref={dropdownRef} style={{ position: 'relative' }}>
+              <button onClick={() => setDropdownOpen(!dropdownOpen)} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: 'transparent', border: '1px solid #e5e7eb',
+                borderRadius: 100, cursor: 'pointer', padding: '4px 10px 4px 6px',
+              }}>
+                {user.photoURL
+                  ? <img src={user.photoURL} alt={firstName} style={{ width: 26, height: 26, borderRadius: '50%' }} />
+                  : <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg,#A8D8B0,#9ECFE8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 12 }}>{initial}</div>
+                }
+                <span style={{ fontSize: 13, fontWeight: 500, color: '#1a1a1a' }}>{firstName}</span>
+                <AuditSealCompact />
+                <CreditBadge credits={credits} compact />
+              </button>
+              {dropdownOpen && (
+                <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: '#fff', borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.12)', minWidth: 210, border: '1px solid #e5e7eb', zIndex: 200, overflow: 'hidden' }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6' }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: '#1a1a1a' }}>{user.displayName || 'Usuário'}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>{user.email}</div>
+                  </div>
+                  <button onClick={() => { setDropdownOpen(false); navigate('/usuario'); }} style={dropItem}>Minha conta</button>
+                  <button onClick={() => { setDropdownOpen(false); navigate('/perfil'); }} style={dropItem}>Meu Cofre</button>
+                  <button onClick={() => { setDropdownOpen(false); navigate('/creditos'); }} style={dropItem}>Comprar Créditos</button>
+                  <button onClick={() => { setDropdownOpen(false); navigate('/dashboard'); }} style={dropItem}>Meu Painel</button>
+                  {isAdmin && (
+                    <button onClick={() => { setDropdownOpen(false); navigate('/admin'); }} style={{ ...dropItem, color: '#C82538', fontWeight: 700 }}>Admin</button>
+                  )}
+                  <button onClick={() => { setDropdownOpen(false); logout(); }} style={{ ...dropItem, color: '#C0392B', borderTop: '1px solid #f3f4f6' }}>Sair</button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button type="button" onClick={() => navigate('/login')} style={{
+              padding: '8px 20px', borderRadius: 100, border: 'none',
+              background: '#1B5E3B', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+            }}>
               Entrar
             </button>
           )}
         </div>
+
+        {/* Mobile: hamburger */}
+        <button
+          className="nav-mobile-btn"
+          onClick={() => setMobileOpen(!mobileOpen)}
+          style={{
+            display: 'none', background: 'none', border: 'none',
+            cursor: 'pointer', padding: 6, flexShrink: 0,
+          }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round">
+            {mobileOpen
+              ? <path d="M6 6l12 12M6 18L18 6" />
+              : <><line x1="3" y1="7" x2="21" y2="7" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="17" x2="21" y2="17" /></>
+            }
+          </svg>
+        </button>
+      </nav>
+
+      {/* Mobile slide-down menu */}
+      {mobileOpen && (
+        <div style={{
+          position: 'fixed', top: 60, left: 0, right: 0, bottom: 0,
+          background: '#ffffff', zIndex: 99,
+          padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 4,
+          overflowY: 'auto',
+        }}>
+          <div style={{ marginBottom: 12 }}>
+            <GlobalSearch />
+          </div>
+          <MobileLink to="/ranking" label="Ranking" onClick={() => setMobileOpen(false)} />
+          <MobileLink to="/emendas" label="Emendas" onClick={() => setMobileOpen(false)} />
+          <MobileLink to="/mapa" label="Mapa" onClick={() => setMobileOpen(false)} />
+          <MobileLink to="/metodologia" label="Metodologia" onClick={() => setMobileOpen(false)} />
+          {user && (
+            <>
+              <div style={{ height: 1, background: '#f3f4f6', margin: '8px 0' }} />
+              <MobileLink to="/creditos" label="Comprar Créditos" onClick={() => setMobileOpen(false)} />
+              <MobileLink to="/perfil" label="Meu Cofre" onClick={() => setMobileOpen(false)} />
+              <MobileLink to="/dashboard" label="Meu Painel" onClick={() => setMobileOpen(false)} />
+              <MobileLink to="/usuario" label="Minha Conta" onClick={() => setMobileOpen(false)} />
+              {isAdmin && <MobileLink to="/admin" label="Admin" onClick={() => setMobileOpen(false)} />}
+              <button onClick={() => { setMobileOpen(false); logout(); }} style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                padding: '12px 0', fontSize: 15, color: '#C0392B', fontWeight: 500,
+                background: 'none', border: 'none', cursor: 'pointer',
+                borderTop: '1px solid #f3f4f6',
+              }}>
+                Sair
+              </button>
+            </>
+          )}
+          {!user && (
+            <>
+              <div style={{ height: 1, background: '#f3f4f6', margin: '8px 0' }} />
+              <button onClick={() => { setMobileOpen(false); navigate('/login'); }} style={{
+                padding: '14px 0', background: '#1B5E3B', color: '#fff',
+                borderRadius: 10, border: 'none', fontWeight: 600, fontSize: 15,
+                cursor: 'pointer', width: '100%', marginTop: 4,
+              }}>
+                Entrar
+              </button>
+            </>
+          )}
+        </div>
       )}
-    </nav>
+    </>
   );
 }
 
-const navLink = {
-  fontSize: 14,
-  fontWeight: 500,
-  color: "#1a1a1a",
-  textDecoration: "underline",
-  textDecorationColor: "#1B5E3B",
-  textUnderlineOffset: 3,
-};
+function MobileLink({ to, label, onClick }) {
+  return (
+    <Link
+      to={to}
+      onClick={onClick}
+      style={{
+        display: 'block', padding: '12px 0',
+        fontSize: 15, color: '#1a1a1a', textDecoration: 'none',
+        fontWeight: 500, borderBottom: '1px solid #f3f4f6',
+      }}
+    >
+      {label}
+    </Link>
+  );
+}
 
-const dropItem = {
-  display: "block",
-  width: "100%",
-  textAlign: "left",
-  padding: "10px 16px",
-  fontSize: 13,
-  fontWeight: 500,
-  color: "#1a1a1a",
-  background: "transparent",
-  border: "none",
-  cursor: "pointer",
-};
+const navLink = { fontSize: 14, fontWeight: 500, color: '#374151', textDecoration: 'none' };
+const dropItem = { display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', fontSize: 13, fontWeight: 500, color: '#1a1a1a', background: 'transparent', border: 'none', cursor: 'pointer' };

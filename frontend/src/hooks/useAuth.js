@@ -173,7 +173,7 @@ export function useAuth() {
           setCreditsComprado(comprado);
           setCreditsBonus(bonus);
           localStorage.setItem("userCredits", String(total));
-          setIsAdmin(data?.isAdmin === true);
+          setIsAdmin(data?.isAdmin === true || data?.role === "admin");
           setDailyQuota(data?.dossies_gratuitos_restantes ?? 0);
         } else {
           setIsAdmin(false);

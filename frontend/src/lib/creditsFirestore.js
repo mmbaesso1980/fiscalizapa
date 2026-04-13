@@ -6,14 +6,12 @@
 import {
   doc,
   getDoc,
+  setDoc,
   runTransaction,
   serverTimestamp,
   collection,
 } from "firebase/firestore";
-import {
-  CREDITOS_COMPRADOS_INICIAIS,
-  CREDITOS_BONUS_BOAS_VINDAS,
-} from "./creditConstants";
+import { usuarioCreditosIlimitados } from "./creditWallet";
 
 function histDocId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -35,22 +33,40 @@ export async function spendUserCredits(db, userId, custo, descricao) {
   const ref = doc(db, "usuarios", userId);
   const histCol = collection(db, "usuarios", userId, "historico_creditos");
 
-  let perfilCriadoBoasVindas = false;
+  // Passo 0: Garantir que o doc existe (cria se não existir)
+  const preCheck = await getDoc(ref);
+  if (!preCheck.exists()) {
+    await setDoc(ref, {
+      uid: userId,
+      email: "",
+      nome: "",
+      photoURL: "",
+      creditos: 0,
+      creditos_bonus: 10,
+      dossies_gratuitos_restantes: 2,
+      plano: "free",
+      isAdmin: false,
+      criadoEm: serverTimestamp(),
+      atualizadoEm: serverTimestamp(),
+    });
+    throw new Error(
+      "Bem-vindo! Você recebeu 10 créditos de boas-vindas. Toque novamente para desbloquear.",
+    );
+  }
+
+  const preData = preCheck.data();
+  if (usuarioCreditosIlimitados(preData)) {
+    return;
+  }
 
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists()) {
-      tx.set(ref, {
-        creditos: CREDITOS_COMPRADOS_INICIAIS,
-        creditos_bonus: CREDITOS_BONUS_BOAS_VINDAS,
-        criadoEm: serverTimestamp(),
-        atualizadoEm: serverTimestamp(),
-      });
-      perfilCriadoBoasVindas = true;
-      return;
-    }
+    if (!snap.exists()) throw new Error("Perfil não encontrado. Recarregue a página.");
 
     const dados = snap.data();
+    if (usuarioCreditosIlimitados(dados)) {
+      return;
+    }
     const saldoComprado = Number(dados.creditos ?? 0);
     const saldoBonus = Number(dados.creditos_bonus ?? 0);
     const total = saldoComprado + saldoBonus;
@@ -85,12 +101,6 @@ export async function spendUserCredits(db, userId, custo, descricao) {
       ts: serverTimestamp(),
     });
   });
-
-  if (perfilCriadoBoasVindas) {
-    throw new Error(
-      `Bem-vindo! Você recebeu ${CREDITOS_BONUS_BOAS_VINDAS} créditos de boas-vindas. Tente novamente.`,
-    );
-  }
 }
 
 /**
@@ -104,6 +114,7 @@ export async function userHasEnoughCredits(db, userId, custo) {
   const snap = await getDoc(doc(db, "usuarios", userId));
   if (!snap.exists()) return false;
   const d = snap.data();
+  if (usuarioCreditosIlimitados(d)) return true;
   const total = Number(d.creditos ?? 0) + Number(d.creditos_bonus ?? 0);
   return total >= amount;
 }

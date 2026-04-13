@@ -51,6 +51,7 @@ service cloud.firestore {
     function touchesCriticalFields() {
       return fieldsDiff().hasAny([
         'creditos', 'creditos_bonus', 'isAdmin', 'role', 'uid', 'criadoEm',
+        'creditos_ilimitados',
         'dossies_gratuitos_restantes'   // cota → só decrementar via função específica
       ]);
     }
@@ -189,6 +190,18 @@ service cloud.firestore {
       allow write: if false; // Admin SDK bypassa esta regra
     }
 
+    // Cache de pessoal de gabinete (preenchido só por Cloud Function)
+    match /gabinete_cache/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Cache de geocodificação município+UF (Nominatim) — escrita só Cloud Function
+    match /geocode_cache/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
 
     // ────────────────────────────────────────────────────────────────────────
     // config/{docId}  (inclui config/sistema — Kill Switch)
@@ -308,6 +321,16 @@ service cloud.firestore {
     }
     match /analyses/{docId} {
       allow read:  if isAuth() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+
+    // ────────────────────────────────────────────────────────────────────────
+    // forensic_cache — cache de análise forense (leitura pública para preview)
+    // Escrita: SOMENTE via Cloud Functions (Admin SDK)
+    // ────────────────────────────────────────────────────────────────────────
+    match /forensic_cache/{docId} {
+      allow read:  if true;
       allow write: if false;
     }
 
