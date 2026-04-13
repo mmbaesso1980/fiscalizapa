@@ -1070,10 +1070,8 @@ export default function DossiePage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // ── Redirect se não autenticado ───────────────────────────────────────────
-  useEffect(() => {
-    if (!user && credits !== null) navigate("/", { replace: true });
-  }, [user, credits, navigate]);
+  // Seções 1-3 (Identidade, CEAP, Diários) são gratuitas e visíveis sem login.
+  // Seção 4 (Laboratório Oráculo) é gated pelo CreditGate.
 
   // ── Verificar desbloqueio (session → Firestore) ───────────────────────────
   useEffect(() => {
@@ -1413,8 +1411,6 @@ export default function DossiePage() {
   }, [politico]);
 
   // ── Estados de UI ─────────────────────────────────────────────────────────
-  if (!user) return null;
-
   if (dataLoading) return (
     <div style={{ minHeight: "100vh", paddingTop: 24 }}>
       <PageSkeleton />
