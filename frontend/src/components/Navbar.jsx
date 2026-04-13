@@ -126,7 +126,6 @@ export default function Navbar({ user, logout, credits, isAdmin }) {
           </div>
           <MobileLink to="/ranking" label="Ranking" onClick={() => setMobileOpen(false)} />
           <MobileLink to="/emendas" label="Emendas" onClick={() => setMobileOpen(false)} />
-          <MobileLink to="/alertas" label="Alertas" onClick={() => setMobileOpen(false)} />
           <MobileLink to="/mapa" label="Mapa" onClick={() => setMobileOpen(false)} />
           <MobileLink to="/metodologia" label="Metodologia" onClick={() => setMobileOpen(false)} />
           {user && (

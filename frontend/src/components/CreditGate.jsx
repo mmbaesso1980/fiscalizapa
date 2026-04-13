@@ -4,7 +4,7 @@ import { useCreditSystem } from "../hooks/useCreditSystem";
 import { useAuth } from "../hooks/useAuth";
 import ModalCompraCreditos from "./ModalCompraCreditos";
 
-const PREVIEW_COUNT = 3;
+const PREVIEW_COUNT = 4;
 
 function wrapChild(node, key) {
   return (
@@ -49,6 +49,8 @@ export function CreditGate({ custo, descricao, children, onDesbloqueado }) {
       const msg = e?.message || "Não foi possível desbloquear.";
       if (msg.includes("boas-vindas") || msg.includes("Bem-vindo")) {
         setErro("🎉 " + msg);
+      } else if (/permission|insufficient/i.test(msg) || e?.code === "permission-denied") {
+        setErro("Erro de acesso. Recarregue a página e tente novamente.");
       } else {
         setErro(msg);
       }

@@ -386,7 +386,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       <footer style={{ textAlign: 'center', padding: '32px 16px', fontSize: 13, color: '#9ca3af' }}>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 10, flexWrap: 'wrap' }}>
           <Link to="/metodologia" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Metodologia</Link>
-          <Link to="/alertas" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Alertas</Link>
           <Link to="/mapa" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Mapa</Link>
           <Link to="/emendas" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Emendas</Link>
         </div>

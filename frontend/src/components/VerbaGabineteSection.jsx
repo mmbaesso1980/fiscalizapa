@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../lib/firebase";
 
 function fmt(v) {
   if (!v) return "R$ 0,00";
@@ -25,14 +26,32 @@ export default function VerbaGabineteSection({ colecao, politicoId, idCamara }) 
         setVerbas(vList);
 
         const pSnap = await getDocs(collection(db, colecao, politicoId, "pessoal_gabinete"));
-        setPessoal(pSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        let pessoalList = pSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        if (pessoalList.length === 0 && idCamara) {
+          try {
+            const getGabinete = httpsCallable(functions, "getGabineteDeputado");
+            const result = await getGabinete({
+              idCamara: Number(idCamara),
+              ano: new Date().getFullYear(),
+            });
+            pessoalList = (result.data?.pessoal || []).map((p, i) => ({
+              id: `cf-${i}`,
+              ...p,
+            }));
+          } catch (cfErr) {
+            console.warn("getGabineteDeputado:", cfErr?.message || cfErr);
+          }
+        }
+
+        setPessoal(pessoalList);
       } catch (e) {
         console.log('Erro carregando verba gabinete:', e);
       }
       setLoading(false);
     }
     load();
-  }, [colecao, politicoId]);
+  }, [colecao, politicoId, idCamara]);
 
   const totalGasto = verbas.reduce((s, v) => s + (v.valorGasto || 0), 0);
   const totalDisponivel = verbas.reduce((s, v) => s + (v.valorDisponivel || 0), 0);
