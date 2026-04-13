@@ -758,7 +758,7 @@ function parsePtDataSortKey(dataStr) {
 
 /**
  * Emendas parlamentares (Portal da Transparência) + documentos por fase (empenho → … → pagamento).
- * Chave API: variável de ambiente PORTAL_TRANSPARENCIA_API_KEY (header chave-api-dados).
+ * Chave API: PORTAL_TRANSPARENCIA_API_KEY — header HTTP chave-api-dados (Console/Secret Gen 2).
  */
 exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
