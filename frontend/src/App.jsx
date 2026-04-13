@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { HelmetProvider, Helmet } from "react-helmet-async";
 import { useAuth } from "./hooks/useAuth";
 import Navbar from "./components/Navbar";
@@ -39,6 +39,14 @@ function RedirectPoliticoLegadoUmaColuna() {
   const { id } = useParams();
   if (!id || ROTAS_COLECAO.has(id)) return <Navigate to="/ranking" replace />;
   return <Navigate to={`/dossie/${id}`} replace />;
+}
+
+function RequireAuth({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  return children;
 }
 
 export default function App() {
@@ -82,17 +90,13 @@ export default function App() {
             <Route path="/emendas" element={<BancoEmendasPage />} />
             <Route path="/dossie/:id" element={<DossiePage />} />
 
-            {/* Rotas autenticadas */}
-            {user ? (
-              <>
-                <Route path="/dashboard" element={<DashboardPage user={user} />} />
-                <Route path="/creditos" element={<CreditosPage user={user} />} />
-                <Route path="/perfil" element={<PerfilPage />} />
-                <Route path="/usuario" element={<UsuarioPage />} />
-                <Route path="/comparador" element={<ComparadorPage />} />
-                {isAdmin && <Route path="/admin" element={<AdminDashboard />} />}
-              </>
-            ) : null}
+            {/* Rotas autenticadas — redirecionam para /login se não autenticado */}
+            <Route path="/dashboard" element={<RequireAuth><DashboardPage user={user} /></RequireAuth>} />
+            <Route path="/creditos" element={<RequireAuth><CreditosPage user={user} /></RequireAuth>} />
+            <Route path="/perfil" element={<RequireAuth><PerfilPage /></RequireAuth>} />
+            <Route path="/usuario" element={<RequireAuth><UsuarioPage /></RequireAuth>} />
+            <Route path="/comparador" element={<RequireAuth><ComparadorPage /></RequireAuth>} />
+            <Route path="/admin" element={<RequireAuth>{isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />}</RequireAuth>} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>

@@ -6,6 +6,16 @@ import ScoreBadge from "./ScoreBadge";
 import AlertaForense from "./AlertaForense";
 import { ShieldCheck, Activity, BarChart3, FileText, Users, AlertTriangle } from "lucide-react";
 
+const TIMEOUT_MS = 15_000;
+
+async function callForensicEngine(params) {
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("TIMEOUT")), TIMEOUT_MS),
+  );
+  const engine = httpsCallable(functions, "forensicEngine");
+  return Promise.race([engine(params), timeoutPromise]);
+}
+
 /**
  * ForensicDashboard — Painel forense completo.
  *
@@ -64,25 +74,21 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
     }
 
     let mounted = true;
-    let safetyTimeout = null;
 
     async function load() {
       setLoading(true);
       setError("");
-
-      safetyTimeout = setTimeout(() => {
-        if (mounted) {
-          setError("Motor Forense temporariamente indisponível.");
-          setLoading(false);
-        }
-      }, 15000);
 
       try {
         // Try cache first for instant load
         try {
           if (idCamara) {
             const getCache = httpsCallable(functions, "getForensicCache");
-            const cacheResult = await getCache({ deputadoId: idCamara });
+            const cachePromise = getCache({ deputadoId: idCamara });
+            const cacheTimeout = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("CACHE_TIMEOUT")), TIMEOUT_MS),
+            );
+            const cacheResult = await Promise.race([cachePromise, cacheTimeout]);
             if (cacheResult?.data?.found && mounted) {
               setData(normalizeForensicPayload(cacheResult.data));
               setLoading(false);
@@ -91,19 +97,26 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
             }
           }
         } catch {
-          // Cache miss — proceed to full analysis
+          // Cache miss / timeout — proceed to full analysis
         }
 
         await refreshInBackground();
-      } finally {
-        if (safetyTimeout) clearTimeout(safetyTimeout);
+      } catch (e) {
+        console.error("ForensicDashboard load:", e);
+        if (mounted) {
+          setError(
+            e?.message === "TIMEOUT"
+              ? "A análise forense demorou mais que o esperado. Tente novamente em alguns instantes."
+              : "Motor Forense temporariamente indisponível.",
+          );
+          setLoading(false);
+        }
       }
     }
 
     async function refreshInBackground() {
       try {
-        const engine = httpsCallable(functions, "forensicEngine");
-        const result = await engine({ idCamara, nome, cpf });
+        const result = await callForensicEngine({ idCamara, nome, cpf });
         if (mounted) {
           setData(normalizeForensicPayload(result.data));
           setLoading(false);
@@ -111,7 +124,11 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
       } catch (e) {
         console.error("ForensicDashboard:", e);
         if (mounted) {
-          setError("Análise forense temporariamente indisponível.");
+          setError(
+            e?.message === "TIMEOUT"
+              ? "A análise forense demorou mais que o esperado. Tente novamente em alguns instantes."
+              : "Análise forense temporariamente indisponível.",
+          );
           setLoading(false);
         }
       }
@@ -120,7 +137,6 @@ export default function ForensicDashboard({ idCamara, nome, cpf, compact = false
     load();
     return () => {
       mounted = false;
-      if (safetyTimeout) clearTimeout(safetyTimeout);
     };
   }, [idCamara, nome, cpf, preview]);
 
