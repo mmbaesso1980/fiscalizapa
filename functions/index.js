@@ -953,6 +953,10 @@ exports.forensicEngine = forensic.forensicEngine;
 exports.getForensicCache = forensic.getForensicCache;
 exports.getAtividadeParlamentar = forensic.getAtividadeParlamentar;
 
+const { registerGetGabineteDeputado } = require('./getGabineteDeputado');
+const gabineteMod = registerGetGabineteDeputado({ onCall, HttpsError, admin, OPTS });
+exports.getGabineteDeputado = gabineteMod.getGabineteDeputado;
+
 // ─────────────────────────────────────────────
 // 11. RANKING SEMANAL (scheduled — toda segunda 03:00 Belém)
 // ─────────────────────────────────────────────

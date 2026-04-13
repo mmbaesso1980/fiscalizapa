@@ -17,12 +17,10 @@ const BancoEmendasPage = lazy(() => import("./pages/BancoEmendasPage"));
 const MetodologiaPage = lazy(() => import("./pages/MetodologiaPage"));
 const RankingPage = lazy(() => import("./pages/RankingPage"));
 const ComparadorPage = lazy(() => import("./pages/ComparadorPage"));
-const AlertasPage    = lazy(() => import("./pages/AlertasPage"));
 const DossiePage       = lazy(() => import("./pages/DossiePage"));
 const AdminDashboard   = lazy(() => import("./pages/AdminDashboard"));
 const MapaPage         = lazy(() => import("./pages/MapaPage"));
 const PerfilPage       = lazy(() => import("./pages/PerfilPage"));
-const HealthMap        = lazy(() => import("./pages/HealthMap"));
 const NotFoundPage     = lazy(() => import("./pages/NotFoundPage"));
 const LoginPage        = lazy(() => import("./pages/LoginPage"));
 const UsuarioPage      = lazy(() => import("./pages/UsuarioPage"));
@@ -57,9 +55,7 @@ export default function App() {
             <Route path="/" element={<HomePage user={user} login={login} loginWithGitHub={loginWithGitHub} loginWithEmail={loginWithEmail} registerWithEmail={registerWithEmail} />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/ranking" element={<RankingPage />} />
-            <Route path="/alertas" element={<AlertasPage />} />
             <Route path="/mapa" element={<MapaPage />} />
-            <Route path="/saude" element={<HealthMap />} />
             <Route path="/metodologia" element={<MetodologiaPage />} />
 
             {/* Rotas públicas — conteúdo premium protegido por CreditGate dentro da página */}

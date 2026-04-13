@@ -3,7 +3,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "./useAuth";
 import { db } from "../lib/firebase";
 import { spendUserCredits, userHasEnoughCredits } from "../lib/creditsFirestore";
-import { usuarioCreditosIlimitados, usuarioSaldoTotal } from "../lib/creditWallet";
+import { usuarioCreditosIlimitados } from "../lib/creditWallet";
 
 /**
  * Sistema de créditos (saldo comprado + bônus) na coleção usuarios/{uid}.
@@ -21,11 +21,13 @@ export function useCreditSystem() {
       if (isAdmin) return true;
       try {
         const snap = await getDoc(doc(db, "usuarios", user.uid));
-        if (snap.exists() && usuarioCreditosIlimitados(snap.data())) return true;
-      } catch {
-        /* rede / permissão */
+        if (!snap.exists()) return true;
+        if (usuarioCreditosIlimitados(snap.data())) return true;
+        return userHasEnoughCredits(db, user.uid, custo);
+      } catch (err) {
+        console.error("checkCredits:", err);
+        return true;
       }
-      return userHasEnoughCredits(db, user.uid, custo);
     },
     [user, isAdmin],
   );

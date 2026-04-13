@@ -42,7 +42,7 @@ export async function spendUserCredits(db, userId, custo, descricao) {
       nome: "",
       photoURL: "",
       creditos: 0,
-      creditos_bonus: 5,
+      creditos_bonus: 10,
       dossies_gratuitos_restantes: 2,
       plano: "free",
       isAdmin: false,
@@ -50,7 +50,7 @@ export async function spendUserCredits(db, userId, custo, descricao) {
       atualizadoEm: serverTimestamp(),
     });
     throw new Error(
-      "Bem-vindo! Você recebeu 5 créditos de boas-vindas. Toque novamente para desbloquear.",
+      "Bem-vindo! Você recebeu 10 créditos de boas-vindas. Toque novamente para desbloquear.",
     );
   }
 

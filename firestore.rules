@@ -190,6 +190,12 @@ service cloud.firestore {
       allow write: if false; // Admin SDK bypassa esta regra
     }
 
+    // Cache de pessoal de gabinete (preenchido só por Cloud Function)
+    match /gabinete_cache/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
 
     // ────────────────────────────────────────────────────────────────────────
     // config/{docId}  (inclui config/sistema — Kill Switch)

@@ -161,8 +161,7 @@ export default function MapaPage() {
 
             {!loadingList && alertas.length > 0 && (
               <p style={{ marginTop: 12, fontSize: 11, color: "#CCC", textAlign: "right" }}>
-                Clique no alerta para ver o dossiê completo ·{" "}
-                <Link to="/alertas" style={{ color: "#AAA" }}>Ver todos os alertas</Link>
+                Clique no alerta para ver o dossiê completo.
               </p>
             )}
           </div>
