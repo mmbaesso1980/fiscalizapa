@@ -44,8 +44,13 @@ import PoliticalTimeline  from "../components/PoliticalTimeline";
 import CabinetAudit       from "../components/CabinetAudit";
 import ForensicDashboard  from "../components/ForensicDashboard";
 import AtividadeParlamentarSection from "../components/AtividadeParlamentarSection";
+import EmendasAba from "../components/EmendasAba";
+import MapaEmendas from "../components/MapaEmendas";
+import ScoreForense from "../components/ScoreForense";
+import BotaoCobrarDeputado from "../components/BotaoCobrarDeputado";
 import { normalizeUF }    from "../components/SocialContext";
 import { parseCamaraValorReais } from "../utils/moneyCamara";
+import { anosCeapLegislaturaAtual } from "../utils/legislatura";
 
 const CUSTO_FULL    = 200;
 const CUSTO_RESUMO  = 10;
@@ -162,7 +167,7 @@ function AlertRow({ alerta }) {
 }
 
 // ─── SEÇÃO 1: Identidade & Atividade (GRÁTIS) ─────────────────────────────────
-function IdentitySection({ politico }) {
+function IdentitySection({ politico, scoreForense, alertasResumo = [], custoContribuinte }) {
   const presenca  = politico?.presenca ?? null;
   const bio       = politico?.bio ?? `Deputado(a) Federal pelo ${politico?.partido ?? "–"} ` +
                     `(${politico?.uf ?? "–"}). ${politico?.nome?.split(" ")[0] ?? "Político"} integra as comissões ` +
@@ -172,6 +177,23 @@ function IdentitySection({ politico }) {
   return (
     <Card>
       <SectionHeader icon="👤" title="Identidade e Atividade" badge="GRÁTIS" />
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+        {scoreForense != null && (
+          <ScoreForense score={scoreForense} alertas={alertasResumo} />
+        )}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <BotaoCobrarDeputado politico={politico} custoContribuinte={custoContribuinte} />
+          <a
+            href={`https://twitter.com/search?q=${encodeURIComponent(politico?.nome || "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: 11, fontWeight: 600, color: "#0f1419", textDecoration: "underline" }}
+          >
+            Buscar no X
+          </a>
+        </div>
+      </div>
 
       {/* Foto + bio + badges */}
       <div style={{ display: "flex", gap: 18, marginBottom: 18, flexWrap: "wrap" }}>
@@ -218,7 +240,7 @@ function CeapMonitorSection({ politico }) {
   const ceapUrl = idCamara
     ? `https://www.camara.leg.br/deputados/${idCamara}/despesas`
     : `https://portaldatransparencia.gov.br/verbas-indenizatorias/consulta`;
-  const dossiePath = politico?.id ? `/politico/deputados_federais/${politico.id}` : "/ranking";
+  const dossiePath = politico?.id ? `/dossie/${politico.id}` : "/ranking";
 
   return (
     <Card>
@@ -299,7 +321,7 @@ function DiariosMencoesSection({ politicoId, credits, deductCredits }) {
         if (!cancelled) setDiarios(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       })
       .catch(() => {
-        if (!cancelled) setDiarios(getMockDiarios(politicoId));
+        if (!cancelled) setDiarios([]);
       })
       .finally(() => { if (!cancelled) setDLoading(false); });
     return () => { cancelled = true; };
@@ -910,28 +932,10 @@ function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Al
   );
 }
 
-// ─── Mock de Diários Oficiais ──────────────────────────────────────────────────
-function getMockDiarios() {
-  return [
-    { id: "mock1", titulo: "Nomeação para cargo comissionado — SEAP",
-      origem: "DOU Seção 2", data_publicacao: "2024-03-18",
-      descricao: "Nomeia servidor para exercício de cargo comissionado de Assessor Especial, referência DAS-4, do quadro da Secretaria de Administração e Patrimônio, na forma estabelecida pela Lei nº 11.357, de 19 de outubro de 2006.",
-      conteudo: "PORTARIA Nº 1.234, DE 18 DE MARÇO DE 2024. O Secretário de Administração e Patrimônio, no uso das atribuições que lhe conferem o art. 87 da Constituição Federal...",
-      link: null },
-    { id: "mock2", titulo: "Contrato emergencial — serviços de assessoria",
-      origem: "DOU Seção 3", data_publicacao: "2024-03-12",
-      descricao: "Dispensa de licitação nº 12/2024. Contratação emergencial de serviços de assessoria técnica especializada para implantação de sistema de gestão.",
-      conteudo: null, link: null },
-    { id: "mock3", titulo: "Aditivo ao contrato nº 045/2022",
-      origem: "DOE-SP", data_publicacao: "2024-03-05",
-      descricao: "Aditivo contratual para acréscimo de 25% ao valor originário e prorrogação de prazo por 12 meses, na forma do art. 65, §1º da Lei 8.666/93.",
-      conteudo: null, link: null },
-  ];
-}
-
 // ─── TabBar de navegação principal ────────────────────────────────────────────
 const TABS = [
   { id: "dossie",      label: "Dossiê Público",        icon: "🗂️" },
+  { id: "emendas",     label: "Emendas",               icon: "📍" },
   { id: "desempenho",  label: "Desempenho Legislativo", icon: "⚡" },
   { id: "gabinete",    label: "Auditoria de Gabinete",  icon: "🏛" },
 ];
@@ -1002,6 +1006,10 @@ export default function DossiePage() {
   const [nivel5Alertas,  setNivel5Alertas ] = useState([]);
   const [familiaRede,    setFamiliaRede   ] = useState(null);
   const [atividadeData,  setAtividadeData ] = useState(null);
+  const [emendasPortal,   setEmendasPortal  ] = useState(null);
+  const [emendasPortalErr, setEmendasPortalErr] = useState(null);
+  const [mapaEmendasData,  setMapaEmendasData ] = useState(null);
+  const [forensicHeader,   setForensicHeader ] = useState(null);
 
   const pdfRef = useRef(null);
 
@@ -1131,6 +1139,100 @@ export default function DossiePage() {
     })();
     return () => { cancelled = true; };
   }, [politico?.idCamara, politico?.nome, politico?.nomeCompleto]);
+
+  useEffect(() => {
+    if (!user || !id || !politico) return;
+    let cancelled = false;
+    const nome = politico.nome || politico.nomeCompleto;
+    const idC = politico.idCamara != null ? Number(politico.idCamara) : null;
+    if (!nome && !Number.isFinite(idC)) return;
+    (async () => {
+      try {
+        const fn = httpsCallable(functions, "getEmendasParlamentar");
+        const result = await fn({
+          politicoDocId: id,
+          nomeAutor: nome || undefined,
+          codigoAutor: Number.isFinite(idC) ? idC : undefined,
+          anos: anosCeapLegislaturaAtual(),
+        });
+        if (!cancelled) {
+          setEmendasPortal(result.data?.emendas ?? []);
+          setEmendasPortalErr(result.data?.erro || null);
+        }
+      } catch (e) {
+        console.error("DossiePage emendas portal:", e);
+        if (!cancelled) {
+          setEmendasPortal([]);
+          setEmendasPortalErr(e?.message || "Falha ao carregar emendas.");
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+
+  useEffect(() => {
+    if (!user || !id || !politico) return;
+    let cancelled = false;
+    const nome = politico.nome || politico.nomeCompleto;
+    const idC = politico.idCamara != null ? Number(politico.idCamara) : null;
+    if (!nome && !Number.isFinite(idC)) return;
+    (async () => {
+      try {
+        const fn = httpsCallable(functions, "getEmendasMapaPontos");
+        const result = await fn({
+          politicoDocId: id,
+          nomeAutor: nome || undefined,
+          codigoAutor: Number.isFinite(idC) ? idC : undefined,
+          anos: anosCeapLegislaturaAtual(),
+          maxPontos: 20,
+        });
+        if (!cancelled) setMapaEmendasData(result.data || null);
+      } catch (e) {
+        console.warn("DossiePage mapa emendas:", e);
+        if (!cancelled) setMapaEmendasData(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const depKey = politico?.idCamara != null ? String(politico.idCamara) : String(id);
+    (async () => {
+      try {
+        const fn = httpsCallable(functions, "getForensicCache");
+        const result = await fn({ deputadoId: depKey });
+        if (cancelled || !result.data?.found) return;
+        const raw = Number(result.data.score);
+        const inv = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(100 - raw))) : null;
+        const flags = Array.isArray(result.data.flags) ? result.data.flags : [];
+        if (!cancelled) setForensicHeader({ risco: inv, flagsCount: flags.length });
+      } catch {
+        if (!cancelled) setForensicHeader(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id, politico?.idCamara]);
+
+  const custoContribuinteCeap = useMemo(
+    () => parseCamaraValorReais(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0),
+    [politico?.gastosCeapTotal, politico?.totalGasto],
+  );
+
+  const emendasKpis = useMemo(() => {
+    const list = Array.isArray(emendasPortal) ? emendasPortal : [];
+    const emp = list.reduce((s, e) => s + Number(e.valorEmpenhado ?? e.valor ?? 0), 0);
+    const pag = list.reduce((s, e) => s + Number(e.valorPago ?? 0), 0);
+    const pixN = list.filter((e) => {
+      const t = String(e.tipo || "").toLowerCase();
+      return t.includes("pix") || t.includes("transferência especial") || t.includes("transferencia especial");
+    }).length;
+    const projN = list.length - pixN;
+    const pixPct = list.length > 0 ? Math.round((100 * pixN) / list.length) : 0;
+    const projPct = list.length > 0 ? Math.round((100 * projN) / list.length) : 0;
+    return { emp, pag, pixN, projN, pixPct, projPct, total: list.length };
+  }, [emendasPortal]);
 
   // ── Desbloquear completo (200 créditos) ───────────────────────────────────
   const handlePayFull = useCallback(async () => {
@@ -1368,6 +1470,26 @@ export default function DossiePage() {
             accentColor={getRiskColor(dossieRiskRank1, rankTotal)}
           />
 
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: 10,
+            marginBottom: 20,
+          }}>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>CUSTO CEAP (REFERÊNCIA)</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>{fmtBRL(custoContribuinteCeap)}</div>
+            </div>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>EMENDAS · EMPENHADO</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>{fmtBRL(emendasKpis.emp)}</div>
+            </div>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>EMENDAS · PAGO</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#15803d" }}>{fmtBRL(emendasKpis.pag)}</div>
+            </div>
+          </div>
+
           {/* GRID principal */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
@@ -1382,6 +1504,51 @@ export default function DossiePage() {
                 unlocking={unlocking}
                 unlockError={unlockError}
               />
+            )}
+
+            {activeTab === "emendas" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <Card>
+                  <SectionHeader icon="📊" title="Panorama de emendas (Portal)" badge="GRÁTIS" />
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 12 }}>
+                    <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, textAlign: "center", border: "1px solid #f0f0f0" }}>
+                      <div style={{ fontSize: 9, color: "#9ca3af" }}>TOTAL LINHAS</div>
+                      <div style={{ fontSize: 18, fontWeight: 800 }}>{emendasKpis.total}</div>
+                    </div>
+                    <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, textAlign: "center", border: "1px solid #f0f0f0" }}>
+                      <div style={{ fontSize: 9, color: "#9ca3af" }}>PIX / TRANSF. ESPECIAL</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#16a34a" }}>{emendasKpis.pixPct}%</div>
+                    </div>
+                    <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, textAlign: "center", border: "1px solid #f0f0f0" }}>
+                      <div style={{ fontSize: 9, color: "#9ca3af" }}>PROJETO / DEMAIS</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#2563eb" }}>{emendasKpis.projPct}%</div>
+                    </div>
+                  </div>
+                  {emendasPortalErr && (
+                    <p style={{ fontSize: 11, color: "#b45309", margin: 0 }}>{emendasPortalErr}</p>
+                  )}
+                </Card>
+                <Card>
+                  <SectionHeader icon="🗺️" title="Mapa de destinos" badge="GRÁTIS" />
+                  <MapaEmendas
+                    pontos={mapaEmendasData?.pontos || []}
+                    emendasPix={mapaEmendasData?.emendasPix ?? emendasKpis.pixN}
+                    emendasProjeto={mapaEmendasData?.emendasProjeto ?? emendasKpis.projN}
+                  />
+                </Card>
+                <CreditGate custo={1} descricao="Lista detalhada de emendas">
+                  <EmendasAba
+                    deputadoId={id}
+                    nomeDeputado={politico?.nome || politico?.nomeCompleto}
+                    emendasOverride={emendasPortal}
+                    totaisAgregadosOverride={{
+                      valorEmpenhado: emendasKpis.emp,
+                      valorPago: emendasKpis.pag,
+                      valorLiquidado: 0,
+                    }}
+                  />
+                </CreditGate>
+              </div>
             )}
 
             {/* ══ ABA: AUDITORIA DE GABINETE (F.L.A.V.I.O.) ═══════════ */}
@@ -1470,7 +1637,12 @@ export default function DossiePage() {
             {activeTab === "dossie" && (
             <>
             {/* ─── SEÇÃO 1: Identidade & Atividade ───────────────────── */}
-            <IdentitySection politico={politico} />
+            <IdentitySection
+              politico={politico}
+              scoreForense={forensicHeader?.risco}
+              alertasResumo={alertas.slice(0, 5)}
+              custoContribuinte={custoContribuinteCeap}
+            />
 
             {/* ─── SEÇÃO 2: Monitor de Gastos CEAP (2 créditos) ─────── */}
             <CreditGate custo={2} descricao="Dossiê — CEAP detalhado">

@@ -108,7 +108,7 @@ export default function EmendaPage() {
               <p style={{ fontSize: 13, color: '#8a8a9e', margin: 0 }}>
                 {[emenda.autorPartido, emenda.autorUf].filter(Boolean).join(" - ")}
                 {emenda.parlamentarId && (
-                  <> · <Link to={`/politico/deputados_federais/${emenda.parlamentarId}`} style={{ color: '#3d6b5e', textDecoration: 'underline' }}>Ver perfil</Link></>
+                  <> · <Link to={`/dossie/${emenda.parlamentarId}`} style={{ color: '#3d6b5e', textDecoration: 'underline' }}>Ver perfil</Link></>
                 )}
               </p>
             </div>

@@ -99,7 +99,7 @@ function DeputadoCard({ dep, totalRanking }) {
   }
 
   return (
-    <Link to={`/politico/deputados_federais/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+    <Link to={`/dossie/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
       {inner}
     </Link>
   );
