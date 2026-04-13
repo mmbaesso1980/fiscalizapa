@@ -25,7 +25,7 @@ export function useCreditSystem() {
         if (usuarioCreditosIlimitados(snap.data())) return true;
         return userHasEnoughCredits(db, user.uid, custo);
       } catch (err) {
-        console.error("checkCredits:", err);
+        console.error("checkCredits fail-open (transação é a barreira real):", err);
         return true;
       }
     },
