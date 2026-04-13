@@ -11,6 +11,7 @@
 
 const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const { BigQuery } = require('@google-cloud/bigquery');
 const { Storage } = require('@google-cloud/storage');
@@ -27,6 +28,11 @@ const DATASET = 'dados_camara';
 const BQ_LOCATION = 'us-central1'; // Iowa — onde o dataset dados_camara está armazenado
 const REGION = 'southamerica-east1'; // Functions ficam perto dos usuários BR
 const OPTS = { region: REGION };
+
+// Secret binding para Gen 2 — garante que process.env.PORTAL_TRANSPARENCIA_API_KEY
+// fica disponível no runtime sem configurar manualmente no Console GCP.
+const portalSecret = defineSecret('PORTAL_TRANSPARENCIA_API_KEY');
+const OPTS_PORTAL = { region: REGION, secrets: [portalSecret] };
 
 // Stripe inicializado lazy — evita crash quando STRIPE_SECRET_KEY não está
 // disponível em tempo de análise estática (firebase deploy --only functions)
@@ -481,7 +487,7 @@ exports.stripeWebhook = onRequest(
 // ─────────────────────────────────────────────
 // 9. PERFIL DE PARLAMENTAR (onCall premium)
 // ─────────────────────────────────────────────
-exports.getPerfilParlamentar = onCall(OPTS, async (req) => {
+exports.getPerfilParlamentar = onCall(OPTS_PORTAL, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
 
@@ -760,7 +766,7 @@ function parsePtDataSortKey(dataStr) {
  * Emendas parlamentares (Portal da Transparência) + documentos por fase (empenho → … → pagamento).
  * Chave API: variável de ambiente PORTAL_TRANSPARENCIA_API_KEY (header chave-api-dados).
  */
-exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
+exports.getEmendasParlamentar = onCall(OPTS_PORTAL, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
 
@@ -918,7 +924,7 @@ function emendaTipoPixPortal(tipoEmenda) {
  * Pontos geográficos para mapa de emendas (Nominatim + cache em memória por cold start).
  * Não substitui getEmendasParlamentar — uso leve para visualização.
  */
-exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
+exports.getEmendasMapaPontos = onCall(OPTS_PORTAL, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
 
@@ -952,10 +958,40 @@ exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
   }
 
   const geoMemo = new Map();
+  const GEO_CACHE_DAYS = 90;
+  const GEO_CACHE_MS = GEO_CACHE_DAYS * 24 * 60 * 60 * 1000;
+
+  function geocodeCacheDocId(municipio, uf) {
+    const key = `${String(municipio).trim().toLowerCase()}|${String(uf || '').toUpperCase()}`;
+    const safe = key.replace(/[^a-zA-Z0-9|_-]/g, '_').replace(/\|/g, '__');
+    return safe.length > 700 ? safe.slice(0, 700) : safe;
+  }
 
   async function nominatimLookup(municipio, uf) {
     const key = `${String(municipio).trim().toLowerCase()}|${String(uf || '').toUpperCase()}`;
     if (geoMemo.has(key)) return geoMemo.get(key);
+
+    const cacheId = geocodeCacheDocId(municipio, uf);
+    const cacheRef = db.collection('geocode_cache').doc(cacheId);
+    try {
+      const snap = await cacheRef.get();
+      if (snap.exists) {
+        const c = snap.data();
+        const ts = c.fetchedAt?.toMillis?.() ?? 0;
+        if (Date.now() - ts < GEO_CACHE_MS) {
+          if (c.lat == null || c.lng == null) {
+            geoMemo.set(key, null);
+            return null;
+          }
+          const coords = { lat: Number(c.lat), lng: Number(c.lng) };
+          geoMemo.set(key, coords);
+          return coords;
+        }
+      }
+    } catch (e) {
+      console.warn('geocode_cache read:', e.message);
+    }
+
     const q = `${municipio}, ${uf || ''}, Brasil`.replace(/,\s*,/g, ',').trim();
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
     const ac = new AbortController();
@@ -972,11 +1008,31 @@ exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
       clearTimeout(t);
       if (!r.ok) {
         geoMemo.set(key, null);
+        try {
+          await cacheRef.set({
+            municipio: String(municipio).slice(0, 200),
+            uf: String(uf || '').slice(0, 4),
+            lat: null,
+            lng: null,
+            fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+            fonte: 'nominatim_miss',
+          });
+        } catch {/* ignore */}
         return null;
       }
       const j = await r.json();
       if (!Array.isArray(j) || !j[0]) {
         geoMemo.set(key, null);
+        try {
+          await cacheRef.set({
+            municipio: String(municipio).slice(0, 200),
+            uf: String(uf || '').slice(0, 4),
+            lat: null,
+            lng: null,
+            fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+            fonte: 'nominatim_empty',
+          });
+        } catch {/* ignore */}
         return null;
       }
       coords = { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) };
@@ -985,6 +1041,18 @@ exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
       coords = null;
     }
     geoMemo.set(key, coords);
+    try {
+      await cacheRef.set({
+        municipio: String(municipio).slice(0, 200),
+        uf: String(uf || '').slice(0, 4),
+        lat: coords ? coords.lat : null,
+        lng: coords ? coords.lng : null,
+        fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+        fonte: 'nominatim',
+      });
+    } catch (e) {
+      console.warn('geocode_cache write:', e.message);
+    }
     return coords;
   }
 
@@ -1095,7 +1163,7 @@ const PORTAL_PROXY_PREFIXES = [
  * pathAndQuery: ex. "/api-de-dados/emendas?ano=2024&nomeAutor=X&pagina=1"
  * Só aceita prefixos em PORTAL_PROXY_PREFIXES (evita abuso da chave).
  */
-exports.portalTransparenciaProxy = onCall(OPTS, async (req) => {
+exports.portalTransparenciaProxy = onCall(OPTS_PORTAL, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
 
@@ -1127,7 +1195,7 @@ exports.portalTransparenciaProxy = onCall(OPTS, async (req) => {
 // ─────────────────────────────────────────────
 const { registerForensicFunctions } = require('./forensicEngine');
 const forensic = registerForensicFunctions({
-  onCall, HttpsError, db, bq, DATASET, BQ_LOCATION, OPTS,
+  onCall, HttpsError, db, bq, DATASET, BQ_LOCATION, OPTS: OPTS_PORTAL,
 });
 exports.forensicEngine = forensic.forensicEngine;
 exports.getForensicCache = forensic.getForensicCache;
