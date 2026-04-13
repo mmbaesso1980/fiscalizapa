@@ -196,6 +196,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Cache de geocodificação município+UF (Nominatim) — escrita só Cloud Function
+    match /geocode_cache/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
 
     // ────────────────────────────────────────────────────────────────────────
     // config/{docId}  (inclui config/sistema — Kill Switch)

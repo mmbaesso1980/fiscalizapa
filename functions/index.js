@@ -952,10 +952,40 @@ exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
   }
 
   const geoMemo = new Map();
+  const GEO_CACHE_DAYS = 90;
+  const GEO_CACHE_MS = GEO_CACHE_DAYS * 24 * 60 * 60 * 1000;
+
+  function geocodeCacheDocId(municipio, uf) {
+    const key = `${String(municipio).trim().toLowerCase()}|${String(uf || '').toUpperCase()}`;
+    const safe = key.replace(/[^a-zA-Z0-9|_-]/g, '_').replace(/\|/g, '__');
+    return safe.length > 700 ? safe.slice(0, 700) : safe;
+  }
 
   async function nominatimLookup(municipio, uf) {
     const key = `${String(municipio).trim().toLowerCase()}|${String(uf || '').toUpperCase()}`;
     if (geoMemo.has(key)) return geoMemo.get(key);
+
+    const cacheId = geocodeCacheDocId(municipio, uf);
+    const cacheRef = db.collection('geocode_cache').doc(cacheId);
+    try {
+      const snap = await cacheRef.get();
+      if (snap.exists) {
+        const c = snap.data();
+        const ts = c.fetchedAt?.toMillis?.() ?? 0;
+        if (Date.now() - ts < GEO_CACHE_MS) {
+          if (c.lat == null || c.lng == null) {
+            geoMemo.set(key, null);
+            return null;
+          }
+          const coords = { lat: Number(c.lat), lng: Number(c.lng) };
+          geoMemo.set(key, coords);
+          return coords;
+        }
+      }
+    } catch (e) {
+      console.warn('geocode_cache read:', e.message);
+    }
+
     const q = `${municipio}, ${uf || ''}, Brasil`.replace(/,\s*,/g, ',').trim();
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
     const ac = new AbortController();
@@ -972,11 +1002,31 @@ exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
       clearTimeout(t);
       if (!r.ok) {
         geoMemo.set(key, null);
+        try {
+          await cacheRef.set({
+            municipio: String(municipio).slice(0, 200),
+            uf: String(uf || '').slice(0, 4),
+            lat: null,
+            lng: null,
+            fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+            fonte: 'nominatim_miss',
+          });
+        } catch {/* ignore */}
         return null;
       }
       const j = await r.json();
       if (!Array.isArray(j) || !j[0]) {
         geoMemo.set(key, null);
+        try {
+          await cacheRef.set({
+            municipio: String(municipio).slice(0, 200),
+            uf: String(uf || '').slice(0, 4),
+            lat: null,
+            lng: null,
+            fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+            fonte: 'nominatim_empty',
+          });
+        } catch {/* ignore */}
         return null;
       }
       coords = { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) };
@@ -985,6 +1035,18 @@ exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
       coords = null;
     }
     geoMemo.set(key, coords);
+    try {
+      await cacheRef.set({
+        municipio: String(municipio).slice(0, 200),
+        uf: String(uf || '').slice(0, 4),
+        lat: coords ? coords.lat : null,
+        lng: coords ? coords.lng : null,
+        fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+        fonte: 'nominatim',
+      });
+    } catch (e) {
+      console.warn('geocode_cache write:', e.message);
+    }
     return coords;
   }
 

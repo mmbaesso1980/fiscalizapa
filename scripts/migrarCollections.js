@@ -5,6 +5,10 @@
  *   export GOOGLE_APPLICATION_CREDENTIALS=/caminho/sa.json
  *   node scripts/migrarCollections.js
  *
+ * Depois: no Firebase Console → Authentication → utilizador →
+ *   firebase auth:set-custom-user-claims UID '{"admin":true}'
+ * e atualize o doc `usuarios/{UID}` (creditos_ilimitados, role, etc.) se necessário.
+ *
  * Requer firebase-admin (já presente em functions/).
  */
 /* eslint-disable @typescript-eslint/no-require-imports */
