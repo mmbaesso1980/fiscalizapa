@@ -51,6 +51,7 @@ jobs:
           echo "DB_USER=${{ secrets.DB_USER }}" >> .env
           echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
           echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+          echo "PORTAL_TRANSPARENCIA_API_KEY=${{ secrets.PORTAL_TRANSPARENCIA_API_KEY }}" >> .env
         working-directory: functions
 
       - name: Deploy Functions + Firestore rules

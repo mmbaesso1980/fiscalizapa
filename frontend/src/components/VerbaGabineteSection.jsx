@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../lib/firebase";
 
 function fmt(v) {
   if (!v) return "R$ 0,00";
@@ -25,14 +26,32 @@ export default function VerbaGabineteSection({ colecao, politicoId, idCamara }) 
         setVerbas(vList);
 
         const pSnap = await getDocs(collection(db, colecao, politicoId, "pessoal_gabinete"));
-        setPessoal(pSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        let pessoalList = pSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        if (pessoalList.length === 0 && idCamara) {
+          try {
+            const getGabinete = httpsCallable(functions, "getGabineteDeputado");
+            const result = await getGabinete({
+              idCamara: Number(idCamara),
+              ano: new Date().getFullYear(),
+            });
+            pessoalList = (result.data?.pessoal || []).map((p, i) => ({
+              id: `cf-${i}`,
+              ...p,
+            }));
+          } catch (cfErr) {
+            console.warn("getGabineteDeputado:", cfErr?.message || cfErr);
+          }
+        }
+
+        setPessoal(pessoalList);
       } catch (e) {
         console.log('Erro carregando verba gabinete:', e);
       }
       setLoading(false);
     }
     load();
-  }, [colecao, politicoId]);
+  }, [colecao, politicoId, idCamara]);
 
   const totalGasto = verbas.reduce((s, v) => s + (v.valorGasto || 0), 0);
   const totalDisponivel = verbas.reduce((s, v) => s + (v.valorDisponivel || 0), 0);
@@ -110,8 +129,11 @@ export default function VerbaGabineteSection({ colecao, politicoId, idCamara }) 
         <div>
           {pessoal.length === 0 ? (
             <>
-              <p style={{ color: 'var(--text-muted)' }}>Dados de pessoal de gabinete nao encontrados no banco local.</p>
-              <a href={`https://www.camara.leg.br/deputados/${idCamara}/pessoal-gabinete`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-green)' }}>Consultar no Portal da Camara</a>
+              <p style={{ color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+                Dados de pessoal do gabinete não estão neste painel. A API pública da Câmara não expõe a folha completa de assessores; consulte o Portal da Transparência (SIAPE) ou o site oficial do deputado.
+              </p>
+              <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-green)', display: 'inline-flex', alignItems: 'center', minHeight: 44, marginRight: 12 }}>Portal da Transparência ↗</a>
+              <a href={`https://www.camara.leg.br/deputados/${idCamara}/pessoal-gabinete`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-green)', display: 'inline-flex', alignItems: 'center', minHeight: 44 }}>Página da Câmara ↗</a>
             </>
           ) : (
             pessoal.map((p, i) => (

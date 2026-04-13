@@ -12,7 +12,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const API_KEY = process.env.PORTAL_TRANSPARENCIA_API_KEY || process.env.PORTAL_API_KEY;
 if (!API_KEY) {
-  console.error("Defina PORTAL_TRANSPARENCIA_API_KEY no ambiente (chave em api.portaldatransparencia.gov.br).");
+  console.error("Defina PORTAL_TRANSPARENCIA_API_KEY no ambiente.");
   process.exit(1);
 }
 const BASE = "https://api.portaldatransparencia.gov.br/api-de-dados";

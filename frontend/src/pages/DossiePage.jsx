@@ -23,7 +23,8 @@ import {
   doc, getDoc, setDoc, collection, query, where,
   orderBy, limit, getDocs, serverTimestamp,
 } from "firebase/firestore";
-import { db }            from "../lib/firebase";
+import { db, functions } from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
 import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
@@ -32,6 +33,7 @@ import {
   MANDATOS_CAMARA,
 } from "../utils/rankingOrg";
 import { useAuth }       from "../hooks/useAuth";
+import { CreditGate }    from "../components/CreditGate";
 import { getRiskColor, getRiskColorAlpha, getRiskLabel } from "../utils/colorUtils";
 import { Helmet }         from "react-helmet-async";
 import PageSkeleton       from "../components/PageSkeleton";
@@ -40,8 +42,15 @@ import StickyHeader       from "../components/StickyHeader";
 import PerformanceTab     from "../components/PerformanceTab";
 import PoliticalTimeline  from "../components/PoliticalTimeline";
 import CabinetAudit       from "../components/CabinetAudit";
+import ForensicDashboard  from "../components/ForensicDashboard";
+import AtividadeParlamentarSection from "../components/AtividadeParlamentarSection";
+import EmendasAba from "../components/EmendasAba";
+import MapaEmendas from "../components/MapaEmendas";
+import ScoreForense from "../components/ScoreForense";
+import BotaoCobrarDeputado from "../components/BotaoCobrarDeputado";
 import { normalizeUF }    from "../components/SocialContext";
 import { parseCamaraValorReais } from "../utils/moneyCamara";
+import { anosCeapLegislaturaAtual } from "../utils/legislatura";
 
 const CUSTO_FULL    = 200;
 const CUSTO_RESUMO  = 10;
@@ -158,17 +167,8 @@ function AlertRow({ alerta }) {
 }
 
 // ─── SEÇÃO 1: Identidade & Atividade (GRÁTIS) ─────────────────────────────────
-const MOCK_VOTES = [
-  { projeto: "PL 1234/2024", descricao: "Reforma tributária",                     voto: "Sim", data: "15/03/2024" },
-  { projeto: "PEC 45/2024",  descricao: "Desvinculação de receitas orçamentárias", voto: "Não", data: "02/03/2024" },
-  { projeto: "PL 890/2023",  descricao: "Código civil de processos",               voto: "Sim", data: "18/02/2024" },
-  { projeto: "MPV 1234/24",  descricao: "Medida de urgência econômica",            voto: "Abs", data: "05/02/2024" },
-];
-
-const SOCIAL_ICONS = { twitter: "𝕏", instagram: "📷", facebook: "𝐟", site: "🌐" };
-
-function IdentitySection({ politico }) {
-  const presenca  = politico?.presenca ?? Math.floor(60 + Math.random() * 35);
+function IdentitySection({ politico, scoreForense, alertasResumo = [], custoContribuinte }) {
+  const presenca  = politico?.presenca ?? null;
   const bio       = politico?.bio ?? `Deputado(a) Federal pelo ${politico?.partido ?? "–"} ` +
                     `(${politico?.uf ?? "–"}). ${politico?.nome?.split(" ")[0] ?? "Político"} integra as comissões ` +
                     `de Finanças e de Constituição e Justiça.`;
@@ -177,6 +177,23 @@ function IdentitySection({ politico }) {
   return (
     <Card>
       <SectionHeader icon="👤" title="Identidade e Atividade" badge="GRÁTIS" />
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+        {scoreForense != null && (
+          <ScoreForense score={scoreForense} alertas={alertasResumo} />
+        )}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <BotaoCobrarDeputado politico={politico} custoContribuinte={custoContribuinte} />
+          <a
+            href={`https://twitter.com/search?q=${encodeURIComponent(politico?.nome || "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: 11, fontWeight: 600, color: "#0f1419", textDecoration: "underline" }}
+          >
+            Buscar no X
+          </a>
+        </div>
+      </div>
 
       {/* Foto + bio + badges */}
       <div style={{ display: "flex", gap: 18, marginBottom: 18, flexWrap: "wrap" }}>
@@ -204,7 +221,7 @@ function IdentitySection({ politico }) {
             {politico?.nome ?? politico?.nomeCompleto ?? "–"}
           </h3>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-            {[politico?.partido, normalizeUF(politico?.uf, politico?.estado), `Presença: ${presenca}%`].filter(Boolean).map(t => (
+            {[politico?.partido, normalizeUF(politico?.uf, politico?.estado), presenca != null ? `Presença: ${presenca}%` : null].filter(Boolean).map(t => (
               <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
                                      background: "#f3f4f6", color: "#6b7280" }}>{t}</span>
             ))}
@@ -213,171 +230,74 @@ function IdentitySection({ politico }) {
         </div>
       </div>
 
-      {/* Links sociais simulados */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {["twitter", "instagram", "site"].map(k => (
-          <a key={k} href="#" onClick={e => e.preventDefault()} style={{
-            display: "inline-flex", alignItems: "center", gap: 4,
-            fontSize: 11, fontWeight: 600, padding: "4px 12px", borderRadius: 99,
-            background: "#f9f9f9", color: "#374151", textDecoration: "none",
-            border: "1px solid #e5e7eb",
-          }}>
-            {SOCIAL_ICONS[k]} {k.charAt(0).toUpperCase() + k.slice(1)}
-          </a>
-        ))}
-      </div>
-
-      {/* Votações recentes */}
-      <div>
-        <h4 style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 10,
-                     textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          Votações Recentes
-        </h4>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {MOCK_VOTES.map((v, i) => (
-            <div key={i} style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "8px 12px", borderRadius: 10, background: "#fafafa",
-              border: "1px solid #f0f0f0",
-            }}>
-              <span style={{
-                width: 32, height: 20, borderRadius: 5, flexShrink: 0,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 9, fontWeight: 800, letterSpacing: "0.04em",
-                background: v.voto === "Sim" ? "rgba(46,127,24,0.10)" : v.voto === "Não" ? "rgba(200,37,56,0.10)" : "#f3f4f6",
-                color: v.voto === "Sim" ? "#2E7F18" : v.voto === "Não" ? "#C82538" : "#9ca3af",
-              }}>
-                {v.voto.toUpperCase()}
-              </span>
-              <span style={{ flex: 1, fontSize: 12, color: "#374151" }}>{v.descricao}</span>
-              <span style={{ fontSize: 10, color: "#9ca3af", flexShrink: 0 }}>{v.data}</span>
-            </div>
-          ))}
-        </div>
-        <p style={{ fontSize: 10, color: "#d1d5db", marginTop: 8 }}>
-          * Votações simuladas. Integração com API da Câmara via engine 03_ingest_emendas.py.
-        </p>
-      </div>
     </Card>
   );
 }
 
-// ─── SEÇÃO 2: Monitor de Gastos CEAP (GRÁTIS) ─────────────────────────────────
-const CEAP_MONTHS   = ["Out", "Nov", "Dez", "Jan", "Fev", "Mar"];
-const CEAP_WEIGHTS  = [0.18, 0.14, 0.22, 0.16, 0.12, 0.18];
-const CEAP_SUPPLIER = ["Cia Aérea Brasil", "Hotel Nacional BH", "Gráfica SenSul", "Posto Planalto"];
-
-function buildCeapData(total) {
-  const reais = parseCamaraValorReais(total ?? 0);
-  const base = reais > 0 ? reais : 120000;
-  const half = base / 2;
-  return CEAP_MONTHS.map((month, i) => ({ month, value: Math.round(half * CEAP_WEIGHTS[i]) }));
-}
-
+// ─── SEÇÃO 2: Monitor de Gastos CEAP (GRÁTIS) — resumo + link fonte oficial ───
 function CeapMonitorSection({ politico }) {
-  const data   = buildCeapData(politico?.gastosCeapTotal ?? politico?.totalGasto);
-  const maxVal = Math.max(...data.map(d => d.value), 1);
-  const total  = data.reduce((s, d) => s + d.value, 0);
-  const avg    = Math.round(total / data.length);
-
   const idCamara = politico?.idCamara ?? politico?.id_camara;
-  const ceapUrl  = idCamara
+  const ceapUrl = idCamara
     ? `https://www.camara.leg.br/deputados/${idCamara}/despesas`
     : `https://portaldatransparencia.gov.br/verbas-indenizatorias/consulta`;
+  const dossiePath = politico?.id ? `/dossie/${politico.id}` : "/ranking";
 
   return (
     <Card>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
-        <SectionHeader icon="💰" title="Monitor de Gastos CEAP" badge="GRÁTIS" />
-        <a href={ceapUrl} target="_blank" rel="noopener noreferrer"
-          style={{ fontSize: 10, color: "#6b7280", textDecoration: "none", whiteSpace: "nowrap",
-                   padding: "3px 8px", borderRadius: 6, border: "1px solid #e5e7eb",
-                   display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-          🔗 FONTE OFICIAL ↗
-        </a>
-      </div>
-
-      {/* KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 20 }}>
+      <SectionHeader icon="💰" title="Monitor de Gastos CEAP" badge="GRÁTIS" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 16 }}>
         {[
-          { label: "Total 6 meses", value: fmtBRL(total), color: "#C82538" },
-          { label: "Média mensal",  value: fmtBRL(avg),   color: "#D97706" },
-          { label: "Presença",      value: `${politico?.presenca ?? 80}%`, color: "#2E7F18" },
-        ].map(m => (
-          <div key={m.label} style={{
-            background: "#fafafa", borderRadius: 12, padding: "12px 14px",
-            border: "1px solid #f0f0f0", textAlign: "center",
-          }}>
-            <div style={{ fontSize: 9, color: "#9ca3af", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          { label: "Gasto Total", value: fmtBRL(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0), color: "#C82538" },
+          { label: "Presença", value: politico?.presenca != null ? `${politico.presenca}%` : "—", color: "#2E7F18" },
+        ].map((m) => (
+          <div
+            key={m.label}
+            style={{
+              background: "#fafafa",
+              borderRadius: 12,
+              padding: "12px 14px",
+              border: "1px solid #f0f0f0",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9,
+                color: "#9ca3af",
+                marginBottom: 4,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
               {m.label}
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: m.color }}>{m.value}</div>
           </div>
         ))}
       </div>
-
-      {/* Gráfico de barras CSS */}
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", marginBottom: 10,
-                      textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          CEAP por Mês (últimos 6 meses)
-        </div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
-          {data.map(d => {
-            const pct  = (d.value / maxVal) * 100;
-            const isHigh = d.value === maxVal;
-            return (
-              <div key={d.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <span style={{ fontSize: 8, color: "#9ca3af", fontWeight: 600 }}>
-                  {d.value > 10000 ? `${Math.round(d.value / 1000)}k` : fmtBRL(d.value).replace("R$\u00a0", "")}
-                </span>
-                <div style={{
-                  width: "100%", borderRadius: "4px 4px 0 0",
-                  height: `${Math.max(pct, 6)}%`,
-                  background: isHigh
-                    ? "linear-gradient(180deg, #C82538, #E84545)"
-                    : "linear-gradient(180deg, #9ECFE8, #6BB8D8)",
-                  transition: "height 0.4s ease",
-                  minHeight: 6,
-                }} />
-                <span style={{ fontSize: 9, color: "#6b7280", fontWeight: 600 }}>{d.month}</span>
-              </div>
-            );
-          })}
-        </div>
-        {/* Linha de média */}
-        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 20, height: 2, background: "#D97706", borderRadius: 1 }} />
-          <span style={{ fontSize: 10, color: "#9ca3af" }}>Média: {fmtBRL(avg)}</span>
-        </div>
-      </div>
-
-      {/* Top fornecedores simulados */}
-      <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", marginBottom: 8,
-                      textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          Top Fornecedores
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          {CEAP_SUPPLIER.map((s, i) => {
-            const share = [0.35, 0.28, 0.22, 0.15][i];
-            return (
-              <div key={s} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 11, color: "#374151", flex: 1 }}>{s}</span>
-                <div style={{ width: 100, height: 6, background: "#f0f0f0", borderRadius: 99, overflow: "hidden" }}>
-                  <div style={{ width: `${share * 100}%`, height: "100%", background: "#9ECFE8", borderRadius: 99 }} />
-                </div>
-                <span style={{ fontSize: 10, color: "#6b7280", width: 36, textAlign: "right" }}>
-                  {Math.round(share * 100)}%
-                </span>
-              </div>
-            );
-          })}
-        </div>
-        <p style={{ fontSize: 10, color: "#d1d5db", marginTop: 8 }}>
-          * Dados simulados. Pipeline real via <code>06_ocr_notas.py</code> + BigQuery.
-        </p>
-      </div>
+      <p style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.6 }}>
+        Detalhamento com notas fiscais, Motor Forense TransparenciaBR e gráficos está no{" "}
+        <strong>Dossiê de Notas Fiscais (CEAP)</strong> na{" "}
+        <Link to={dossiePath} style={{ color: "#15803D", fontWeight: 600 }}>
+          página do político
+        </Link>
+        .
+      </p>
+      <a
+        href={ceapUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: "inline-block",
+          marginTop: 8,
+          fontSize: 12,
+          color: "#15803D",
+          fontWeight: 600,
+          textDecoration: "underline",
+        }}
+      >
+        Consultar fonte oficial (Câmara) ↗
+      </a>
     </Card>
   );
 }
@@ -401,7 +321,7 @@ function DiariosMencoesSection({ politicoId, credits, deductCredits }) {
         if (!cancelled) setDiarios(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       })
       .catch(() => {
-        if (!cancelled) setDiarios(getMockDiarios(politicoId));
+        if (!cancelled) setDiarios([]);
       })
       .finally(() => { if (!cancelled) setDLoading(false); });
     return () => { cancelled = true; };
@@ -1012,28 +932,10 @@ function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Al
   );
 }
 
-// ─── Mock de Diários Oficiais ──────────────────────────────────────────────────
-function getMockDiarios() {
-  return [
-    { id: "mock1", titulo: "Nomeação para cargo comissionado — SEAP",
-      origem: "DOU Seção 2", data_publicacao: "2024-03-18",
-      descricao: "Nomeia servidor para exercício de cargo comissionado de Assessor Especial, referência DAS-4, do quadro da Secretaria de Administração e Patrimônio, na forma estabelecida pela Lei nº 11.357, de 19 de outubro de 2006.",
-      conteudo: "PORTARIA Nº 1.234, DE 18 DE MARÇO DE 2024. O Secretário de Administração e Patrimônio, no uso das atribuições que lhe conferem o art. 87 da Constituição Federal...",
-      link: null },
-    { id: "mock2", titulo: "Contrato emergencial — serviços de assessoria",
-      origem: "DOU Seção 3", data_publicacao: "2024-03-12",
-      descricao: "Dispensa de licitação nº 12/2024. Contratação emergencial de serviços de assessoria técnica especializada para implantação de sistema de gestão.",
-      conteudo: null, link: null },
-    { id: "mock3", titulo: "Aditivo ao contrato nº 045/2022",
-      origem: "DOE-SP", data_publicacao: "2024-03-05",
-      descricao: "Aditivo contratual para acréscimo de 25% ao valor originário e prorrogação de prazo por 12 meses, na forma do art. 65, §1º da Lei 8.666/93.",
-      conteudo: null, link: null },
-  ];
-}
-
 // ─── TabBar de navegação principal ────────────────────────────────────────────
 const TABS = [
   { id: "dossie",      label: "Dossiê Público",        icon: "🗂️" },
+  { id: "emendas",     label: "Emendas",               icon: "📍" },
   { id: "desempenho",  label: "Desempenho Legislativo", icon: "⚡" },
   { id: "gabinete",    label: "Auditoria de Gabinete",  icon: "🏛" },
 ];
@@ -1103,6 +1005,11 @@ export default function DossiePage() {
   const [activeTab,      setActiveTab     ] = useState("dossie");
   const [nivel5Alertas,  setNivel5Alertas ] = useState([]);
   const [familiaRede,    setFamiliaRede   ] = useState(null);
+  const [atividadeData,  setAtividadeData ] = useState(null);
+  const [emendasPortal,   setEmendasPortal  ] = useState(null);
+  const [emendasPortalErr, setEmendasPortalErr] = useState(null);
+  const [mapaEmendasData,  setMapaEmendasData ] = useState(null);
+  const [forensicHeader,   setForensicHeader ] = useState(null);
 
   const pdfRef = useRef(null);
 
@@ -1211,6 +1118,121 @@ export default function DossiePage() {
     loadData();
     return () => { cancelled = true; };
   }, [id]);
+
+  useEffect(() => {
+    const idC = politico?.idCamara != null ? Number(politico.idCamara) : null;
+    const nome = politico?.nome || politico?.nomeCompleto;
+    if (!politico || (!Number.isFinite(idC) && !nome)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const fn = httpsCallable(functions, "getAtividadeParlamentar");
+        const result = await fn({
+          idCamara: Number.isFinite(idC) ? idC : undefined,
+          nome: nome || undefined,
+        });
+        if (!cancelled) setAtividadeData(result.data);
+      } catch (e) {
+        console.error("DossiePage atividade resumo:", e);
+        if (!cancelled) setAtividadeData(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [politico?.idCamara, politico?.nome, politico?.nomeCompleto]);
+
+  useEffect(() => {
+    if (!user || !id || !politico) return;
+    let cancelled = false;
+    const nome = politico.nome || politico.nomeCompleto;
+    const idC = politico.idCamara != null ? Number(politico.idCamara) : null;
+    if (!nome && !Number.isFinite(idC)) return;
+    (async () => {
+      try {
+        const fn = httpsCallable(functions, "getEmendasParlamentar");
+        const result = await fn({
+          politicoDocId: id,
+          nomeAutor: nome || undefined,
+          codigoAutor: Number.isFinite(idC) ? idC : undefined,
+          anos: anosCeapLegislaturaAtual(),
+        });
+        if (!cancelled) {
+          setEmendasPortal(result.data?.emendas ?? []);
+          setEmendasPortalErr(result.data?.erro || null);
+        }
+      } catch (e) {
+        console.error("DossiePage emendas portal:", e);
+        if (!cancelled) {
+          setEmendasPortal([]);
+          setEmendasPortalErr(e?.message || "Falha ao carregar emendas.");
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+
+  useEffect(() => {
+    if (!user || !id || !politico) return;
+    let cancelled = false;
+    const nome = politico.nome || politico.nomeCompleto;
+    const idC = politico.idCamara != null ? Number(politico.idCamara) : null;
+    if (!nome && !Number.isFinite(idC)) return;
+    (async () => {
+      try {
+        const fn = httpsCallable(functions, "getEmendasMapaPontos");
+        const result = await fn({
+          politicoDocId: id,
+          nomeAutor: nome || undefined,
+          codigoAutor: Number.isFinite(idC) ? idC : undefined,
+          anos: anosCeapLegislaturaAtual(),
+          maxPontos: 20,
+        });
+        if (!cancelled) setMapaEmendasData(result.data || null);
+      } catch (e) {
+        console.warn("DossiePage mapa emendas:", e);
+        if (!cancelled) setMapaEmendasData(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const depKey = politico?.idCamara != null ? String(politico.idCamara) : String(id);
+    (async () => {
+      try {
+        const fn = httpsCallable(functions, "getForensicCache");
+        const result = await fn({ deputadoId: depKey });
+        if (cancelled || !result.data?.found) return;
+        const raw = Number(result.data.score);
+        const inv = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(100 - raw))) : null;
+        const flags = Array.isArray(result.data.flags) ? result.data.flags : [];
+        if (!cancelled) setForensicHeader({ risco: inv, flagsCount: flags.length });
+      } catch {
+        if (!cancelled) setForensicHeader(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id, politico?.idCamara]);
+
+  const custoContribuinteCeap = useMemo(
+    () => parseCamaraValorReais(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0),
+    [politico?.gastosCeapTotal, politico?.totalGasto],
+  );
+
+  const emendasKpis = useMemo(() => {
+    const list = Array.isArray(emendasPortal) ? emendasPortal : [];
+    const emp = list.reduce((s, e) => s + Number(e.valorEmpenhado ?? e.valor ?? 0), 0);
+    const pag = list.reduce((s, e) => s + Number(e.valorPago ?? 0), 0);
+    const pixN = list.filter((e) => {
+      const t = String(e.tipo || "").toLowerCase();
+      return t.includes("pix") || t.includes("transferência especial") || t.includes("transferencia especial");
+    }).length;
+    const projN = list.length - pixN;
+    const pixPct = list.length > 0 ? Math.round((100 * pixN) / list.length) : 0;
+    const projPct = list.length > 0 ? Math.round((100 * projN) / list.length) : 0;
+    return { emp, pag, pixN, projN, pixPct, projPct, total: list.length };
+  }, [emendasPortal]);
 
   // ── Desbloquear completo (200 créditos) ───────────────────────────────────
   const handlePayFull = useCallback(async () => {
@@ -1448,6 +1470,26 @@ export default function DossiePage() {
             accentColor={getRiskColor(dossieRiskRank1, rankTotal)}
           />
 
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: 10,
+            marginBottom: 20,
+          }}>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>CUSTO CEAP (REFERÊNCIA)</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>{fmtBRL(custoContribuinteCeap)}</div>
+            </div>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>EMENDAS · EMPENHADO</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>{fmtBRL(emendasKpis.emp)}</div>
+            </div>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>EMENDAS · PAGO</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#15803d" }}>{fmtBRL(emendasKpis.pag)}</div>
+            </div>
+          </div>
+
           {/* GRID principal */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
@@ -1462,6 +1504,51 @@ export default function DossiePage() {
                 unlocking={unlocking}
                 unlockError={unlockError}
               />
+            )}
+
+            {activeTab === "emendas" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <Card>
+                  <SectionHeader icon="📊" title="Panorama de emendas (Portal)" badge="GRÁTIS" />
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 12 }}>
+                    <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, textAlign: "center", border: "1px solid #f0f0f0" }}>
+                      <div style={{ fontSize: 9, color: "#9ca3af" }}>TOTAL LINHAS</div>
+                      <div style={{ fontSize: 18, fontWeight: 800 }}>{emendasKpis.total}</div>
+                    </div>
+                    <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, textAlign: "center", border: "1px solid #f0f0f0" }}>
+                      <div style={{ fontSize: 9, color: "#9ca3af" }}>PIX / TRANSF. ESPECIAL</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#16a34a" }}>{emendasKpis.pixPct}%</div>
+                    </div>
+                    <div style={{ background: "#fafafa", borderRadius: 10, padding: 12, textAlign: "center", border: "1px solid #f0f0f0" }}>
+                      <div style={{ fontSize: 9, color: "#9ca3af" }}>PROJETO / DEMAIS</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#2563eb" }}>{emendasKpis.projPct}%</div>
+                    </div>
+                  </div>
+                  {emendasPortalErr && (
+                    <p style={{ fontSize: 11, color: "#b45309", margin: 0 }}>{emendasPortalErr}</p>
+                  )}
+                </Card>
+                <Card>
+                  <SectionHeader icon="🗺️" title="Mapa de destinos" badge="GRÁTIS" />
+                  <MapaEmendas
+                    pontos={mapaEmendasData?.pontos || []}
+                    emendasPix={mapaEmendasData?.emendasPix ?? emendasKpis.pixN}
+                    emendasProjeto={mapaEmendasData?.emendasProjeto ?? emendasKpis.projN}
+                  />
+                </Card>
+                <CreditGate custo={1} descricao="Lista detalhada de emendas">
+                  <EmendasAba
+                    deputadoId={id}
+                    nomeDeputado={politico?.nome || politico?.nomeCompleto}
+                    emendasOverride={emendasPortal}
+                    totaisAgregadosOverride={{
+                      valorEmpenhado: emendasKpis.emp,
+                      valorPago: emendasKpis.pag,
+                      valorLiquidado: 0,
+                    }}
+                  />
+                </CreditGate>
+              </div>
             )}
 
             {/* ══ ABA: AUDITORIA DE GABINETE (F.L.A.V.I.O.) ═══════════ */}
@@ -1550,10 +1637,120 @@ export default function DossiePage() {
             {activeTab === "dossie" && (
             <>
             {/* ─── SEÇÃO 1: Identidade & Atividade ───────────────────── */}
-            <IdentitySection politico={politico} />
+            <IdentitySection
+              politico={politico}
+              scoreForense={forensicHeader?.risco}
+              alertasResumo={alertas.slice(0, 5)}
+              custoContribuinte={custoContribuinteCeap}
+            />
 
-            {/* ─── SEÇÃO 2: Monitor de Gastos CEAP ───────────────────── */}
-            <CeapMonitorSection politico={politico} />
+            {/* ─── SEÇÃO 2: Monitor de Gastos CEAP (2 créditos) ─────── */}
+            <CreditGate custo={2} descricao="Dossiê — CEAP detalhado">
+              <CeapMonitorSection politico={politico} />
+            </CreditGate>
+
+            {/* ─── SEÇÃO 2B: Motor Forense (preview grátis + detalhada paga) ── */}
+            <div style={{
+              background: "rgba(255,255,255,0.72)", borderRadius: 20,
+              border: "1px solid rgba(237,235,232,0.9)", padding: "22px 24px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 18 }}>🔬</span>
+                <h2 style={{
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 15, fontWeight: 700, color: "#2D2D2D", margin: 0, flex: 1,
+                }}>
+                  Motor Forense
+                </h2>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 99,
+                  color: "#2E7F18", background: "rgba(46,127,24,0.08)",
+                  border: "1px solid rgba(46,127,24,0.2)",
+                }}>
+                  GRÁTIS · SCORE
+                </span>
+              </div>
+              <ForensicDashboard
+                idCamara={politico?.idCamara || id}
+                nome={politico?.nome || politico?.nomeCompleto}
+                cpf={politico?.cpf}
+                preview
+              />
+              <div style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid rgba(237,235,232,0.9)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <span style={{ fontSize: 18 }}>🛡️</span>
+                  <h2 style={{
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    fontSize: 15, fontWeight: 700, color: "#2D2D2D", margin: 0, flex: 1,
+                  }}>
+                    Análise Forense Detalhada
+                  </h2>
+                </div>
+                <CreditGate custo={3} descricao="Alertas forenses detalhados">
+                  <ForensicDashboard
+                    idCamara={politico?.idCamara || id}
+                    nome={politico?.nome || politico?.nomeCompleto}
+                    cpf={politico?.cpf}
+                  />
+                </CreditGate>
+              </div>
+            </div>
+
+            {/* ─── SEÇÃO 2C: Atividade Parlamentar Completa ────────────── */}
+            <div style={{
+              background: "rgba(255,255,255,0.72)", borderRadius: 20,
+              border: "1px solid rgba(237,235,232,0.9)", padding: "22px 24px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 18 }}>📊</span>
+                <h2 style={{
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 15, fontWeight: 700, color: "#2D2D2D", margin: 0, flex: 1,
+                }}>
+                  Atividade Parlamentar
+                </h2>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 99,
+                  color: "#1d7ab5", background: "rgba(159,200,232,0.12)",
+                  border: "1px solid rgba(159,200,232,0.3)",
+                }}>
+                  PROPOSIÇÕES · DISCURSOS · COMISSÕES
+                </span>
+              </div>
+              {(politico?.idCamara || politico?.nome || politico?.nomeCompleto) && (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: 10,
+                  marginBottom: 16,
+                  padding: "12px 16px",
+                  background: "rgba(248,250,252,0.9)",
+                  borderRadius: 12,
+                  border: "1px solid rgba(237,235,232,0.9)",
+                }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, marginBottom: 4 }}>Proposições (total)</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: "#1f2937" }}>
+                      {atividadeData?.totalProposicoes ?? "—"}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, marginBottom: 4 }}>Discursos (total)</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: "#1f2937" }}>
+                      {atividadeData?.discursos?.total ?? "—"}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <CreditGate custo={2} descricao="Atividade parlamentar completa">
+                <AtividadeParlamentarSection
+                  deputadoId={id}
+                  idCamara={politico?.idCamara || id}
+                  nome={politico?.nome || politico?.nomeCompleto}
+                  colecao="deputados_federais"
+                />
+              </CreditGate>
+            </div>
 
             {/* ─── SEÇÃO 3: Diários Oficiais ──────────────────────────── */}
             <DiariosMencoesSection

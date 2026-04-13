@@ -92,7 +92,9 @@ jobs:
           echo "Node: $(node --version)"
           echo "npm:  $(npm --version)"
           # npm ci usa package-lock.json para builds reproduzíveis
-          npm ci --prefer-offline --no-audit --no-fund
+          # --legacy-peer-deps: necessário enquanto @tailwindcss/vite@4.x
+          # não declarar vite@8 como peer (conflito de versão)
+          npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps
 
       # ──────────────────────────────────────────────────────────────────────
       # 4. Lint (não bloqueia o deploy, mas reporta erros)

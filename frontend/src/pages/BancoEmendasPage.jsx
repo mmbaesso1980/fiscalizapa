@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Link } from "react-router-dom";
+import { CreditGate } from "../components/CreditGate";
 
 const fmt = (v) => {
   if (!v || v === "0,00" || v === "0.00") return "R$ 0,00";
@@ -110,6 +111,7 @@ export default function BancoEmendasPage() {
           </div>
         </div>
 
+        <CreditGate custo={1} descricao="Banco de emendas — filtros e lista">
         {/* Filters */}
         <div className="bg-white rounded-xl border border-gray-100 p-4 mb-6">
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
@@ -204,6 +206,7 @@ export default function BancoEmendasPage() {
             Gerar Relatório IA
           </Link>
         </div>
+        </CreditGate>
 
       </div>
     </div>

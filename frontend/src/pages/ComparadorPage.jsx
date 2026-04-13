@@ -109,8 +109,8 @@ export default function ComparadorPage() {
               </tbody>
             </table>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '16px' }}>
-              <Link to={`/politico/deputados_federais/${depA.id}`} style={{ display: 'block', textAlign: 'center', padding: '10px', borderRadius: '8px', background: 'var(--accent-green)', color: '#fff', textDecoration: 'none', fontWeight: '600', fontSize: '13px' }}>Ver dossie completo</Link>
-              <Link to={`/politico/deputados_federais/${depB.id}`} style={{ display: 'block', textAlign: 'center', padding: '10px', borderRadius: '8px', background: 'var(--accent-green)', color: '#fff', textDecoration: 'none', fontWeight: '600', fontSize: '13px' }}>Ver dossie completo</Link>
+              <Link to={`/dossie/${depA.id}`} style={{ display: 'block', textAlign: 'center', padding: '10px', borderRadius: '8px', background: 'var(--accent-green)', color: '#fff', textDecoration: 'none', fontWeight: '600', fontSize: '13px' }}>Ver dossie completo</Link>
+              <Link to={`/dossie/${depB.id}`} style={{ display: 'block', textAlign: 'center', padding: '10px', borderRadius: '8px', background: 'var(--accent-green)', color: '#fff', textDecoration: 'none', fontWeight: '600', fontSize: '13px' }}>Ver dossie completo</Link>
             </div>
           </div>
         );

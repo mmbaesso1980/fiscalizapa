@@ -37,7 +37,7 @@ function fotoUrl(p) {
 function Card({ p, rank, col, top }) {
   const v = classificarScoreTransparenciaBR(p.idx);
   return (
-    <Link to={`/politico/${col}/${p.id}`} className="ranking-card" style={{ display:'flex',alignItems:'center',gap:'12px',padding:'12px 16px',borderRadius:'var(--radius-sm)',background:'var(--bg-card)',border:'1px solid var(--border-light)',textDecoration:'none',color:'inherit' }}>
+    <Link to={`/dossie/${p.id}`} className="ranking-card" style={{ display:'flex',alignItems:'center',gap:'12px',padding:'12px 16px',borderRadius:'var(--radius-sm)',background:'var(--bg-card)',border:'1px solid var(--border-light)',textDecoration:'none',color:'inherit' }}>
       <span style={{ fontWeight:700,color:top?'var(--accent-green)':'var(--accent-red)',minWidth:'36px',fontSize:'15px' }}>#{rank}</span>
       <img src={fotoUrl(p)} alt={p.nome} style={{ width:'40px',height:'40px',borderRadius:'50%',objectFit:'cover' }} onError={e=>{e.target.onerror=null;e.target.src=PLACEHOLDER_AVATAR;}} />
       <div style={{ flex:1 }}>
@@ -194,7 +194,7 @@ export default function DashboardPage({ user }) {
                 {filt.slice(0,visivel).map((p,i) => {
                   const v = classificarScoreTransparenciaBR(p.idx);
                   return (
-                    <Link key={p.id} to={`/politico/${colecao}/${p.id}`} style={{ display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',borderRadius:'var(--radius-sm)',background:'var(--bg-card)',border:'1px solid var(--border-light)',textDecoration:'none',color:'inherit' }}>
+                    <Link key={p.id} to={`/dossie/${p.id}`} style={{ display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',borderRadius:'var(--radius-sm)',background:'var(--bg-card)',border:'1px solid var(--border-light)',textDecoration:'none',color:'inherit' }}>
                       <span style={{ fontWeight:700,color:'var(--text-secondary)',minWidth:'36px',fontSize:'14px' }}>#{i+1}</span>
                       <img src={fotoUrl(p)} alt={p.nome} style={{ width:'36px',height:'36px',borderRadius:'50%',objectFit:'cover' }} onError={e=>{e.target.onerror=null;e.target.src=PLACEHOLDER_AVATAR;}} />
                       <div style={{ flex:1 }}>
