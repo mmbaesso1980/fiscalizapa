@@ -3,7 +3,7 @@
  *
  * Conteúdo (todo GRÁTIS exceto o Oráculo Gemini):
  *
- *  1. Termômetro de Presença  →  AttendanceCard (Plenário vs Comissões)
+ *  1. Presença — dados Firestore quando disponíveis
  *  2. Proposições de Autoria Própria  →  Apenas autor principal, anti-carona
  *  3. Monitor de Teto de Gastos  →  CEAP: gasto vs limite máximo por UF
  *  4. Análise do Oráculo Gemini  →  Requer fullUnlocked (200 créditos)
@@ -17,8 +17,6 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db }          from "../lib/firebase";
-import AttendanceCard  from "./AttendanceCard";
-
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const FIRA = "'Fira Code', 'Courier New', monospace";
 
@@ -619,13 +617,34 @@ export default function PerformanceTab({
         </div>
       )}
 
-      {/* ─── 1. Termômetro de Presença ─────────────────────────── */}
-      <SectionBlock icon="📊" title="Termômetro de Presença" badge="GRÁTIS">
-        <AttendanceCard
-          plenario={attendanceData.plenario}
-          comissoes={attendanceData.comissoes}
-          media={attendanceData.media}
-        />
+      {/* ─── 1. Presença (dados Firestore ou indisponível) ─────── */}
+      <SectionBlock icon="📊" title="Presença em plenário e comissões" badge="GRÁTIS">
+        {livePresenca ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+            <div style={{ padding: 12, borderRadius: 10, border: "1px solid #e5e7eb", background: "#fafafa" }}>
+              <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4 }}>Plenário</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>
+                {attendanceData.plenario?.percentual ?? "—"}%
+              </div>
+              <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                {attendanceData.plenario?.presentes ?? "—"} / {attendanceData.plenario?.total ?? "—"}
+              </div>
+            </div>
+            <div style={{ padding: 12, borderRadius: 10, border: "1px solid #e5e7eb", background: "#fafafa" }}>
+              <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4 }}>Comissões</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>
+                {attendanceData.comissoes?.percentual ?? "—"}%
+              </div>
+              <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                {attendanceData.comissoes?.presentes ?? "—"} / {attendanceData.comissoes?.total ?? "—"}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p style={{ fontSize: 12, color: "#6b7280", margin: 0, lineHeight: 1.5 }}>
+            Dados de presença detalhados ainda não estão no cofre para este parlamentar. Use a seção de presença na página do deputado ou aguarde ingestão no Firestore.
+          </p>
+        )}
       </SectionBlock>
 
       {/* ─── 2. Proposições de Autoria Própria ─────────────────── */}

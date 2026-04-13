@@ -1,0 +1,120 @@
+# ============================================================
+# .cursorrules — TransparenciaBR.com.br
+# Stack: React + Vite (frontend) · Firebase Cloud Functions (backend)
+# Dados: Firestore + BigQuery (projeto Codex — mesmo app Firebase)
+# ============================================================
+
+## CONTEXTO DO PROJETO
+
+Engenharia do TransparenciaBR.com.br — plataforma SaaS de auditoria de gastos públicos.
+O motor de ingestão e análise roda em engines (Python) e Cloud Functions; **não usar codinomes
+ofensivos ou nomes de personagens** em documentação nova, comentários de produto ou User-Agent
+públicos — manter linguagem institucional (ex.: "TransparenciaBR-Ingest", "motor forense").
+
+Objetivo de fluxo de produto:
+1. Login → 2. Home/Ranking → 3. Página do parlamentar → 4. Emendas → 5. Área do usuário
+
+Monetização: **créditos** (não pay-per-report isolado).
+
+---
+
+## STACK (ESTADO ATUAL DO REPOSITÓRIO)
+
+### Frontend
+- React 19 + Vite 8
+- Firebase JS SDK (auth, Firestore, Functions)
+- Tailwind CSS v4 (@tailwindcss/vite)
+- React Router v7 (SPA)
+- Sem Lucide no package.json atual — preferir SVG inline ou adicionar dependência só se necessário
+
+### Backend
+- Cloud Functions Node.js (região southamerica-east1 no `frontend/src/lib/firebase.js`)
+- Engines Python 3.x para ingestão assíncrona
+- BigQuery: projeto `projeto-codex-br`, dataset `dados_camara` (ver `functions/index.js`)
+
+### Firebase / Firestore
+- Coleção de perfil: **`usuarios/{uid}`** (não `users/{uid}` para o app principal)
+- Campos de carteira: `creditos` (comprados), `creditos_bonus` (promocionais; consumidos primeiro)
+- Subcoleção de histórico de uso: **`usuarios/{uid}/historico_creditos`**
+- Legado opcional: `users/{uid}` pode existir para assinaturas antigas — não duplicar lógica nova lá
+
+---
+
+## SISTEMA DE CRÉDITOS
+
+### Schema `usuarios/{uid}` (alvo)
+- `email`, `nome`, `photoURL`, `uid`
+- `plano`: "free" | "starter" | "pro" | "premium" | "ilimitado" | "enterprise" (extensível)
+- `creditos`: number — saldo **comprado** (Stripe soma aqui no webhook)
+- `creditos_bonus`: number — bônus (ex.: 10 de boas-vindas no primeiro documento)
+- `dossies_gratuitos_restantes`: cota diária gratuita (regras existentes)
+- `historico_creditos/{id}`: `tipo`, `valor` (negativo em uso), `descricao`, `ts`
+
+**Saldo exibido no header** = `creditos + creditos_bonus`.
+
+### Implementação no código
+- `frontend/src/hooks/useCreditSystem.js` + `frontend/src/lib/creditsFirestore.js` — transação atômica
+- `frontend/src/components/CreditGate.jsx` — blur + desbloqueio
+- `frontend/src/components/ModalCompraCreditos.jsx` — CTA para `/creditos`
+- `useAuth`: `deductCredits` delega a `spendUserCredits` (mesma política bônus primeiro)
+- **Firestore rules**: permitir `isValidWalletSpend` e `historico_creditos` conforme `firestore.rules`
+
+### Tabela de custos (referência de produto)
+- Grátis: ranking geral, resumo público do parlamentar, lista de emendas sem detalhe fino
+- Pago: CEAP detalhado (ex. 2 cr), lista emendas detalhada (ex. 1 cr), dossiê PDF (ex. 5–20 cr), etc.
+
+---
+
+## PÁGINAS (ROTAS ATUAIS vs ROADMAP)
+
+Rotas existentes (ver `App.jsx`): `/`, `/ranking`, `/politico/:colecao/:id`, `/creditos`, `/perfil`, `/emendas`, etc.
+Roadmap do roteiro: envolver seções premium com `<CreditGate custo={n} descricao="..." />` onde fizer sentido
+(PoliticoPage, DossiePage, BancoEmendasPage).
+
+---
+
+## APIs — RESUMO
+
+### Portal da Transparência
+- Base: `https://api.portaldatransparencia.gov.br`
+- Header: **`chave-api-dados`** ← valor = `process.env.PORTAL_TRANSPARENCIA_API_KEY` nas Functions
+- **Nunca** commitar chave; **nunca** fallback hardcoded em produção
+- Callables: emendas, proxy com allowlist de prefixos (ver `functions/index.js`)
+
+### Câmara dos Deputados
+- `https://dadosabertos.camara.leg.br/api/v2` — sem chave; respeitar paginação e rate limit
+
+### Outras (Senado, TSE, SICONFI, IBGE, IPEADATA, PNCP, etc.)
+- Catalogadas em `engines/registry_apis.json` e engines; integrar com fila, backoff 429/503, cache quando repetitivo
+
+### Normalização municipal
+- Sempre preferir **código IBGE (7 dígitos)** como chave; evitar nome de município como PK no BigQuery
+
+---
+
+## REGRAS DE ARQUITETURA
+
+1. **Um projeto Firebase** para app + Functions; BigQuery em projeto GCP ligado (Codex) — não criar Firebase paralelo sem decisão explícita.
+2. **Segredos só em** `firebase functions:secrets:set` / env do Console — não no Git.
+3. **Rate limit + backoff** em crawlers e chamadas externas; logar falhas sem derrubar UI.
+4. **Componentes reutilizáveis**: preferir estender `CreditGate`, `CreditWallet`, páginas existentes em vez de duplicar modais.
+5. **Linguagem**: documentação voltada ao usuário e marca — profissional; evitar codinomes sensíveis.
+
+---
+
+## ORDEM DE TRABALHO SUGERIDA
+
+1. Base créditos: hook + rules + `creditos_bonus` (feito incrementalmente no repo)
+2. Login + bônus boas-vindas (já parcialmente em `useAuth` / `ensureUserDoc`)
+3. Aplicar `CreditGate` nas abas premium da hot page
+4. `/emendas` filtros + gate em detalhe
+5. `/perfil` e `/creditos` mostrarem saldo total e, se útil, comprado vs bônus
+6. QA mobile + deploy hosting + functions + `firebase deploy --only firestore:rules` quando rules mudarem
+
+---
+
+## VARIÁVEIS DE AMBIENTE (Functions)
+
+- `PORTAL_TRANSPARENCIA_API_KEY` — obrigatória para emendas/proxy Portal
+- Stripe: `STRIPE_*` conforme `functions/index.js`
+- Ver também `functions/ENV_VARS.md` se existir no repositório

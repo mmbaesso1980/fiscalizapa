@@ -99,7 +99,7 @@ function DeputadoCard({ dep, totalRanking }) {
   }
 
   return (
-    <Link to={`/politico/deputados_federais/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+    <Link to={`/dossie/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
       {inner}
     </Link>
   );
@@ -188,44 +188,56 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#FAFAF8', fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
       {/* HERO */}
-      <section style={{ maxWidth: 860, margin: '0 auto', padding: '64px 24px 44px', textAlign: 'center' }}>
-        <p style={{ fontSize: 11, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#A8D8B0', fontWeight: 600, marginBottom: 14 }}>
-          inteligência sobre o poder público
-        </p>
-        <h1 style={{ fontSize: 'clamp(28px,5vw,50px)', fontWeight: 700, color: '#2D2D2D', lineHeight: 1.1, marginBottom: 16, letterSpacing: '-1px' }}>
-          Cada real gasto por <br />
-          <span style={{ background: 'linear-gradient(90deg,#FBD87F,#F7B98B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            {MANDATOS_CAMARA} deputados federais
-          </span>
-          <br />
-          <span style={{ fontSize: 'clamp(14px,2.8vw,20px)', fontWeight: 600, color: '#666', letterSpacing: 0 }}>
-            na Câmara · posição no{' '}
-            <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: '#444', textDecoration: 'underline' }}>
-              Ranking dos Políticos
+      <section style={{ maxWidth: 960, margin: '0 auto', padding: '40px 16px 36px' }}>
+        <div style={{
+          borderRadius: 20, textAlign: 'center',
+          padding: 'clamp(28px, 5vw, 56px) clamp(16px, 4vw, 40px)',
+          background: 'linear-gradient(135deg, #FEF3E2 0%, #FDF8F0 20%, #F0F7F2 50%, #EEF2F9 80%, #F5F0F8 100%)',
+        }}>
+          <p style={{ fontSize: 11, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#1B5E3B', fontWeight: 600, marginBottom: 14 }}>
+            inteligência sobre o poder público
+          </p>
+          <h1 style={{
+            fontFamily: "'Fraunces', Georgia, serif",
+            fontSize: 'clamp(24px, 5vw, 48px)', fontWeight: 600,
+            color: '#3d2b1f', lineHeight: 1.15, letterSpacing: '-0.5px', marginBottom: 16,
+          }}>
+            Cada real público, cada<br />
+            emenda, cada voto —<br />
+            sob análise forense
+          </h1>
+          <p style={{ fontSize: 'clamp(13px, 2vw, 15px)', color: '#6b7280', maxWidth: 480, margin: '0 auto 24px', lineHeight: 1.7 }}>
+            Rastreio de emendas parlamentares, gastos CEAP e votações
+            de {MANDATOS_CAMARA} deputados federais com dados abertos.
+            {rankingListCount > 0 ? ` ${rankingListCount} com nota publicada.` : ''}
+          </p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link to="/ranking" style={{
+              padding: '12px 28px', borderRadius: 100,
+              background: '#1B5E3B', color: '#fff',
+              fontSize: 14, fontWeight: 600, textDecoration: 'none',
+            }}>
+              Explorar ranking
+            </Link>
+            <a href="#ranking-section" style={{
+              padding: '12px 28px', borderRadius: 100,
+              background: 'transparent', color: '#1B5E3B',
+              fontSize: 14, fontWeight: 500, textDecoration: 'none',
+              border: '1.5px solid #1B5E3B',
+            }}>
+              Top 10 / Bottom 10
             </a>
-            {rankingListCount > 0 ? ` (${rankingListCount} com nota publicada)` : ''}
-          </span>
-        </h1>
-        <p style={{ fontSize: 15, color: '#666', maxWidth: 500, margin: '0 auto 28px', lineHeight: 1.7 }}>
-          Análise de CEAP, emendas e atividade parlamentar. Flags de risco, dossiês e relatórios prontos.
-        </p>
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link to="/ranking" style={{ padding: '12px 24px', borderRadius: 100, background: '#2D2D2D', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
-            Ver ranking completo
-          </Link>
-          <a href="#ranking-section" style={{ padding: '12px 24px', borderRadius: 100, background: 'transparent', color: '#2D2D2D', fontSize: 14, fontWeight: 500, textDecoration: 'none', border: '1.5px solid #DEDBD6' }}>
-            Top 10 / Bottom 10
-          </a>
+          </div>
         </div>
       </section>
 
       {/* TOP 10 / BOTTOM 10 */}
-      <section id="ranking-section" style={{ maxWidth: 900, margin: '0 auto 64px', padding: '0 24px' }}>
+      <section id="ranking-section" style={{ maxWidth: 960, margin: '0 auto 48px', padding: '0 16px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2D2D2D' }}>Ranking dos Políticos (Câmara)</h2>
+          <h2 style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 20, fontWeight: 600, color: '#3d2b1f' }}>Ranking dos Políticos (Câmara)</h2>
           <span style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic', lineHeight: 1.5, textAlign: 'right', maxWidth: 320 }}>
             Posição e nota conforme{' '}
             <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: '#666', fontWeight: 600 }}>ranking.org.br</a>
@@ -266,31 +278,31 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         )}
       </section>
 
-      {/* STATS — abaixo do ranking para não interromper o fluxo principal */}
-      <div style={{ maxWidth: 760, margin: '0 auto 52px', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 14 }}>
+      {/* STATS */}
+      <div style={{ maxWidth: 760, margin: '0 auto 48px', padding: '0 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12 }}>
         {[
           { n: String(MANDATOS_CAMARA), label: 'Mandatos na Câmara dos Deputados' },
-          { n: String(mandatosNoSeed), label: 'Deputados no seed (posição + dados Câmara)' },
+          { n: String(mandatosNoSeed), label: 'Deputados com dados da Câmara' },
           ...(rankingListCount > 0 ? [{ n: String(rankingListCount), label: 'Com nota publicada no ranking.org' }] : []),
           { n: '26',  label: 'Tabelas no banco de dados' },
           { n: '10+', label: 'APIs públicas integradas' },
           { n: 'IA',  label: 'Score e flags automáticos' },
         ].map((s, i) => (
-          <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '18px 16px', textAlign: 'center', border: '1px solid #EDEBE8' }}>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#2D2D2D', marginBottom: 4 }}>{s.n}</div>
-            <div style={{ fontSize: 12, color: '#AAA', lineHeight: 1.4 }}>{s.label}</div>
+          <div key={i} style={{ background: '#eef5f0', borderRadius: 14, padding: '18px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#1B5E3B', marginBottom: 4 }}>{s.n}</div>
+            <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* AVISO DE METODOLOGIA */}
-      <section style={{ maxWidth: 900, margin: '0 auto 56px', padding: '0 24px' }}>
-        <div style={{ background: '#FBF7E8', border: '1px solid #F0E4A0', borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 16 }}>⚡</span>
-          <p style={{ fontSize: 12, color: '#7A6A20', margin: 0, lineHeight: 1.6 }}>
-            <strong>Índice TransparenciaBR:</strong> Score calculado a partir de dados públicos da{' '}
-            <a href="https://www.camara.leg.br" target="_blank" rel="noopener noreferrer" style={{ color: '#7A6A20', fontWeight: 600 }}>Câmara dos Deputados</a>{' '}e{' '}
-            <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer" style={{ color: '#7A6A20', fontWeight: 600 }}>Portal da Transparência</a>.
+      <section style={{ maxWidth: 960, margin: '0 auto 48px', padding: '0 16px' }}>
+        <div style={{ background: '#eef5f0', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>i</span>
+          <p style={{ fontSize: 12, color: '#374151', margin: 0, lineHeight: 1.6 }}>
+            Score calculado a partir de dados públicos da{' '}
+            <a href="https://www.camara.leg.br" target="_blank" rel="noopener noreferrer" style={{ color: '#1B5E3B', fontWeight: 600, textDecoration: 'underline' }}>Câmara dos Deputados</a>{' '}e{' '}
+            <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer" style={{ color: '#1B5E3B', fontWeight: 600, textDecoration: 'underline' }}>Portal da Transparência</a>.
             Análise probabilística — pode conter imprecisões.
           </p>
         </div>
@@ -311,14 +323,14 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
             )}
             {authMode === 'choose' ? (
               <>
-                <button onClick={async () => { setAuthError(''); try { await login(); } catch(e) { setAuthError(e.message); } }} style={btn('#DB4437')}>Entrar com Google</button>
+                <button onClick={async () => { setAuthError(''); try { await login(); } catch(e) { setAuthError(e.message); } }} style={btn('#1B5E3B')}>Entrar com Google</button>
                 <button onClick={async () => { setAuthError(''); try { await loginWithGitHub(); } catch(e) { setAuthError(e.message); } }} style={btn('#24292E')}>Entrar com GitHub</button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0' }}>
                   <div style={{ flex: 1, height: 1, background: '#EDEBE8' }} />
                   <span style={{ fontSize: 12, color: '#AAA' }}>ou</span>
                   <div style={{ flex: 1, height: 1, background: '#EDEBE8' }} />
                 </div>
-                <button onClick={() => setAuthMode('email')} style={btn('#2D2D2D')}>Entrar com Email</button>
+                <button onClick={() => setAuthMode('email')} style={btn('#374151')}>Entrar com Email</button>
                 <p style={{ textAlign: 'center', fontSize: 12, color: '#AAA', marginTop: 12 }}>
                   Novo?{' '}
                   <span onClick={() => setAuthMode('register')} style={{ color: '#2D2D2D', cursor: 'pointer', fontWeight: 600 }}>Criar conta grátis</span>
@@ -344,38 +356,40 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         </section>
       )}
 
-      {/* PRODUTOS — rodapé de página (acima do footer) */}
-      <section style={{ maxWidth: 900, margin: '0 auto 48px', padding: '0 24px' }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#2D2D2D', marginBottom: 8 }}>O que você pode comprar</h2>
-        <p style={{ fontSize: 14, color: '#AAA', marginBottom: 24 }}>Pague por aquilo que precisa. Sem assinatura obrigatória.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16 }}>
+      {/* PRODUTOS */}
+      <section style={{ maxWidth: 960, margin: '0 auto 48px', padding: '0 16px' }}>
+        <h2 style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 20, fontWeight: 600, color: '#3d2b1f', marginBottom: 8 }}>O que você pode fazer</h2>
+        <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 20 }}>Pague por aquilo que precisa. Sem assinatura obrigatória.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14 }}>
           {[
-            { icon: '📋', title: 'Dossiê CEAP Básico',     price: 'R$ 9,90',          desc: 'Resumo de gastos, top fornecedores e 5 flags principais.',                           badge: 'Popular'  },
-            { icon: '🔥', title: 'Dossiê CEAP Matador',    price: 'R$ 39,90',         desc: 'Análise forense completa com todos os recibos, gráficos e PDF para denúncia.',      badge: 'Premium'  },
-            { icon: '💬', title: 'Pergunta ao Agente IA',  price: 'R$ 2,00/pergunta', desc: 'Consulte o agente IA com dados parlamentares. Resposta baseada em dados oficiais.', badge: 'IA'       },
-            { icon: '📦', title: 'Módulos avulsos',        price: 'Emendas, Gabinete',desc: 'Emendas R$14,90 · Gabinete R$14,90 · Super Relatório R$79,90.',                     badge: 'Modular'  },
+            { title: 'Dossiê CEAP Básico',     price: 'R$ 9,90',          desc: 'Resumo de gastos, top fornecedores e 5 flags principais.',                           badge: 'Popular'  },
+            { title: 'Dossiê CEAP Matador',    price: 'R$ 39,90',         desc: 'Análise forense completa com todos os recibos, gráficos e PDF.',                       badge: 'Premium'  },
+            { title: 'Pergunta ao Agente IA',  price: 'R$ 2,00/pergunta', desc: 'Consulte o agente IA com dados parlamentares oficiais.',                                badge: 'IA'       },
+            { title: 'Módulos avulsos',        price: 'Emendas, Gabinete',desc: 'Emendas R$14,90 · Gabinete R$14,90 · Super Relatório R$79,90.',                     badge: 'Modular'  },
           ].map((p, i) => (
             <div key={i}
-              style={{ background: '#fff', borderRadius: 14, padding: '22px 18px', border: '1px solid #EDEBE8', position: 'relative', transition: 'box-shadow 0.2s' }}
-              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.08)'; }}
-              onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; }}
+              style={{ background: '#ffffff', borderRadius: 14, padding: '20px 16px', border: '1px solid #e5e7eb', position: 'relative' }}
             >
               {p.badge && (
-                <span style={{ position: 'absolute', top: 14, right: 14, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 100, background: p.badge === 'Premium' ? '#FBD87F' : p.badge === 'IA' ? '#9ECFE8' : '#A8D8B0', color: '#2D2D2D' }}>
+                <span style={{ position: 'absolute', top: 12, right: 12, fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: '#eef5f0', color: '#1B5E3B' }}>
                   {p.badge}
                 </span>
               )}
-              <div style={{ fontSize: 28, marginBottom: 10 }}>{p.icon}</div>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#2D2D2D', marginBottom: 6 }}>{p.title}</h3>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#2D2D2D', marginBottom: 8 }}>{p.price}</div>
-              <p style={{ fontSize: 12, color: '#AAA', lineHeight: 1.6 }}>{p.desc}</p>
+              <h3 style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6, marginTop: 0 }}>{p.title}</h3>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#1B5E3B', marginBottom: 8 }}>{p.price}</div>
+              <p style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>{p.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <footer style={{ textAlign: 'center', padding: '24px', fontSize: 12, color: '#CCC', borderTop: '1px solid #EDEBE8' }}>
-        transparenciabr · dados 100% públicos · metodologia aberta · apartidário
+      <footer style={{ textAlign: 'center', padding: '32px 16px', fontSize: 13, color: '#9ca3af' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 10, flexWrap: 'wrap' }}>
+          <Link to="/metodologia" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Metodologia</Link>
+          <Link to="/mapa" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Mapa</Link>
+          <Link to="/emendas" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Emendas</Link>
+        </div>
+        transparenciabr · dados 100% públicos · apartidário
       </footer>
     </div>
   );

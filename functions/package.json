@@ -12,6 +12,7 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
+    "cheerio": "^1.0.0",
     "@google-cloud/bigquery": "^8.1.1",
     "@google-cloud/storage": "^7.15.0",
     "firebase-admin": "^13.6.0",

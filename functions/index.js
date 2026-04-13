@@ -85,6 +85,32 @@ exports.listTables = onCall(OPTS, async (req) => {
 });
 
 // ─────────────────────────────────────────────
+// 3b. RANKING (BigQuery — leitura pública, sem auth)
+//     Agrega nota TransparenciaBR / CEAP para cards na UI.
+// ─────────────────────────────────────────────
+exports.getRanking = onCall(OPTS, async (req) => {
+  const limitN = Math.min(Math.max(Number(req.data?.limit) || 513, 1), 513);
+  const query = `
+    SELECT idCamara, nome, partido, estado,
+           notaTransparencia, totalGastos, percentualPresenca
+    FROM \`projeto-codex-br.${DATASET}.auditoria_completa_2023\`
+    ORDER BY notaTransparencia DESC NULLS LAST
+    LIMIT ${limitN}
+  `;
+  try {
+    const [rows] = await bq.query({ query, location: BQ_LOCATION });
+    return {
+      rows,
+      count: rows.length,
+      fonte: 'bigquery_auditoria_completa_2023',
+    };
+  } catch (e) {
+    console.error('getRanking:', e.message);
+    return { rows: [], count: 0, erro: e.message, fonte: 'bigquery' };
+  }
+});
+
+// ─────────────────────────────────────────────
 // 4. QUERY CONTROLADA NO BIGQUERY
 //    Aceita: tabela + filtros opcionais
 //    Retorna: até 500 linhas (seguro)
@@ -183,9 +209,14 @@ const APP_PUBLIC_ORIGIN =
   process.env.APP_PUBLIC_ORIGIN || 'https://fiscallizapa.web.app';
 
 const PACKAGE_CREDITS = {
+  // Pacotes novos (roteiro v2)
+  price_starter_50: 50,
+  price_pro_200: 200,
+  price_analista_500: 500,
+  // Pacotes legados (backward compat)
   price_starter_10: 10,
   price_pro_50: 50,
-  price_ultra_200: 200
+  price_ultra_200: 200,
 };
 
 // ─────────────────────────────────────────────
@@ -201,8 +232,12 @@ exports.getWalletCredits = onCall(OPTS, async (req) => {
     const leg = await db.doc(`users/${uid}`).get();
     if (leg.data()?.plan === 'premium') plano = 'premium';
   }
+  const comprado = d.creditos ?? d.credits ?? 0;
+  const bonus = d.creditos_bonus ?? 0;
   return {
-    saldo: d.creditos ?? d.credits ?? 0,
+    saldo: comprado + bonus,
+    saldoComprado: comprado,
+    saldoBonus: bonus,
     plano,
     totalComprado: d.totalComprado ?? 0,
     totalConsumido: d.totalConsumido ?? 0
@@ -240,16 +275,22 @@ exports.buyCredits = onCall(OPTS, async (req) => {
   if (!packageId) throw new HttpsError('invalid-argument', 'packageId obrigatório.');
 
   const priceEnvMap = {
-    price_starter_10: process.env.STRIPE_PRICE_STARTER_10,
-    price_pro_50: process.env.STRIPE_PRICE_PRO_50,
-    price_ultra_200: process.env.STRIPE_PRICE_ULTRA_200,
-    price_ilimitado: process.env.STRIPE_PRICE_ILIMITADO
+    // Pacotes novos (roteiro v2)
+    price_starter_50:    process.env.STRIPE_PRICE_STARTER_50,
+    price_pro_200:       process.env.STRIPE_PRICE_PRO_200,
+    price_analista_500:  process.env.STRIPE_PRICE_ANALISTA_500,
+    price_enterprise:    process.env.STRIPE_PRICE_ENTERPRISE,
+    // Pacotes legados (backward compat)
+    price_starter_10:    process.env.STRIPE_PRICE_STARTER_10,
+    price_pro_50:        process.env.STRIPE_PRICE_PRO_50,
+    price_ultra_200:     process.env.STRIPE_PRICE_ULTRA_200,
+    price_ilimitado:     process.env.STRIPE_PRICE_ILIMITADO,
   };
   const priceId = priceEnvMap[packageId];
   if (!priceId) {
     throw new HttpsError(
       'failed-precondition',
-      'Stripe não configurado: defina STRIPE_PRICE_STARTER_10, STRIPE_PRICE_PRO_50, STRIPE_PRICE_ULTRA_200 e/ou STRIPE_PRICE_ILIMITADO nas variáveis de ambiente das Functions.'
+      `Stripe n\u00e3o configurado para pacote "${packageId}". Defina a vari\u00e1vel STRIPE_PRICE_* correspondente nas Functions.`
     );
   }
 
@@ -279,7 +320,7 @@ exports.buyCredits = onCall(OPTS, async (req) => {
     }
   })(origin);
 
-  const mode = packageId === 'price_ilimitado' ? 'subscription' : 'payment';
+  const mode = (packageId === 'price_ilimitado' || packageId === 'price_enterprise') ? 'subscription' : 'payment';
   const session = await stripe.checkout.sessions.create({
     mode,
     payment_method_types: ['card'],
@@ -304,7 +345,9 @@ exports.getUser = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
   const d = (await db.doc(`usuarios/${uid}`).get()).data() || {};
-  return { credits: d.creditos ?? d.credits ?? 0 };
+  const comprado = d.creditos ?? d.credits ?? 0;
+  const bonus = d.creditos_bonus ?? 0;
+  return { credits: comprado + bonus };
 });
 
 exports.consumeCredit = onCall(OPTS, async (req) => {
@@ -313,11 +356,22 @@ exports.consumeCredit = onCall(OPTS, async (req) => {
   const ref = db.doc(`usuarios/${uid}`);
   return db.runTransaction(async tx => {
     const snap = await tx.get(ref);
-    const cur = snap.data()?.creditos ?? snap.data()?.credits ?? 0;
-    if (cur < 1) return { ok: false, reason: 'Saldo insuficiente.' };
+    const d = snap.data() || {};
+    const comprado = d.creditos ?? d.credits ?? 0;
+    const bonus = d.creditos_bonus ?? 0;
+    const total = comprado + bonus;
+    if (total < 1) return { ok: false, reason: 'Saldo insuficiente.' };
+    let novoBonus = bonus;
+    let novoComprado = comprado;
+    if (novoBonus >= 1) novoBonus -= 1;
+    else novoComprado -= 1;
     tx.set(
       ref,
-      { creditos: cur - 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() },
+      {
+        creditos: novoComprado,
+        creditos_bonus: novoBonus,
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
+      },
       { merge: true }
     );
     return { ok: true, source: 'firestore' };
@@ -369,7 +423,7 @@ exports.stripeWebhook = onRequest(
         const pkg = session.metadata?.packageId || '';
 
         if (session.mode === 'subscription') {
-          const plano = pkg === 'price_ilimitado' ? 'ilimitado' : 'premium';
+          const plano = (pkg === 'price_ilimitado' || pkg === 'price_enterprise') ? 'ilimitado' : 'premium';
           await ref.set(
             {
               plano,
@@ -490,8 +544,16 @@ function normalizeNomePortalAutor(nome) {
     .trim();
 }
 
+function getPortalTransparenciaApiKey() {
+  const key = process.env.PORTAL_TRANSPARENCIA_API_KEY;
+  if (!key || String(key).trim() === '') {
+    throw new Error('PORTAL_TRANSPARENCIA_API_KEY não configurada nas Cloud Functions.');
+  }
+  return String(key).trim();
+}
+
 function portalApiGet(pathWithLeadingSlash) {
-  const key = process.env.PORTAL_TRANSPARENCIA_API_KEY || '717a95e01b072090f41940282eab700a';
+  const key = getPortalTransparenciaApiKey();
   return new Promise((resolve, reject) => {
     const opts = {
       hostname: 'api.portaldatransparencia.gov.br',
@@ -648,10 +710,10 @@ exports.getAuditoriaPolitico = onCall(OPTS, async (req) => {
 
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function portalFetchEmendasPorAno(nomeAutorUpper, ano) {
+async function portalFetchEmendasPorAno(ano, query) {
   const out = [];
   for (let p = 1; p <= 50; p++) {
-    const path = `/api-de-dados/emendas?ano=${ano}&nomeAutor=${encodeURIComponent(nomeAutorUpper)}&pagina=${p}`;
+    const path = `/api-de-dados/emendas?ano=${ano}&${query}&pagina=${p}`;
     let page;
     try {
       page = await portalApiGet(path);
@@ -696,7 +758,7 @@ function parsePtDataSortKey(dataStr) {
 
 /**
  * Emendas parlamentares (Portal da Transparência) + documentos por fase (empenho → … → pagamento).
- * Chave API: env PORTAL_TRANSPARENCIA_API_KEY ou fallback público de desenvolvimento.
+ * Chave API: PORTAL_TRANSPARENCIA_API_KEY — header HTTP chave-api-dados (Console/Secret Gen 2).
  */
 exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   const uid = req.auth?.uid;
@@ -704,6 +766,10 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
 
   const body = req.data || {};
   const nomeAutor = String(body.nomeAutor || body.nome || '').trim();
+  const codigoAutorRaw = body.codigoAutor ?? body.idAutor ?? body.idCamara;
+  const codigoAutor = codigoAutorRaw != null && String(codigoAutorRaw).trim() !== ''
+    ? String(codigoAutorRaw).replace(/\D/g, '')
+    : '';
   const politicoDocId = String(body.politicoDocId || body.deputadoId || '').trim();
   const maxComDocs = Math.min(20, Math.max(0, Number(body.maxEmendasComDocumentos) || 12));
 
@@ -711,11 +777,11 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   if (!anos || anos.length === 0) anos = defaultCeapAnos();
   anos = [...new Set(anos)].sort((a, b) => b - a);
 
-  if (!nomeAutor || !politicoDocId) {
-    throw new HttpsError('invalid-argument', 'nomeAutor e politicoDocId são obrigatórios.');
+  if ((!nomeAutor && !codigoAutor) || !politicoDocId) {
+    throw new HttpsError('invalid-argument', 'politicoDocId e nomeAutor ou codigoAutor são obrigatórios.');
   }
 
-  const nomeQuery = normalizeNomePortalAutor(nomeAutor);
+  const nomeQuery = nomeAutor ? normalizeNomePortalAutor(nomeAutor) : '';
   const byCodigo = new Map();
 
   function anoDoCodigoEmenda(cod) {
@@ -737,7 +803,13 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
 
   try {
     for (const ano of anos) {
-      const chunk = await portalFetchEmendasPorAno(nomeQuery, ano);
+      let chunk = [];
+      if (codigoAutor) {
+        chunk = await portalFetchEmendasPorAno(ano, `codigoAutor=${encodeURIComponent(codigoAutor)}`);
+      }
+      if (chunk.length === 0 && nomeQuery) {
+        chunk = await portalFetchEmendasPorAno(ano, `nomeAutor=${encodeURIComponent(nomeQuery)}`);
+      }
       for (const e of chunk) {
         const cod = e?.codigoEmenda;
         if (!cod) continue;
@@ -826,6 +898,248 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   }
 });
 
+function parseUfFromLocalidadePortal(loc) {
+  const m = String(loc || '').match(/\(([A-Z]{2})\)\s*$/i);
+  return m ? m[1].toUpperCase() : '';
+}
+
+function emendaTipoPixPortal(tipoEmenda) {
+  const t = String(tipoEmenda || '').toLowerCase();
+  return (
+    t.includes('pix')
+    || t.includes('transferência especial')
+    || t.includes('transferencia especial')
+    || t.includes('transferência direta')
+    || t.includes('transferencia direta')
+  );
+}
+
+/**
+ * Pontos geográficos para mapa de emendas (Nominatim + cache em memória por cold start).
+ * Não substitui getEmendasParlamentar — uso leve para visualização.
+ */
+exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+
+  const body = req.data || {};
+  const nomeAutor = String(body.nomeAutor || body.nome || '').trim();
+  const codigoAutorRaw = body.codigoAutor ?? body.idAutor ?? body.idCamara;
+  const codigoAutor = codigoAutorRaw != null && String(codigoAutorRaw).trim() !== ''
+    ? String(codigoAutorRaw).replace(/\D/g, '')
+    : '';
+  const politicoDocId = String(body.politicoDocId || body.deputadoId || '').trim();
+  const maxGeo = Math.min(40, Math.max(5, Number(body.maxPontos) || 22));
+
+  let anos = Array.isArray(body.anos) ? body.anos.map(Number).filter((n) => n >= 2000 && n <= 2100) : null;
+  if (!anos || anos.length === 0) anos = defaultCeapAnos();
+  anos = [...new Set(anos)].sort((a, b) => b - a);
+
+  if ((!nomeAutor && !codigoAutor) || !politicoDocId) {
+    throw new HttpsError('invalid-argument', 'politicoDocId e nomeAutor ou codigoAutor são obrigatórios.');
+  }
+
+  const nomeQuery = nomeAutor ? normalizeNomePortalAutor(nomeAutor) : '';
+  const byCodigo = new Map();
+
+  function mergeEmendaRow(prev, next) {
+    if (!prev) return next;
+    const ePrev = parsePortalValorBRL(prev.valorEmpenhado);
+    const eNext = parsePortalValorBRL(next.valorEmpenhado);
+    if (eNext > ePrev) return next;
+    if (eNext < ePrev) return prev;
+    return next;
+  }
+
+  const geoMemo = new Map();
+  const GEO_CACHE_DAYS = 90;
+  const GEO_CACHE_MS = GEO_CACHE_DAYS * 24 * 60 * 60 * 1000;
+
+  function geocodeCacheDocId(municipio, uf) {
+    const key = `${String(municipio).trim().toLowerCase()}|${String(uf || '').toUpperCase()}`;
+    const safe = key.replace(/[^a-zA-Z0-9|_-]/g, '_').replace(/\|/g, '__');
+    return safe.length > 700 ? safe.slice(0, 700) : safe;
+  }
+
+  async function nominatimLookup(municipio, uf) {
+    const key = `${String(municipio).trim().toLowerCase()}|${String(uf || '').toUpperCase()}`;
+    if (geoMemo.has(key)) return geoMemo.get(key);
+
+    const cacheId = geocodeCacheDocId(municipio, uf);
+    const cacheRef = db.collection('geocode_cache').doc(cacheId);
+    try {
+      const snap = await cacheRef.get();
+      if (snap.exists) {
+        const c = snap.data();
+        const ts = c.fetchedAt?.toMillis?.() ?? 0;
+        if (Date.now() - ts < GEO_CACHE_MS) {
+          if (c.lat == null || c.lng == null) {
+            geoMemo.set(key, null);
+            return null;
+          }
+          const coords = { lat: Number(c.lat), lng: Number(c.lng) };
+          geoMemo.set(key, coords);
+          return coords;
+        }
+      }
+    } catch (e) {
+      console.warn('geocode_cache read:', e.message);
+    }
+
+    const q = `${municipio}, ${uf || ''}, Brasil`.replace(/,\s*,/g, ',').trim();
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 14000);
+    let coords = null;
+    try {
+      const r = await fetch(url, {
+        signal: ac.signal,
+        headers: {
+          'User-Agent': 'TransparenciaBR-Ingest/1.0 (dados públicos)',
+          'Accept-Language': 'pt-BR,pt;q=0.9',
+        },
+      });
+      clearTimeout(t);
+      if (!r.ok) {
+        geoMemo.set(key, null);
+        try {
+          await cacheRef.set({
+            municipio: String(municipio).slice(0, 200),
+            uf: String(uf || '').slice(0, 4),
+            lat: null,
+            lng: null,
+            fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+            fonte: 'nominatim_miss',
+          });
+        } catch {/* ignore */}
+        return null;
+      }
+      const j = await r.json();
+      if (!Array.isArray(j) || !j[0]) {
+        geoMemo.set(key, null);
+        try {
+          await cacheRef.set({
+            municipio: String(municipio).slice(0, 200),
+            uf: String(uf || '').slice(0, 4),
+            lat: null,
+            lng: null,
+            fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+            fonte: 'nominatim_empty',
+          });
+        } catch {/* ignore */}
+        return null;
+      }
+      coords = { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) };
+    } catch {
+      clearTimeout(t);
+      coords = null;
+    }
+    geoMemo.set(key, coords);
+    try {
+      await cacheRef.set({
+        municipio: String(municipio).slice(0, 200),
+        uf: String(uf || '').slice(0, 4),
+        lat: coords ? coords.lat : null,
+        lng: coords ? coords.lng : null,
+        fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+        fonte: 'nominatim',
+      });
+    } catch (e) {
+      console.warn('geocode_cache write:', e.message);
+    }
+    return coords;
+  }
+
+  try {
+    for (const ano of anos) {
+      let chunk = [];
+      if (codigoAutor) {
+        chunk = await portalFetchEmendasPorAno(ano, `codigoAutor=${encodeURIComponent(codigoAutor)}`);
+      }
+      if (chunk.length === 0 && nomeQuery) {
+        chunk = await portalFetchEmendasPorAno(ano, `nomeAutor=${encodeURIComponent(nomeQuery)}`);
+      }
+      for (const e of chunk) {
+        const cod = e?.codigoEmenda;
+        if (!cod) continue;
+        byCodigo.set(cod, mergeEmendaRow(byCodigo.get(cod), e));
+      }
+      await sleepMs(400);
+    }
+
+    const rows = [...byCodigo.values()].map((raw) => {
+      const emp = parsePortalValorBRL(raw.valorEmpenhado);
+      const pag = parsePortalValorBRL(raw.valorPago);
+      const loc = String(raw.localidadeDoGasto || '').trim();
+      const municipioNome = loc.replace(/\s*\(UF\)\s*$/i, '').trim() || loc;
+      const uf = parseUfFromLocalidadePortal(loc);
+      return {
+        codigo: String(raw.codigoEmenda),
+        municipio: municipioNome,
+        uf,
+        valor: emp,
+        valorPago: pag,
+        tipoPix: emendaTipoPixPortal(raw.tipoEmenda),
+        tipoLabel: String(raw.tipoEmenda || ''),
+      };
+    });
+
+    rows.sort((a, b) => (b.valor || 0) - (a.valor || 0));
+
+    let emendasPix = 0;
+    let emendasProjeto = 0;
+    for (const r of rows) {
+      if (r.tipoPix) emendasPix += 1;
+      else emendasProjeto += 1;
+    }
+
+    const totais = rows.reduce(
+      (acc, r) => ({
+        valorEmpenhado: acc.valorEmpenhado + (r.valor || 0),
+        valorPago: acc.valorPago + (r.valorPago || 0),
+      }),
+      { valorEmpenhado: 0, valorPago: 0 },
+    );
+
+    const pontos = [];
+    for (const r of rows) {
+      if (!r.municipio || pontos.length >= maxGeo) break;
+      const coords = await nominatimLookup(r.municipio, r.uf);
+      await sleepMs(1100);
+      if (coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lng)) {
+        pontos.push({
+          lat: coords.lat,
+          lng: coords.lng,
+          municipio: r.municipio,
+          valor: r.valor,
+          tipoPix: r.tipoPix,
+          tipo: r.tipoLabel,
+        });
+      }
+    }
+
+    return {
+      pontos,
+      totalEmendas: rows.length,
+      emendasPix,
+      emendasProjeto,
+      totaisAgregados: totais,
+      anosConsulta: anos,
+      fonte: 'portal_transparencia_api+nominatim',
+    };
+  } catch (e) {
+    console.error('getEmendasMapaPontos:', e.message);
+    return {
+      pontos: [],
+      totalEmendas: 0,
+      emendasPix: 0,
+      emendasProjeto: 0,
+      erro: e.message,
+      fonte: 'portal_transparencia_api+nominatim',
+    };
+  }
+});
+
 /** Prefixos permitidos para proxy GET à API de Dados do Portal (segurança). */
 const PORTAL_PROXY_PREFIXES = [
   '/api-de-dados/emendas',
@@ -870,7 +1184,23 @@ exports.portalTransparenciaProxy = onCall(OPTS, async (req) => {
 });
 
 // ─────────────────────────────────────────────
-// 10. RANKING SEMANAL (scheduled — toda segunda 03:00 Belém)
+// 10. MOTOR FORENSE (análise cruzada + scoring + flags)
+//     Módulo separado: forensicEngine.js
+// ─────────────────────────────────────────────
+const { registerForensicFunctions } = require('./forensicEngine');
+const forensic = registerForensicFunctions({
+  onCall, HttpsError, db, bq, DATASET, BQ_LOCATION, OPTS,
+});
+exports.forensicEngine = forensic.forensicEngine;
+exports.getForensicCache = forensic.getForensicCache;
+exports.getAtividadeParlamentar = forensic.getAtividadeParlamentar;
+
+const { registerGetGabineteDeputado } = require('./getGabineteDeputado');
+const gabineteMod = registerGetGabineteDeputado({ onCall, HttpsError, admin, OPTS });
+exports.getGabineteDeputado = gabineteMod.getGabineteDeputado;
+
+// ─────────────────────────────────────────────
+// 11. RANKING SEMANAL (scheduled — toda segunda 03:00 Belém)
 // ─────────────────────────────────────────────
 exports.atualizarRankingSemanal = onSchedule(
   { schedule: 'every monday 03:00', timeZone: 'America/Belem', ...OPTS },
