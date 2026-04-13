@@ -14,9 +14,13 @@
  *        (engine 13_ingest_presencas.py popula: presencas/{id} e proposicoes_proprias/{id})
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { db }          from "../lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../lib/firebase";
+import { parseCamaraValorReais } from "../utils/moneyCamara";
+import { normalizeUF } from "./SocialContext";
+import { anosCeapHistoricoCompleto } from "../utils/legislatura";
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const FIRA = "'Fira Code', 'Courier New', monospace";
 
@@ -116,6 +120,57 @@ function generateGabineteData(politico) {
 
   const percentual = Math.min(Math.max((gastos / limiteAnual) * 100, 5), 108);
   return { gastos: Math.abs(gastos), limite: limiteAnual, percentual };
+}
+
+function anoFromDespesaCamara(d) {
+  if (d?.ano != null && Number.isFinite(Number(d.ano))) return Number(d.ano);
+  const s = String(d?.dataDocumento || d?.datEmissao || "");
+  const m = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return Number(m[3]);
+  const y = s.match(/(\d{4})/);
+  if (y) return Number(y[1]);
+  return new Date().getFullYear();
+}
+
+/** Métricas CEAP: compara gasto do ano de referência com teto anual (evita alarme falso multi-ano vs teto de 1 ano). */
+export function computeCeapTetoMetrics(despesasNormalizadas, ufRaw) {
+  const uf = normalizeUF(ufRaw, "") || String(ufRaw || "").toUpperCase().slice(0, 2);
+  const limiteAnual = CEAP_LIMITE_UF[uf] ?? CEAP_LIMITE_DEFAULT;
+  const anoAtual = new Date().getFullYear();
+  const minAno = 2019;
+
+  const porAno = {};
+  let gastoTotal = 0;
+  for (const d of despesasNormalizadas) {
+    const v = Number(d.valorLiquido ?? 0);
+    if (!Number.isFinite(v)) continue;
+    gastoTotal += v;
+    const ano = anoFromDespesaCamara(d);
+    const a = Number.isFinite(ano) ? ano : anoAtual;
+    porAno[a] = (porAno[a] ?? 0) + v;
+  }
+
+  const anosComDados = Object.keys(porAno).map(Number).filter((y) => y >= minAno && y <= anoAtual + 1).sort((a, b) => a - b);
+  const anoRef = anosComDados.length > 0 ? Math.max(...anosComDados) : anoAtual;
+  const gastoAnoRef = porAno[anoRef] ?? 0;
+  const percentualAnual = limiteAnual > 0 ? (gastoAnoRef / limiteAnual) * 100 : 0;
+
+  const primeiroAno = anosComDados.length > 0 ? Math.min(...anosComDados) : minAno;
+  const numAnosTeto = Math.max(1, anoRef - primeiroAno + 1);
+  const tetoAcumuladoEstimado = limiteAnual * numAnosTeto;
+  const percentualAcumuladoVsTetoMulti = tetoAcumuladoEstimado > 0 ? (gastoTotal / tetoAcumuladoEstimado) * 100 : 0;
+
+  return {
+    gastoAnoRef,
+    gastoTotalAcumulado: gastoTotal,
+    limiteAnual,
+    tetoAcumuladoEstimado,
+    percentualAnual,
+    percentualAcumuladoVsTetoMulti,
+    anoRef,
+    primeiroAno,
+    labelPeriodo: `${primeiroAno}–${anoRef}`,
+  };
 }
 
 // ─── Componentes internos ──────────────────────────────────────────────────────
@@ -242,7 +297,13 @@ function ProposicoesSection({ proposicoes }) {
 }
 
 // ─── Monitor de Teto de Gastos ────────────────────────────────────────────────
-function GastosMonitor({ gastos, limite, percentual }) {
+function GastosMonitor({ loading, metrics, fallbackGasto, fallbackLimite, fallbackPercentual }) {
+  const real = metrics && metrics.gastoAnoRef != null;
+  const gastoCard = real ? metrics.gastoAnoRef : fallbackGasto;
+  const limiteAnual = real ? metrics.limiteAnual : fallbackLimite;
+  const percentual = real ? metrics.percentualAnual : fallbackPercentual;
+  const anoRef = real ? metrics.anoRef : new Date().getFullYear();
+
   const isCritico  = percentual >= ALERTA_USO_CRITICO;
   const isElevado  = percentual >= ALERTA_USO_ELEVADO && !isCritico;
 
@@ -258,6 +319,16 @@ function GastosMonitor({ gastos, limite, percentual }) {
     ? { label: "🟡 USO ELEVADO",       color: "#c2410c", bg: "rgba(249,115,22,0.08)", border: "rgba(249,115,22,0.25)" }
     : { label: "✅ DENTRO DO LIMITE",  color: "#16a34a", bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.25)" };
 
+  if (loading) {
+    return (
+      <SectionBlock icon="💼" title="Monitor de Teto de Gastos" badge="CARREGANDO" badgeColor="#6b7280" badgeBg="#f3f4f6">
+        <div style={{ height: 72, borderRadius: 10, background: "linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 50%,#f3f4f6 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.2s ease-in-out infinite" }} />
+        <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
+        <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 10 }}>Fonte: Câmara dos Deputados — dadosabertos.camara.leg.br</p>
+      </SectionBlock>
+    );
+  }
+
   return (
     <SectionBlock
       icon="💼"
@@ -266,23 +337,32 @@ function GastosMonitor({ gastos, limite, percentual }) {
       badgeColor={statusBadge.color}
       badgeBg={statusBadge.bg}
     >
-      {/* Valores principais */}
+      {!real && (
+        <p style={{ fontSize: 10, color: "#92400e", margin: "0 0 12px", padding: "8px 10px", background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a" }}>
+          Dados CEAP da API ainda não carregaram — exibindo referência ilustrativa. Abra o dossiê com login para atualizar.
+        </p>
+      )}
+
       <div style={{
         display: "grid", gridTemplateColumns: "1fr auto 1fr",
         alignItems: "center", gap: 16, marginBottom: 18,
       }}>
-        {/* Gasto atual */}
         <div>
           <div style={{ fontSize: 9, color: "#9ca3af", marginBottom: 4,
                         textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Gasto (CEAP)
+            Gasto (CEAP) — {anoRef}
           </div>
           <div style={{ fontFamily: FIRA, fontSize: 20, fontWeight: 700, color: barColor }}>
-            {gastos.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
+            {gastoCard.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
           </div>
+          {real && (
+            <div style={{ fontSize: 9, color: "#6b7280", marginTop: 4 }}>
+              Total acumulado {metrics.labelPeriodo}:{" "}
+              {metrics.gastoTotalAcumulado.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
+            </div>
+          )}
         </div>
 
-        {/* Percentual */}
         <div style={{ textAlign: "center" }}>
           <div style={{
             fontFamily: FIRA,
@@ -291,22 +371,20 @@ function GastosMonitor({ gastos, limite, percentual }) {
           }}>
             {percentual.toFixed(1)}<span style={{ fontSize: 14, fontWeight: 400 }}>%</span>
           </div>
-          <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 2 }}>do teto</div>
+          <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 2 }}>do teto anual {anoRef}</div>
         </div>
 
-        {/* Limite máximo */}
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 9, color: "#9ca3af", marginBottom: 4,
                         textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Teto Anual
+            Teto anual {anoRef}
           </div>
           <div style={{ fontFamily: FIRA, fontSize: 20, fontWeight: 700, color: "#6b7280" }}>
-            {limite.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
+            {limiteAnual.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
           </div>
         </div>
       </div>
 
-      {/* Barra de progresso */}
       <div style={{ marginBottom: 14 }}>
         <div style={{
           height: 16, borderRadius: 99, background: "#f0f0f0",
@@ -320,7 +398,6 @@ function GastosMonitor({ gastos, limite, percentual }) {
             transition: "width 0.8s cubic-bezier(0.4, 0, 0.2, 1)",
             position: "relative",
           }}>
-            {/* Riscado de textura para indicar valor próximo ao teto */}
             {isCritico && (
               <div style={{
                 position: "absolute", inset: 0, borderRadius: 99,
@@ -328,14 +405,12 @@ function GastosMonitor({ gastos, limite, percentual }) {
               }} />
             )}
           </div>
-          {/* Marcador de 95% */}
           <div style={{
             position: "absolute", top: 0, bottom: 0,
             left: "95%", width: 2,
             background: "rgba(239,68,68,0.5)",
           }} title="Limite de Alerta (95%)" />
         </div>
-        {/* Escala */}
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
           <span style={{ fontFamily: FIRA, fontSize: 9, color: "#9ca3af" }}>0%</span>
           <span style={{ fontFamily: FIRA, fontSize: 9, color: "#9ca3af", marginLeft: "70%" }}>95% ⚠️</span>
@@ -343,7 +418,6 @@ function GastosMonitor({ gastos, limite, percentual }) {
         </div>
       </div>
 
-      {/* Alerta de gasto crítico */}
       {isCritico && (
         <div style={{
           padding: "10px 14px", borderRadius: 10, marginBottom: 12,
@@ -353,20 +427,17 @@ function GastosMonitor({ gastos, limite, percentual }) {
             ⚠️ ALERTA DE EFICIÊNCIA — GASTO CRÍTICO
           </p>
           <p style={{ fontSize: 11, color: "#9ca3af", margin: 0 }}>
-            O parlamentar atingiu {percentual.toFixed(1)}% da cota anual. Padrão consistente
-            com gastos acelerados em período eleitoral. Recomenda-se auditoria das notas CEAP.
+            Em {anoRef}, o gasto CEAP atingiu {percentual.toFixed(1)}% do teto anual de referência para a UF.
+            Recomenda-se confrontar com as notas na Câmara.
           </p>
         </div>
       )}
 
-      {/* Teto mensal médio */}
-      <div style={{
-        display: "flex", gap: 12, flexWrap: "wrap",
-      }}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {[
-          { label: "Teto/mês",     value: (limite / 12).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) },
-          { label: "Saldo restante", value: Math.max(limite - gastos, 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) },
-          { label: "Meses restantes (estimado)", value: gastos > 0 ? `~${Math.ceil((limite - gastos) / (gastos / 12))} meses` : "–" },
+          { label: "Teto/mês (ref.)", value: (limiteAnual / 12).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) },
+          { label: "Saldo vs teto anual", value: Math.max(limiteAnual - gastoCard, 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) },
+          ...(real ? [{ label: "% vs teto acum. (est.)", value: `${metrics.percentualAcumuladoVsTetoMulti.toFixed(1)}%` }] : []),
         ].map(m => (
           <div key={m.label} style={{
             flex: 1, minWidth: 120,
@@ -384,9 +455,12 @@ function GastosMonitor({ gastos, limite, percentual }) {
         ))}
       </div>
 
-      <p style={{ fontSize: 9, color: "#d1d5db", marginTop: 10 }}>
-        * CEAP — Cota para o Exercício da Atividade Parlamentar · Limite varia por estado
-        · Referência 2024 · Dados: BigQuery <code>fiscalizapa.ceap_ocr_extractions</code>
+      <p style={{ fontSize: 9, color: "#6b7280", marginTop: 10 }}>
+        Fonte: Câmara dos Deputados —{" "}
+        <a href="https://dadosabertos.camara.leg.br" target="_blank" rel="noopener noreferrer" style={{ color: "#15803d" }}>
+          dadosabertos.camara.leg.br
+        </a>
+        {" "}· Teto CEAP por UF (referência aproximada; conferir resolução vigente).
       </p>
     </SectionBlock>
   );
@@ -547,6 +621,10 @@ export default function PerformanceTab({
   onPayFull,
   unlocking,
   unlockError,
+  /** Despesas CEAP já normalizadas (valorLiquido em R$) vindas de getAuditoriaPolitico; null = ainda não carregado */
+  ceapDespesas = null,
+  ceapLoading = false,
+  ceapError = null,
 }) {
   const [livePresenca,      setLivePresenca     ] = useState(null);
   const [liveProposicoes,   setLiveProposicoes  ] = useState(null);
@@ -593,6 +671,11 @@ export default function PerformanceTab({
     : mockAtt;
 
   const proposicoesData = liveProposicoes ?? mockProp;
+
+  const ceapMetrics = useMemo(() => {
+    if (ceapDespesas === null || ceapError) return null;
+    return computeCeapTetoMetrics(ceapDespesas, politico?.uf ?? politico?.estado);
+  }, [ceapDespesas, ceapError, politico?.uf, politico?.estado]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -650,11 +733,19 @@ export default function PerformanceTab({
       {/* ─── 2. Proposições de Autoria Própria ─────────────────── */}
       <ProposicoesSection proposicoes={proposicoesData} />
 
+      {ceapError && (
+        <p style={{ fontSize: 11, color: "#b45309", margin: 0, padding: "8px 12px", background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a" }}>
+          CEAP (Câmara): {ceapError}
+        </p>
+      )}
+
       {/* ─── 3. Monitor de Teto de Gastos ──────────────────────── */}
       <GastosMonitor
-        gastos={gabinete.gastos}
-        limite={gabinete.limite}
-        percentual={gabinete.percentual}
+        loading={ceapLoading}
+        metrics={ceapMetrics}
+        fallbackGasto={gabinete.gastos}
+        fallbackLimite={gabinete.limite}
+        fallbackPercentual={gabinete.percentual}
       />
 
       {/* ─── 4. Análise do Oráculo (PAYWALL 200cr) ─────────────── */}
@@ -685,8 +776,8 @@ export default function PerformanceTab({
           unlocking={unlocking}
           unlockError={unlockError}
           credits={credits}
-          gastos={gabinete.gastos}
-          limite={gabinete.limite}
+          gastos={ceapMetrics ? ceapMetrics.gastoAnoRef : gabinete.gastos}
+          limite={ceapMetrics ? ceapMetrics.limiteAnual : gabinete.limite}
         />
       </div>
 
