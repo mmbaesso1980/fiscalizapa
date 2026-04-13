@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { HelmetProvider, Helmet } from "react-helmet-async";
 import { useAuth } from "./hooks/useAuth";
 import Navbar from "./components/Navbar";
@@ -24,6 +24,13 @@ const PerfilPage       = lazy(() => import("./pages/PerfilPage"));
 const NotFoundPage     = lazy(() => import("./pages/NotFoundPage"));
 const LoginPage        = lazy(() => import("./pages/LoginPage"));
 const UsuarioPage      = lazy(() => import("./pages/UsuarioPage"));
+
+/** Redireciona URLs legadas /politico/... para o dossiê canónico /dossie/:id */
+function RedirectPoliticoParaDossie() {
+  const { id } = useParams();
+  if (!id) return <Navigate to="/ranking" replace />;
+  return <Navigate to={`/dossie/${id}`} replace />;
+}
 
 export default function App() {
   const { user, loading, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits, isAdmin } = useAuth();
@@ -59,7 +66,7 @@ export default function App() {
             <Route path="/metodologia" element={<MetodologiaPage />} />
 
             {/* Rotas públicas — conteúdo premium protegido por CreditGate dentro da página */}
-            <Route path="/politico/:colecao/:id" element={<PoliticoPage user={user} />} />
+            <Route path="/politico/:colecao/:id" element={<RedirectPoliticoParaDossie />} />
             <Route path="/deputado/:nome" element={<PoliticoPage user={user} />} />
             <Route path="/emenda/:id" element={<EmendaPage />} />
             <Route path="/emendas" element={<BancoEmendasPage />} />

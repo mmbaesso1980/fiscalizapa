@@ -72,7 +72,7 @@ function DeputadoRow({ dep, total }) {
 
   return (
     <Link
-      to={`/politico/deputados_federais/${dep.id}`}
+      to={`/dossie/${dep.id}`}
       style={{ textDecoration: "none" }}
       className="group block"
     >

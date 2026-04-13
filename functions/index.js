@@ -898,6 +898,186 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   }
 });
 
+function parseUfFromLocalidadePortal(loc) {
+  const m = String(loc || '').match(/\(([A-Z]{2})\)\s*$/i);
+  return m ? m[1].toUpperCase() : '';
+}
+
+function emendaTipoPixPortal(tipoEmenda) {
+  const t = String(tipoEmenda || '').toLowerCase();
+  return (
+    t.includes('pix')
+    || t.includes('transferência especial')
+    || t.includes('transferencia especial')
+    || t.includes('transferência direta')
+    || t.includes('transferencia direta')
+  );
+}
+
+/**
+ * Pontos geográficos para mapa de emendas (Nominatim + cache em memória por cold start).
+ * Não substitui getEmendasParlamentar — uso leve para visualização.
+ */
+exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+
+  const body = req.data || {};
+  const nomeAutor = String(body.nomeAutor || body.nome || '').trim();
+  const codigoAutorRaw = body.codigoAutor ?? body.idAutor ?? body.idCamara;
+  const codigoAutor = codigoAutorRaw != null && String(codigoAutorRaw).trim() !== ''
+    ? String(codigoAutorRaw).replace(/\D/g, '')
+    : '';
+  const politicoDocId = String(body.politicoDocId || body.deputadoId || '').trim();
+  const maxGeo = Math.min(40, Math.max(5, Number(body.maxPontos) || 22));
+
+  let anos = Array.isArray(body.anos) ? body.anos.map(Number).filter((n) => n >= 2000 && n <= 2100) : null;
+  if (!anos || anos.length === 0) anos = defaultCeapAnos();
+  anos = [...new Set(anos)].sort((a, b) => b - a);
+
+  if ((!nomeAutor && !codigoAutor) || !politicoDocId) {
+    throw new HttpsError('invalid-argument', 'politicoDocId e nomeAutor ou codigoAutor são obrigatórios.');
+  }
+
+  const nomeQuery = nomeAutor ? normalizeNomePortalAutor(nomeAutor) : '';
+  const byCodigo = new Map();
+
+  function mergeEmendaRow(prev, next) {
+    if (!prev) return next;
+    const ePrev = parsePortalValorBRL(prev.valorEmpenhado);
+    const eNext = parsePortalValorBRL(next.valorEmpenhado);
+    if (eNext > ePrev) return next;
+    if (eNext < ePrev) return prev;
+    return next;
+  }
+
+  const geoMemo = new Map();
+
+  async function nominatimLookup(municipio, uf) {
+    const key = `${String(municipio).trim().toLowerCase()}|${String(uf || '').toUpperCase()}`;
+    if (geoMemo.has(key)) return geoMemo.get(key);
+    const q = `${municipio}, ${uf || ''}, Brasil`.replace(/,\s*,/g, ',').trim();
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 14000);
+    let coords = null;
+    try {
+      const r = await fetch(url, {
+        signal: ac.signal,
+        headers: {
+          'User-Agent': 'TransparenciaBR-Ingest/1.0 (dados públicos)',
+          'Accept-Language': 'pt-BR,pt;q=0.9',
+        },
+      });
+      clearTimeout(t);
+      if (!r.ok) {
+        geoMemo.set(key, null);
+        return null;
+      }
+      const j = await r.json();
+      if (!Array.isArray(j) || !j[0]) {
+        geoMemo.set(key, null);
+        return null;
+      }
+      coords = { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) };
+    } catch {
+      clearTimeout(t);
+      coords = null;
+    }
+    geoMemo.set(key, coords);
+    return coords;
+  }
+
+  try {
+    for (const ano of anos) {
+      let chunk = [];
+      if (codigoAutor) {
+        chunk = await portalFetchEmendasPorAno(ano, `codigoAutor=${encodeURIComponent(codigoAutor)}`);
+      }
+      if (chunk.length === 0 && nomeQuery) {
+        chunk = await portalFetchEmendasPorAno(ano, `nomeAutor=${encodeURIComponent(nomeQuery)}`);
+      }
+      for (const e of chunk) {
+        const cod = e?.codigoEmenda;
+        if (!cod) continue;
+        byCodigo.set(cod, mergeEmendaRow(byCodigo.get(cod), e));
+      }
+      await sleepMs(400);
+    }
+
+    const rows = [...byCodigo.values()].map((raw) => {
+      const emp = parsePortalValorBRL(raw.valorEmpenhado);
+      const pag = parsePortalValorBRL(raw.valorPago);
+      const loc = String(raw.localidadeDoGasto || '').trim();
+      const municipioNome = loc.replace(/\s*\(UF\)\s*$/i, '').trim() || loc;
+      const uf = parseUfFromLocalidadePortal(loc);
+      return {
+        codigo: String(raw.codigoEmenda),
+        municipio: municipioNome,
+        uf,
+        valor: emp,
+        valorPago: pag,
+        tipoPix: emendaTipoPixPortal(raw.tipoEmenda),
+        tipoLabel: String(raw.tipoEmenda || ''),
+      };
+    });
+
+    rows.sort((a, b) => (b.valor || 0) - (a.valor || 0));
+
+    let emendasPix = 0;
+    let emendasProjeto = 0;
+    for (const r of rows) {
+      if (r.tipoPix) emendasPix += 1;
+      else emendasProjeto += 1;
+    }
+
+    const totais = rows.reduce(
+      (acc, r) => ({
+        valorEmpenhado: acc.valorEmpenhado + (r.valor || 0),
+        valorPago: acc.valorPago + (r.valorPago || 0),
+      }),
+      { valorEmpenhado: 0, valorPago: 0 },
+    );
+
+    const pontos = [];
+    for (const r of rows) {
+      if (!r.municipio || pontos.length >= maxGeo) break;
+      const coords = await nominatimLookup(r.municipio, r.uf);
+      await sleepMs(1100);
+      if (coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lng)) {
+        pontos.push({
+          lat: coords.lat,
+          lng: coords.lng,
+          municipio: r.municipio,
+          valor: r.valor,
+          tipoPix: r.tipoPix,
+          tipo: r.tipoLabel,
+        });
+      }
+    }
+
+    return {
+      pontos,
+      totalEmendas: rows.length,
+      emendasPix,
+      emendasProjeto,
+      totaisAgregados: totais,
+      anosConsulta: anos,
+      fonte: 'portal_transparencia_api+nominatim',
+    };
+  } catch (e) {
+    console.error('getEmendasMapaPontos:', e.message);
+    return {
+      pontos: [],
+      totalEmendas: 0,
+      emendasPix: 0,
+      emendasProjeto: 0,
+      erro: e.message,
+      fonte: 'portal_transparencia_api+nominatim',
+    };
+  }
+});
+
 /** Prefixos permitidos para proxy GET à API de Dados do Portal (segurança). */
 const PORTAL_PROXY_PREFIXES = [
   '/api-de-dados/emendas',
