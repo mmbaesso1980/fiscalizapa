@@ -482,15 +482,18 @@ exports.stripeWebhook = onRequest(
 // 9. PERFIL DE PARLAMENTAR (onCall premium)
 // ─────────────────────────────────────────────
 exports.getPerfilParlamentar = onCall(OPTS, async (req) => {
-  const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  // Leitura pública — aceita anônimos (plano = free)
+  const uid = req.auth?.uid ?? null;
 
-  const userDoc = await db.doc(`usuarios/${uid}`).get();
-  let plan = userDoc.data()?.plano ?? 'free';
-  // Legado: assinaturas antigas gravadas em users/{uid}
-  if (plan !== 'premium') {
-    const leg = await db.doc(`users/${uid}`).get();
-    if (leg.data()?.plan === 'premium') plan = 'premium';
+  let plan = 'free';
+  if (uid) {
+    const userDoc = await db.doc(`usuarios/${uid}`).get();
+    plan = userDoc.data()?.plano ?? 'free';
+    // Legado: assinaturas antigas gravadas em users/{uid}
+    if (plan !== 'premium') {
+      const leg = await db.doc(`users/${uid}`).get();
+      if (leg.data()?.plan === 'premium') plan = 'premium';
+    }
   }
 
   const { cpf, idCamara } = req.data || {};
@@ -647,8 +650,8 @@ async function fetchDespesasAno(deputadoId, ano, maxPages = 12) {
 }
 
 exports.getAuditoriaPolitico = onCall(OPTS, async (req) => {
-  const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  // Leitura pública — aceita anônimos
+  const uid = req.auth?.uid ?? 'anonymous';
 
   const body = req.data || {};
   const { nome, idCamara } = body;
@@ -774,8 +777,8 @@ function parsePtDataSortKey(dataStr) {
  * Chave API: PORTAL_TRANSPARENCIA_API_KEY — header HTTP chave-api-dados (Console/Secret Gen 2).
  */
 exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
-  const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  // Leitura pública — aceita anônimos
+  const uid = req.auth?.uid ?? 'anonymous';
 
   const body = req.data || {};
   const nomeAutor = String(body.nomeAutor || body.nome || '').trim();
@@ -947,8 +950,8 @@ function emendaTipoPixPortal(tipoEmenda) {
  * Não substitui getEmendasParlamentar — uso leve para visualização.
  */
 exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
-  const uid = req.auth?.uid;
-  if (!uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  // Leitura pública — aceita anônimos
+  const uid = req.auth?.uid ?? 'anonymous';
 
   const body = req.data || {};
   const nomeAutor = String(body.nomeAutor || body.nome || '').trim();
