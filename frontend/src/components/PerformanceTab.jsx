@@ -111,9 +111,11 @@ function generateProposicoes(politico) {
   }));
 }
 
-function generateGabineteData(politico) {
+function generateGabineteData(politico, ceapTotalCanonical) {
   const limiteAnual = CEAP_LIMITE_UF[politico?.uf] ?? CEAP_LIMITE_DEFAULT;
-  const gastosBase  = parseFloat(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0);
+  const gastosBase  = ceapTotalCanonical != null && Number.isFinite(Number(ceapTotalCanonical))
+    ? Number(ceapTotalCanonical)
+    : parseFloat(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0);
   const gastos      = gastosBase > 0
     ? gastosBase
     : limiteAnual * 0.45 + (hashId(politico?.id) % 80000) - 40000;
@@ -290,7 +292,7 @@ function ProposicoesSection({ proposicoes }) {
       )}
 
       <p style={{ fontSize: 9, color: "#d1d5db", marginTop: 12 }}>
-        * Fonte: API Câmara · <code>13_ingest_presencas.py</code> · Coleção Firestore: <code>proposicoes_proprias/{"{id}"}</code>
+        * Fonte: API Câmara · Coleção Firestore: <code>proposicoes_proprias/{"{id}"}</code>
       </p>
     </SectionBlock>
   );
@@ -633,6 +635,7 @@ export default function PerformanceTab({
   ceapDespesas = null,
   ceapLoading = false,
   ceapError = null,
+  ceapTotalCanonical = null,
 }) {
   const [livePresenca,      setLivePresenca     ] = useState(null);
   const [liveProposicoes,   setLiveProposicoes  ] = useState(null);
@@ -660,7 +663,7 @@ export default function PerformanceTab({
   // Dados: live (Firestore) se disponíveis, senão mock determinístico
   const mockAtt  = generateAttendanceData(politico);
   const mockProp = generateProposicoes(politico);
-  const gabinete = generateGabineteData(politico);
+  const gabinete = generateGabineteData(politico, ceapTotalCanonical);
 
   const attendanceData = livePresenca
     ? {
@@ -702,8 +705,8 @@ export default function PerformanceTab({
           <span style={{ fontSize: 11 }}>{livePresenca ? "🟢" : "🟡"}</span>
           <span style={{ fontSize: 10, color: livePresenca ? "#16a34a" : "#92400e", fontWeight: 600 }}>
             {livePresenca
-              ? "Dados reais via Firestore (13_ingest_presencas.py)"
-              : "Dados ilustrativos — execute engine 13_ingest_presencas.py para dados reais"}
+              ? "Dados reais via Firestore (presença e proposições)"
+              : "Dados ilustrativos — ingestão de presença em andamento"}
           </span>
         </div>
       )}

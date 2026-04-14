@@ -199,6 +199,12 @@ function IdentitySection({ politico, scoreForense, alertasResumo = [], custoCont
                     `(${politico?.uf ?? "–"}). ${politico?.nome?.split(" ")[0] ?? "Político"} integra as comissões ` +
                     `de Finanças e de Constituição e Justiça.`;
   const riskColor = getRiskColor(0);
+  const idC = politico?.idCamara != null ? Number(politico.idCamara) : null;
+  const fotoSrc =
+    absolutizeCamaraUrl(politico?.ultimoStatus?.urlFoto ?? politico?.urlFoto ?? "")
+    || (Number.isFinite(idC)
+      ? `https://www.camara.leg.br/img/deputados/med/${idC}.jpg`
+      : "");
 
   return (
     <Card>
@@ -229,8 +235,8 @@ function IdentitySection({ politico, scoreForense, alertasResumo = [], custoCont
           border: `3px solid ${riskColor}`,
           boxShadow: `0 4px 16px ${riskColor}33`,
         }}>
-          {politico?.urlFoto
-            ? <img src={politico.urlFoto} alt={politico.nome} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          {fotoSrc
+            ? <img src={fotoSrc} alt={politico.nome} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             : (
               <div style={{
                 width: "100%", height: "100%",
@@ -261,15 +267,17 @@ function IdentitySection({ politico, scoreForense, alertasResumo = [], custoCont
 }
 
 // ─── SEÇÃO 2: Monitor de Gastos CEAP (GRÁTIS) — resumo + link fonte oficial ───
-function CeapMonitorSection({ politico, ceapTotalAcumulado, ceapPeriodoLabel, ceapLoading }) {
+function CeapMonitorSection({ politico, ceapTotalAcumulado, ceapPeriodoLabel, ceapLoading, ceapTotal }) {
   const idCamara = politico?.idCamara ?? politico?.id_camara;
   const ceapUrl = idCamara
     ? `https://www.camara.leg.br/deputados/${idCamara}/despesas`
     : `https://portaldatransparencia.gov.br/verbas-indenizatorias/consulta`;
   const dossiePath = politico?.id ? `/dossie/${politico.id}` : "/ranking";
-  const gastoExibido = ceapTotalAcumulado != null
-    ? ceapTotalAcumulado
-    : parseCamaraValorReais(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0);
+  const gastoExibido = ceapTotal != null
+    ? ceapTotal
+    : ceapTotalAcumulado != null
+      ? ceapTotalAcumulado
+      : parseCamaraValorReais(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0);
   const labelGasto = ceapPeriodoLabel
     ? `Total CEAP (${ceapPeriodoLabel})`
     : "Gasto Total";
@@ -402,7 +410,7 @@ function DiariosMencoesSection({ politicoId, credits, deductCredits }) {
             Nenhuma menção encontrada nos Diários Oficiais.
           </p>
           <p style={{ fontSize: 11, color: "#d1d5db", marginTop: 4 }}>
-            O crawler <code>10_universal_crawler.py</code> indexa DOU, DOE e DOM continuamente.
+            O índice de diários oficiais é atualizado continuamente a partir das fontes públicas.
           </p>
         </div>
       ) : (
@@ -490,7 +498,18 @@ function DiariosMencoesSection({ politicoId, credits, deductCredits }) {
 // ─── SEÇÃO 4: Laboratório Oráculo (GATED) ─────────────────────────────────────
 // Conteúdo básico: alertas + Gemini oracle texts
 // Conteúdo full:   + NetworkGraph + PDF export
-function OracleLaboratory({ politico, alertas, rank, rankTotal, fullUnlocked, pdfRef, onDownloadPDF, generatingPDF }) {
+function OracleLaboratory({
+  politico,
+  alertas,
+  rank,
+  rankTotal,
+  fullUnlocked,
+  pdfRef,
+  onDownloadPDF,
+  generatingPDF,
+  graphData,
+  graphIsFallback,
+}) {
   const rank1 = politico?.rank_externo != null
     ? Number(politico.rank_externo)
     : (typeof rank === "number" && rank >= 0 ? rank + 1 : 256);
@@ -498,6 +517,7 @@ function OracleLaboratory({ politico, alertas, rank, rankTotal, fullUnlocked, pd
   const riskColor = getRiskColor(rank1, total);
   const riskAlpha = getRiskColorAlpha(rank1, total, 0.08);
   const { label } = getRiskLabel(rank1, total);
+  const oracleFoto = absolutizeCamaraUrl(politico?.ultimoStatus?.urlFoto ?? politico?.urlFoto ?? "");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -507,9 +527,13 @@ function OracleLaboratory({ politico, alertas, rank, rankTotal, fullUnlocked, pd
         display: "flex", alignItems: "center", gap: 16, padding: "14px 18px",
         background: riskAlpha, borderRadius: 12, border: `1px solid ${riskColor}22`,
       }}>
-        {politico?.urlFoto && (
-          <img src={politico.urlFoto} alt={politico.nome} style={{ width: 48, height: 48, borderRadius: "50%",
-                                                                     objectFit: "cover", border: `2px solid ${riskColor}`, flexShrink: 0 }} />
+        {oracleFoto && (
+          <img
+            src={oracleFoto}
+            alt={politico.nome}
+            style={{ width: 48, height: 48, borderRadius: "50%",
+                     objectFit: "cover", border: `2px solid ${riskColor}`, flexShrink: 0 }}
+          />
         )}
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -555,7 +579,12 @@ function OracleLaboratory({ politico, alertas, rank, rankTotal, fullUnlocked, pd
           background: "rgba(253,252,251,0.8)", borderRadius: 14,
           border: "1px solid rgba(237,235,232,0.8)", padding: "18px 18px 14px",
         }}>
-          <NetworkGraph graphData={graphData} politicoId={politico?.id} height={380} />
+          <NetworkGraph
+            graphData={graphData}
+            politicoId={politico?.id}
+            height={380}
+            isFallback={graphIsFallback}
+          />
         </div>
       ) : (
         <div style={{
@@ -582,8 +611,8 @@ function OracleLaboratory({ politico, alertas, rank, rankTotal, fullUnlocked, pd
           </div>
           <p style={{ fontSize: 12, color: "#888", lineHeight: 1.5 }}>
             Metadados de notas fiscais lidas pelo{" "}
-            <strong>Motor OCR</strong> (<code>06_ocr_notas.py</code>) disponíveis após
-            execução do pipeline contra <code>fiscalizapa.ceap_ocr_extractions</code>.
+            <strong>Motor OCR</strong> (leitura de notas) disponível após
+            processamento no cofre de dados (BigQuery).
           </p>
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             {["CNPJ Fornecedor", "Valor Total", "Descrição", "Data da Nota"].map(f => (
@@ -801,13 +830,23 @@ function PDFLogo() {
 }
 
 // ─── Conteúdo PDF oculto ──────────────────────────────────────────────────────
-function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Alertas = [], ceapTotal }) {
+function scoreForensePdfLabel(score) {
+  const n = Number(score);
+  if (!Number.isFinite(n)) return { line: "Score Forense: —", color: "#64748b" };
+  const s = Math.max(0, Math.min(100, Math.round(n)));
+  const lbl = s <= 30 ? "Baixo Risco" : s <= 60 ? "Atenção" : "Alto Risco";
+  const color = s >= 61 ? "#C82538" : s >= 31 ? "#D97706" : "#2E7F18";
+  return { line: `Score Forense: ${s}/100 — ${lbl}`, color };
+}
+
+function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Alertas = [], ceapTotal, scoreForense }) {
   const rank1 = politico?.rank_externo != null
     ? Number(politico.rank_externo)
     : (typeof rank === "number" && rank >= 0 ? rank + 1 : 256);
   const total = rankTotal || MANDATOS_CAMARA;
   const riskColor = getRiskColor(rank1, total);
   const { label } = getRiskLabel(rank1, total);
+  const sf = scoreForensePdfLabel(scoreForense);
 
   return (
     <div ref={pdfRef} style={{
@@ -823,6 +862,7 @@ function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Al
           <div>Dossiê Forense Premium</div>
           <div>Gerado em {new Date().toLocaleDateString("pt-BR", { day:"2-digit", month:"long", year:"numeric" })}</div>
           <div style={{ fontWeight: 700, color: riskColor, marginTop: 2 }}>Risco: {label}</div>
+          <div style={{ fontWeight: 600, color: sf.color, marginTop: 4 }}>{sf.line}</div>
         </div>
       </div>
       <div style={{ background: "#FAFAF8", borderRadius: 10, padding: "14px 16px",
@@ -905,9 +945,8 @@ function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Al
             </span>
           </div>
           <p style={{ fontSize: 10, color: "#555", fontStyle: "italic", marginBottom: 10, lineHeight: 1.5 }}>
-            Motor 16_contract_collision.py detectou correspondência entre sócios de empresas
-            contratadas e membros da rede familiar do parlamentar (identificados pelo
-            15_family_oracle.py). As evidências abaixo são de fontes públicas e não constituem
+            O motor de contratos detectou correspondência entre sócios de empresas contratadas e
+            membros da rede familiar do parlamentar. As evidências abaixo são de fontes públicas e não constituem
             acusação formal.
           </p>
           {nivel5Alertas.map((a, i) => (
@@ -1050,6 +1089,9 @@ export default function DossiePage() {
   const [mapaEmendasData,  setMapaEmendasData ] = useState(null);
   const [forensicHeader,   setForensicHeader ] = useState(null);
   const [graphData, setGraphData] = useState(null);
+  const [realDocId, setRealDocId] = useState(id);
+  const [ceapTotalCanonical, setCeapTotalCanonical] = useState(null);
+  const [mapRefetchKey, setMapRefetchKey] = useState(0);
   /** CEAP agregado (2019→ano atual) via getAuditoriaPolitico — alinha teto e totais com a API da Câmara */
   const [ceapState, setCeapState] = useState({
     status: "idle",
@@ -1066,6 +1108,11 @@ export default function DossiePage() {
     return 256;
   }, [politico?.rank_externo, rank]);
 
+  useEffect(() => {
+    setRealDocId(id);
+    setCeapTotalCanonical(null);
+  }, [id]);
+
   // ── Scroll → StickyHeader ─────────────────────────────────────────────────
   useEffect(() => {
     const onScroll = () => setStickyVisible(window.scrollY > 120);
@@ -1078,32 +1125,32 @@ export default function DossiePage() {
 
   // ── Verificar desbloqueio (session → Firestore) ───────────────────────────
   useEffect(() => {
-    if (sessionStorage.getItem(sessionKey(id, "full")) === "1") {
+    if (sessionStorage.getItem(sessionKey(realDocId, "full")) === "1") {
       setFullUnlocked(true);
       setBasicUnlocked(true);
       return;
     }
-    if (sessionStorage.getItem(sessionKey(id, "basic")) === "1") {
+    if (sessionStorage.getItem(sessionKey(realDocId, "basic")) === "1") {
       setBasicUnlocked(true);
     }
     if (!user) return;
     let cancelled = false;
     (async () => {
       try {
-        const snap = await getDoc(doc(db, "usuarios", user.uid, "dossies_desbloqueados", id));
+        const snap = await getDoc(doc(db, "usuarios", user.uid, "dossies_desbloqueados", realDocId));
         if (!cancelled && snap.exists()) {
           const tipo = snap.data()?.tipo ?? "full";
           setBasicUnlocked(true);
-          sessionStorage.setItem(sessionKey(id, "basic"), "1");
+          sessionStorage.setItem(sessionKey(realDocId, "basic"), "1");
           if (tipo === "full") {
             setFullUnlocked(true);
-            sessionStorage.setItem(sessionKey(id, "full"), "1");
+            sessionStorage.setItem(sessionKey(realDocId, "full"), "1");
           }
         }
       } catch {/* subcoleção pode não existir */}
     })();
     return () => { cancelled = true; };
-  }, [id, user]);
+  }, [realDocId, user]);
 
   // ── Carregar dados ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1113,36 +1160,97 @@ export default function DossiePage() {
     async function loadData() {
       setDataLoading(true);
       try {
-        const snap = await getDoc(doc(db, "deputados_federais", id));
-        if (!snap.exists()) { setNotFound(true); return; }
-        let pol = { id: snap.id, ...snap.data() };
+        const isNumericId = /^\d+$/.test(String(id));
+        let pol = null;
+        let allowPoliticosPhotoWrite = false;
+
+        if (isNumericId) {
+          const idCamaraNum = Number(id);
+          const pq = query(collection(db, "politicos"), where("idCamara", "==", idCamaraNum), limit(1));
+          const pr = await getDocs(pq);
+          if (pr.docs[0]) {
+            const d = pr.docs[0];
+            if (!cancelled) {
+              navigate(`/dossie/${d.id}`, { replace: true });
+            }
+            return;
+          }
+          const dq = query(collection(db, "deputados_federais"), where("idCamara", "==", idCamaraNum), limit(1));
+          const dr = await getDocs(dq);
+          if (!dr.docs[0]) {
+            if (!cancelled) setNotFound(true);
+            return;
+          }
+          pol = { id: dr.docs[0].id, ...dr.docs[0].data() };
+          if (!cancelled) setRealDocId(dr.docs[0].id);
+        } else {
+          const pSnap = await getDoc(doc(db, "politicos", id));
+          if (pSnap.exists()) {
+            pol = { id: pSnap.id, ...pSnap.data() };
+            if (!cancelled) setRealDocId(pSnap.id);
+            allowPoliticosPhotoWrite = true;
+          } else {
+            const leg = await getDoc(doc(db, "deputados_federais", id));
+            if (!leg.exists()) {
+              if (!cancelled) setNotFound(true);
+              return;
+            }
+            pol = { id: leg.id, ...leg.data() };
+            if (!cancelled) setRealDocId(leg.id);
+          }
+        }
+
+        const docIdAlertas = pol.id;
+        const urlFotoRaw = pol?.ultimoStatus?.urlFoto ?? pol?.urlFoto ?? "";
+        const urlFotoAbs = absolutizeCamaraUrl(urlFotoRaw)
+          || (pol?.idCamara != null && Number.isFinite(Number(pol.idCamara))
+            ? `https://www.camara.leg.br/img/deputados/med/${Number(pol.idCamara)}.jpg`
+            : "");
+        if (urlFotoAbs && !pol.urlFoto) {
+          pol = { ...pol, urlFoto: urlFotoAbs };
+          if (allowPoliticosPhotoWrite) {
+            setDoc(doc(db, "politicos", docIdAlertas), { urlFoto: urlFotoAbs }, { merge: true }).catch(() => {});
+          }
+        }
+
         try {
           const { map, mapByIdCamara } = await loadRankingOrgExternoMap(db);
           if (!cancelled) setRankTotal(MANDATOS_CAMARA);
-          const idC = pol.idCamara != null ? Number(pol.idCamara) : Number(id);
+          const idC = pol.idCamara != null ? Number(pol.idCamara) : NaN;
           const ext =
             lookupRankingOrgExterno(map, pol.nome || pol.nomeCompleto) ||
             (Number.isFinite(idC) ? lookupRankingOrgExternoById(mapByIdCamara, idC) : null);
           pol = mergeDeputadoRankingOrg(pol, ext);
         } catch {/* ranking externo opcional */}
-        if (!cancelled) setPolitico(pol);
+        if (!cancelled) {
+          setPolitico(pol);
+          console.log("[DossiePage] urlFoto raw:", pol?.urlFoto, pol?.ultimoStatus?.urlFoto);
+        }
 
         const rankSnap = await getDocs(
-          query(collection(db, "deputados_federais"), orderBy("score", "desc"))
+          query(collection(db, "deputados_federais"), orderBy("score", "desc")),
         );
-        const idx = rankSnap.docs.findIndex(d => d.id === id);
+        const idx = rankSnap.docs.findIndex((d) => d.id === docIdAlertas);
         if (!cancelled && idx !== -1) setRank(idx);
 
         try {
           let alertSnap;
           try {
             alertSnap = await getDocs(
-              query(collection(db, "alertas_bodes"), where("parlamentar_id", "==", id),
-                    orderBy("criadoEm", "desc"), limit(20)),
+              query(
+                collection(db, "alertas_bodes"),
+                where("parlamentar_id", "==", docIdAlertas),
+                orderBy("criadoEm", "desc"),
+                limit(20),
+              ),
             );
           } catch {
             alertSnap = await getDocs(
-              query(collection(db, "alertas_bodes"), where("parlamentar_id", "==", id), limit(20)),
+              query(
+                collection(db, "alertas_bodes"),
+                where("parlamentar_id", "==", docIdAlertas),
+                limit(20),
+              ),
             );
           }
           if (alertSnap.empty && pol?.idCamara != null) {
@@ -1152,23 +1260,38 @@ export default function DossiePage() {
                 alertSnap = await getDocs(
                   query(collection(db, "alertas_bodes"), where("idCamara", "==", idCam), limit(20)),
                 );
-              } catch {/* índice ou campo */}
+              } catch {/* campo */}
             }
           }
-          if (!cancelled) {
-            const allAlertas = alertSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            setAlertas(allAlertas);
-            setNivel5Alertas(allAlertas.filter(a =>
-              a.criticidade === "NIVEL_5" || a.nivel === 5 || a.tipoAlerta === "CONFLITO_INTERESSE_FAMILIAR"
-            ));
+          if (alertSnap.empty) {
+            try {
+              alertSnap = await getDocs(
+                query(
+                  collection(db, "alertas_bodes"),
+                  where("deputado_id", "==", docIdAlertas),
+                  limit(20),
+                ),
+              );
+            } catch {/* legado */}
           }
-        } catch {/* índice pode não existir */}
+          if (!cancelled) {
+            const allAlertas = alertSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            setAlertas(allAlertas);
+            setNivel5Alertas(
+              allAlertas.filter(
+                (a) =>
+                  a.criticidade === "NIVEL_5"
+                  || a.nivel === 5
+                  || a.tipoAlerta === "CONFLITO_INTERESSE_FAMILIAR",
+              ),
+            );
+          }
+        } catch {/* índice */}
 
-        // Carregar rede familiar (do engine 15_family_oracle.py)
         try {
-          const familiaSnap = await getDoc(doc(db, "usuarios_relacionados", id));
+          const familiaSnap = await getDoc(doc(db, "usuarios_relacionados", docIdAlertas));
           if (!cancelled && familiaSnap.exists()) setFamiliaRede(familiaSnap.data());
-        } catch {/* pode não existir ainda */}
+        } catch {/* opcional */}
       } catch (err) {
         console.error("DossiePage:", err);
         if (!cancelled) setNotFound(true);
@@ -1179,7 +1302,7 @@ export default function DossiePage() {
 
     loadData();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => {
     const idC = politico?.idCamara != null ? Number(politico.idCamara) : null;
@@ -1259,7 +1382,7 @@ export default function DossiePage() {
       try {
         const fn = httpsCallable(functions, "getEmendasParlamentar");
         const result = await fn({
-          politicoDocId: id,
+          politicoDocId: realDocId,
           nomeAutor: nome || undefined,
           codigoAutor: Number.isFinite(idC) ? idC : undefined,
           anos: anosCeapHistoricoCompleto(),
@@ -1279,7 +1402,7 @@ export default function DossiePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+  }, [realDocId, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
 
   useEffect(() => {
     if (!id || !politico) return;
@@ -1291,11 +1414,11 @@ export default function DossiePage() {
       try {
         const fn = httpsCallable(functions, "getEmendasMapaPontos");
         const result = await fn({
-          politicoDocId: id,
+          politicoDocId: realDocId,
           nomeAutor: nome || undefined,
           codigoAutor: Number.isFinite(idC) ? idC : undefined,
           anos: anosCeapHistoricoCompleto(),
-          maxPontos: 20,
+          maxPontos: 8,
         });
         if (!cancelled) setMapaEmendasData(result.data || null);
       } catch (e) {
@@ -1304,37 +1427,93 @@ export default function DossiePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+  }, [id, realDocId, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara, mapRefetchKey]);
 
   useEffect(() => {
-    if (!id) return;
-    setGraphData(null);
+    if (!id || !politico) return;
     let cancelled = false;
-    (async () => {
+
+    const tryFetch = async () => {
+      const idCamara = politico?.idCamara;
+      const docIds = [realDocId, idCamara != null ? String(idCamara) : null].filter(Boolean);
+
+      for (const docKey of docIds) {
+        try {
+          const snap = await getDoc(doc(db, "redes_conexoes", docKey));
+          if (cancelled || !snap.exists()) continue;
+          const d = snap.data();
+          const nodes = d.nodes ?? d.vertices ?? [];
+          const links = d.links ?? d.edges ?? d.arestas ?? [];
+          if (nodes.length > 0) {
+            setGraphData({ nodes, links });
+            return;
+          }
+        } catch {/* ignore */}
+      }
+
       try {
-        const snap1 = await getDoc(doc(db, "redes_conexoes", id));
-        if (cancelled) return;
-        if (snap1.exists()) {
-          const d = snap1.data();
-          const nodes = d.nodes ?? [];
-          const links = d.links ?? d.edges ?? [];
-          if (nodes.length) {
+        const subSnap = await getDocs(collection(db, "politicos", realDocId, "rede"));
+        if (!cancelled && !subSnap.empty) {
+          const nodes = [];
+          const links = [];
+          subSnap.forEach((d) => {
+            const data = d.data();
+            if (Array.isArray(data.nodes)) nodes.push(...data.nodes);
+            const L = data.links ?? data.edges;
+            if (Array.isArray(L)) links.push(...L);
+          });
+          if (nodes.length > 0) {
             setGraphData({ nodes, links });
             return;
           }
         }
-        const snap2 = await getDoc(doc(db, "politicos_rede", id));
-        if (cancelled || !snap2.exists()) return;
-        const d = snap2.data();
-        const nodes = d.nodes ?? [];
-        const links = d.links ?? d.edges ?? [];
-        if (nodes.length) setGraphData({ nodes, links });
-      } catch {
-        if (!cancelled) setGraphData(null);
-      }
-    })();
+      } catch {/* ignore */}
+    };
+
+    tryFetch().catch(console.error);
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, politico, realDocId]);
+
+  useEffect(() => {
+    if ((graphData?.nodes?.length ?? 0) > 0 || !Array.isArray(emendasPortal) || emendasPortal.length === 0 || !politico) return;
+
+    const rid = String(realDocId);
+    const nodes = [{
+      id: rid,
+      name: politico?.nome ?? politico?.nomeCompleto ?? "Parlamentar",
+      type: "politician",
+      val: 12,
+      color: "#C82538",
+    }];
+    const links = [];
+    const municipiosVistos = new Set();
+
+    for (const em of emendasPortal.slice(0, 25)) {
+      const mun = em.municipioNome || em.municipio;
+      if (!mun || municipiosVistos.has(mun)) continue;
+      municipiosVistos.add(mun);
+      const nId = `mun_${mun.replace(/\s/g, "_")}`;
+      const emp = Number(em.valorEmpenhado ?? em.valor ?? 0);
+      const size = Math.min(16, Math.max(6, Math.round(emp / 500000) || 6));
+      nodes.push({
+        id: nId,
+        name: mun,
+        type: "municipality",
+        val: size,
+        color: "#2E7F18",
+      });
+      links.push({
+        source: rid,
+        target: nId,
+        type: "amendment",
+        label: fmtBRL(emp),
+      });
+    }
+
+    if (nodes.length > 1) {
+      setGraphData({ nodes, links, isFallback: true });
+    }
+  }, [graphData, emendasPortal, politico, realDocId]);
 
   useEffect(() => {
     if (!id) return;
@@ -1361,10 +1540,21 @@ export default function DossiePage() {
     return computeCeapTetoMetrics(ceapState.despesas, politico?.uf ?? politico?.estado);
   }, [ceapState.status, ceapState.despesas, politico?.uf, politico?.estado]);
 
+  useEffect(() => {
+    if (ceapMetricsDossie?.gastoTotalAcumulado != null) {
+      setCeapTotalCanonical(ceapMetricsDossie.gastoTotalAcumulado);
+    }
+  }, [ceapMetricsDossie]);
+
   const custoContribuinteCeap = useMemo(() => {
+    if (ceapTotalCanonical != null) return ceapTotalCanonical;
     if (ceapMetricsDossie) return ceapMetricsDossie.gastoTotalAcumulado;
     return parseCamaraValorReais(politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0);
-  }, [ceapMetricsDossie, politico?.gastosCeapTotal, politico?.totalGasto]);
+  }, [ceapTotalCanonical, ceapMetricsDossie, politico?.gastosCeapTotal, politico?.totalGasto]);
+
+  const refetchMapaEmendas = useCallback(() => {
+    setMapRefetchKey((k) => k + 1);
+  }, []);
 
   const emendasKpis = useMemo(() => {
     const list = Array.isArray(emendasPortal) ? emendasPortal : [];
@@ -1388,9 +1578,9 @@ export default function DossiePage() {
       await deductCredits(CUSTO_FULL);
       if (user) {
         await setDoc(
-          doc(db, "usuarios", user.uid, "dossies_desbloqueados", id),
+          doc(db, "usuarios", user.uid, "dossies_desbloqueados", realDocId),
           {
-            politicoId:     id,
+            politicoId:     realDocId,
             nomePolitico:   politico?.nome ?? politico?.nomeCompleto ?? "–",
             partido:        politico?.partido  ?? "–",
             uf:             politico?.uf       ?? "–",
@@ -1402,8 +1592,8 @@ export default function DossiePage() {
           { merge: true },
         );
       }
-      sessionStorage.setItem(sessionKey(id, "full"),  "1");
-      sessionStorage.setItem(sessionKey(id, "basic"), "1");
+      sessionStorage.setItem(sessionKey(realDocId, "full"),  "1");
+      sessionStorage.setItem(sessionKey(realDocId, "basic"), "1");
       setFullUnlocked(true);
       setBasicUnlocked(true);
     } catch (err) {
@@ -1411,7 +1601,7 @@ export default function DossiePage() {
     } finally {
       setUnlocking(false);
     }
-  }, [id, deductCredits, user, politico]);
+  }, [realDocId, deductCredits, user, politico]);
 
   // ── Desbloquear básico (cota diária) ──────────────────────────────────────
   const handleUseQuota = useCallback(async () => {
@@ -1421,9 +1611,9 @@ export default function DossiePage() {
       await useQuota();
       if (user) {
         await setDoc(
-          doc(db, "usuarios", user.uid, "dossies_desbloqueados", id),
+          doc(db, "usuarios", user.uid, "dossies_desbloqueados", realDocId),
           {
-            politicoId:     id,
+            politicoId:     realDocId,
             nomePolitico:   politico?.nome ?? politico?.nomeCompleto ?? "–",
             partido:        politico?.partido ?? "–",
             uf:             politico?.uf      ?? "–",
@@ -1434,14 +1624,14 @@ export default function DossiePage() {
           { merge: true },
         );
       }
-      sessionStorage.setItem(sessionKey(id, "basic"), "1");
+      sessionStorage.setItem(sessionKey(realDocId, "basic"), "1");
       setBasicUnlocked(true);
     } catch (err) {
       setUnlockError(err.message ?? "Cota diária indisponível.");
     } finally {
       setUnlocking(false);
     }
-  }, [id, useQuota, user, politico]);
+  }, [realDocId, useQuota, user, politico]);
 
   // ── PDF export ────────────────────────────────────────────────────────────
   const handleDownloadPDF = useCallback(async () => {
@@ -1487,13 +1677,20 @@ export default function DossiePage() {
   const seoPartido = politico?.partido ?? "";
   const seoUF      = politico?.uf ?? "";
   const seoOracle  = alertas.find(a => a.explicacao_oraculo)?.explicacao_oraculo ?? "";
+  const ceapFmtOg = fmtBRL(ceapTotalCanonical ?? politico?.gastosCeapTotal ?? politico?.totalGasto ?? 0);
+  const scoreOg = forensicHeader?.risco != null ? Math.round(forensicHeader.risco) : "—";
   const seoDesc    = seoOracle
     ? `${seoNome} (${seoPartido}/${seoUF}): ${seoOracle.substring(0, 155)}…`
-    : `Auditoria forense completa de ${seoNome} (${seoPartido}/${seoUF}). Análise de gastos CEAP, emendas parlamentares e alertas de irregularidades pelo TransparenciaBR.`;
-  const seoUrl     = `https://fiscallizapa.web.app/dossie/${id}`;
+    : `Análise forense de gastos de ${seoNome} (${seoPartido}/${seoUF}): CEAP, emendas e alertas no TransparenciaBR.`;
+  const canonicalBase = "https://transparenciabr.com.br";
+  const seoUrl     = `${canonicalBase}/dossie/${realDocId}`;
   const seoTitle   = politico
-    ? `Dossiê: ${seoNome} | TransparenciaBR`
+    ? `${seoNome} — TransparenciaBR`
     : "Dossiê Forense | TransparenciaBR";
+  const ogTitle = `${seoNome} — TransparenciaBR`;
+  const ogDesc = `Score Forense: ${scoreOg}/100 · Gastos CEAP: ${ceapFmtOg}`;
+  const ogImage = absolutizeCamaraUrl(politico?.ultimoStatus?.urlFoto ?? politico?.urlFoto ?? "")
+    || `${canonicalBase}/og-default.png`;
 
   return (
     <>
@@ -1502,15 +1699,16 @@ export default function DossiePage() {
         <meta name="description" content={seoDesc} />
         <link rel="canonical" href={seoUrl} />
         {/* Open Graph — compartilhamento em redes sociais */}
-        <meta property="og:title"       content={seoTitle} />
-        <meta property="og:description" content={seoDesc} />
+        <meta property="og:title"       content={ogTitle} />
+        <meta property="og:description" content={ogDesc} />
         <meta property="og:url"         content={seoUrl} />
+        <meta property="og:image"       content={ogImage} />
         <meta property="og:type"        content="article" />
         <meta property="og:site_name"   content="TransparenciaBR" />
         {/* Twitter Card */}
         <meta name="twitter:card"        content="summary" />
-        <meta name="twitter:title"       content={seoTitle} />
-        <meta name="twitter:description" content={seoDesc} />
+        <meta name="twitter:title"       content={ogTitle} />
+        <meta name="twitter:description" content={ogDesc} />
         {/* Indexação */}
         <meta name="robots" content={fullUnlocked ? "index, follow" : "noindex, follow"} />
         {seoPartido && <meta name="keywords" content={`${seoNome}, ${seoPartido}, auditoria, gastos públicos, CEAP, emendas, corrupção`} />}
@@ -1658,6 +1856,7 @@ export default function DossiePage() {
                 ceapLoading={ceapState.status === "idle" || ceapState.status === "loading"}
                 ceapDespesas={ceapState.status === "ready" ? ceapState.despesas : null}
                 ceapError={ceapState.status === "error" ? ceapState.error : null}
+                ceapTotalCanonical={ceapTotalCanonical}
               />
             )}
 
@@ -1689,11 +1888,16 @@ export default function DossiePage() {
                     pontos={mapaEmendasData?.pontos || []}
                     emendasPix={mapaEmendasData?.emendasPix ?? emendasKpis.pixN}
                     emendasProjeto={mapaEmendasData?.emendasProjeto ?? emendasKpis.projN}
+                    listaFallback={emendasPortal?.emendas ?? emendasPortal}
+                    mostrarListaFallback={
+                      (mapaEmendasData?.pontos?.length ?? 0) === 0 && emendasKpis.total > 0
+                    }
+                    onRecarregarMapa={refetchMapaEmendas}
                   />
                 </Card>
                 <CreditGate custo={1} descricao="Lista detalhada de emendas">
                   <EmendasAba
-                    deputadoId={id}
+                    deputadoId={realDocId}
                     nomeDeputado={politico?.nome || politico?.nomeCompleto}
                     emendasOverride={emendasPortal}
                     totaisAgregadosOverride={{
@@ -1706,7 +1910,7 @@ export default function DossiePage() {
               </div>
             )}
 
-            {/* ══ ABA: AUDITORIA DE GABINETE (F.L.A.V.I.O.) ═══════════ */}
+            {/* ══ ABA: AUDITORIA DE GABINETE ═══════════ */}
             {activeTab === "gabinete" && (
               <div style={{ padding: "0 4px" }}>
                 {/* Aviso de acesso livre */}
@@ -1726,14 +1930,14 @@ export default function DossiePage() {
                   <span style={{ color: "#0d9488", fontSize: "0.9rem" }}>🛡</span>
                   <span>
                     <strong style={{ color: "#0f766e" }}>Acesso Livre</strong>
-                    {" "}— Dados brutos do gabinete auditados pelo Protocolo F.L.A.V.I.O.
-                    O Oráculo Gemini (análise de nepotismo cruzado) requer{" "}
+                    {" "}— Dados brutos do gabinete (pessoal e vínculos).
+                    A análise avançada com IA (nepotismo cruzado) requer{" "}
                     <strong style={{ color: "#c2410c" }}>200 créditos</strong>.
                   </span>
                 </div>
 
                 <CabinetAudit
-                  politicoId={id}
+                  politicoId={realDocId}
                   politicoNome={politico?.nome ?? politico?.nomeCompleto ?? "Deputado"}
                 />
 
@@ -1764,7 +1968,7 @@ export default function DossiePage() {
                       </div>
                     </div>
                     <div style={{ fontSize: "0.8rem", color: "#475569", marginBottom: 12 }}>
-                      🔒 Análise Oráculo de Nepotismo — F.L.A.V.I.O. Premium
+                      🔒 Análise Oráculo de Nepotismo — Premium
                     </div>
                     <button
                       onClick={handlePayFull}
@@ -1796,7 +2000,7 @@ export default function DossiePage() {
               politico={politico}
               scoreForense={forensicHeader?.risco}
               alertasResumo={alertas.slice(0, 5)}
-              custoContribuinte={custoContribuinteCeap}
+              custoContribuinte={ceapTotalCanonical ?? custoContribuinteCeap}
             />
 
             {/* ─── SEÇÃO 2: Monitor de Gastos CEAP (2 créditos) ─────── */}
@@ -1806,6 +2010,7 @@ export default function DossiePage() {
                 ceapLoading={ceapState.status === "idle" || ceapState.status === "loading"}
                 ceapTotalAcumulado={ceapMetricsDossie?.gastoTotalAcumulado ?? null}
                 ceapPeriodoLabel={ceapMetricsDossie?.labelPeriodo ?? null}
+                ceapTotal={ceapTotalCanonical}
               />
             </CreditGate>
 
@@ -1904,7 +2109,7 @@ export default function DossiePage() {
               )}
               <CreditGate custo={2} descricao="Atividade parlamentar completa">
                 <AtividadeParlamentarSection
-                  deputadoId={id}
+                  deputadoId={realDocId}
                   idCamara={politico?.idCamara || id}
                   nome={politico?.nome || politico?.nomeCompleto}
                   colecao="deputados_federais"
@@ -1914,7 +2119,7 @@ export default function DossiePage() {
 
             {/* ─── SEÇÃO 3: Diários Oficiais ──────────────────────────── */}
             <DiariosMencoesSection
-              politicoId={id}
+              politicoId={realDocId}
               credits={credits}
               deductCredits={deductCredits}
             />
@@ -1941,7 +2146,7 @@ export default function DossiePage() {
                 </span>
               </div>
               <PoliticalTimeline
-                politicoId={id}
+                politicoId={realDocId}
                 politicoNome={politico?.nome ?? politico?.nomeCompleto}
                 limit={12}
               />
@@ -1991,6 +2196,8 @@ export default function DossiePage() {
                     pdfRef={pdfRef}
                     onDownloadPDF={handleDownloadPDF}
                     generatingPDF={generatingPDF}
+                    graphData={graphData}
+                    graphIsFallback={Boolean(graphData?.isFallback)}
                   />
                 </div>
 
@@ -2074,7 +2281,8 @@ export default function DossiePage() {
           rank={rank}
           rankTotal={rankTotal}
           nivel5Alertas={nivel5Alertas}
-          ceapTotal={ceapMetricsDossie?.gastoTotalAcumulado}
+          ceapTotal={ceapTotalCanonical ?? ceapMetricsDossie?.gastoTotalAcumulado}
+          scoreForense={forensicHeader?.risco}
         />
       </div>
     </>

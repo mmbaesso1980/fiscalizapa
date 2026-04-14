@@ -24,28 +24,80 @@ function useFixLeafletIcons() {
 /**
  * @param {Array<{ lat: number, lng: number, valor?: number, municipio?: string, tipo?: string, tipoPix?: boolean }>} pontos
  */
-export default function MapaEmendas({ pontos = [], emendasPix = 0, emendasProjeto = 0 }) {
+export default function MapaEmendas({
+  pontos = [],
+  emendasPix = 0,
+  emendasProjeto = 0,
+  listaFallback = null,
+  mostrarListaFallback = false,
+  onRecarregarMapa,
+}) {
   useFixLeafletIcons();
 
   const valid = pontos.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  const lista = Array.isArray(listaFallback) ? listaFallback : [];
   if (valid.length === 0) {
     return (
-      <div
-        style={{
-          height: 200,
-          borderRadius: 12,
-          background: "#f8fafc",
-          border: "1px solid #e2e8f0",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#64748b",
-          fontSize: 13,
-          padding: 16,
-          textAlign: "center",
-        }}
-      >
-        Sem coordenadas para o mapa (municípios sem geocodificação nesta consulta).
+      <div>
+        <div
+          style={{
+            minHeight: 120,
+            borderRadius: 12,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#64748b",
+            fontSize: 13,
+            padding: 16,
+            textAlign: "center",
+          }}
+        >
+          Sem coordenadas para o mapa (municípios sem geocodificação nesta consulta).
+        </div>
+        {mostrarListaFallback && lista.length > 0 && (
+          <div style={{ padding: "16px 0" }}>
+            <p style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
+              Geocodificação em andamento — exibindo lista de destinos:
+            </p>
+            {lista.slice(0, 15).map((em) => (
+              <div
+                key={em.codigo ?? em.id ?? `${em.municipioNome}-${em.valorEmpenhado}`}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "8px 12px",
+                  borderBottom: "1px solid #f1f5f9",
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ color: "#334155" }}>
+                  {em.municipioNome || em.municipio || "–"}
+                </span>
+                <span style={{ color: "#059669", fontWeight: 600 }}>{fmtBRL(em.valorEmpenhado)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {typeof onRecarregarMapa === "function" && (
+          <button
+            type="button"
+            onClick={onRecarregarMapa}
+            style={{
+              marginTop: 12,
+              fontSize: 12,
+              color: "#6366f1",
+              background: "none",
+              border: "1px solid #6366f1",
+              borderRadius: 8,
+              padding: "6px 14px",
+              cursor: "pointer",
+            }}
+          >
+            Recarregar mapa
+          </button>
+        )}
       </div>
     );
   }

@@ -116,8 +116,29 @@ function StaticGraphPreview() {
   );
 }
 
+function normalizeGraphForForce(raw) {
+  if (!raw || !Array.isArray(raw.nodes) || raw.nodes.length === 0) {
+    return { nodes: [], links: [] };
+  }
+  const nodes = raw.nodes.map((n, i) => {
+    const id = n.id != null ? String(n.id) : `n_${i}`;
+    const name = String(n.name ?? n.label ?? id).trim() || id;
+    const val = Number(n.val ?? n.size ?? n.value ?? 8);
+    const color = n.color
+      ?? (n.group === "green" ? "#2E7F18" : n.group === "red" ? "#C82538" : "#888");
+    return { ...n, id, name, val: Number.isFinite(val) ? val : 8, color };
+  });
+  const links = Array.isArray(raw.links)
+    ? raw.links.map((l) => ({
+      ...l,
+      type: l.type || (raw.isFallback ? "amendment" : l.type),
+    }))
+    : [];
+  return { nodes, links };
+}
+
 // ─── Componente do grafo real (lazy-loaded) ───────────────────────────────────
-function ForceGraphWrapper({ graphData, height }) {
+function ForceGraphWrapper({ graphData, height, isFallback }) {
   const [ForceGraph, setForceGraph] = useState(null);
   const [loadError,  setLoadError  ] = useState(false);
   const [hovered,    setHovered    ] = useState(null);
@@ -129,11 +150,9 @@ function ForceGraphWrapper({ graphData, height }) {
       .catch(() => setLoadError(true));
   }, []);
 
-  const hasRealData = graphData
-    && Array.isArray(graphData.nodes)
-    && graphData.nodes.length > 0
-    && Array.isArray(graphData.links);
-  const data = hasRealData ? graphData : { nodes: [], links: [] };
+  const normalized = graphData ? normalizeGraphForForce(graphData) : { nodes: [], links: [] };
+  const hasRealData = normalized.nodes.length > 0;
+  const data = hasRealData ? normalized : { nodes: [], links: [] };
 
   const nodeLabel = useCallback(node => node.name, []);
   const linkColor = useCallback(link => LINK_COLORS[link.type] ?? "rgba(180,180,180,0.5)", []);
@@ -191,10 +210,14 @@ function ForceGraphWrapper({ graphData, height }) {
       }}>
         <div style={{ fontSize: 28 }}>🕸️</div>
         <p style={{ fontSize: 13, fontWeight: 600, color: "#64748b", margin: 0, maxWidth: 360 }}>
-          Nenhum grafo de conexões carregado para este deputado. O Módulo 4 (BigQuery / ingestão) ainda não populou nós e arestas reais.
+          {isFallback
+            ? "Montando visualização…"
+            : "Nenhum grafo de conexões carregado para este deputado. A rede completa depende dos dados agregados no cofre."}
         </p>
         <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>
-          Quando houver dados no cofre, o grafo será preenchido automaticamente.
+          {isFallback
+            ? "Se nada aparecer, aguarde o carregamento das emendas ou verifique a conexão."
+            : "Quando houver dados no cofre, o grafo será preenchido automaticamente."}
         </p>
       </div>
     );
@@ -243,7 +266,8 @@ const LEGEND = [
 ];
 
 // ─── Export principal ─────────────────────────────────────────────────────────
-export default function NetworkGraph({ graphData, politicoId, height = 420 }) {
+export default function NetworkGraph({ graphData, politicoId, height = 420, isFallback = false }) {
+  const fb = Boolean(isFallback || graphData?.isFallback);
   return (
     <section>
       {/* Cabeçalho */}
@@ -259,8 +283,9 @@ export default function NetworkGraph({ graphData, politicoId, height = 420 }) {
           </p>
         </div>
         <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
-                       background: "rgba(100,116,139,0.12)", color: "#64748b" }}>
-          Dados do cofre (BigQuery) quando disponíveis
+                       background: fb ? "rgba(217,119,6,0.12)" : "rgba(100,116,139,0.12)",
+                       color: fb ? "#b45309" : "#64748b" }}>
+          {fb ? "Rede baseada em emendas — rede completa em processamento" : "Dados do cofre quando disponíveis"}
         </span>
       </div>
 
@@ -268,6 +293,7 @@ export default function NetworkGraph({ graphData, politicoId, height = 420 }) {
       <ForceGraphWrapper
         graphData={graphData}
         height={height}
+        isFallback={fb}
       />
 
       {/* Legenda */}
