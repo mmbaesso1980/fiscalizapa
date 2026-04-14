@@ -80,6 +80,8 @@ export function useAuth() {
   const [creditsBonus, setCreditsBonus] = useState(null);
   const [dailyQuota,   setDailyQuota  ] = useState(null); // dossies_gratuitos_restantes
   const [isAdmin,      setIsAdmin     ] = useState(null); // null = carregando
+  const [adminFromClaims, setAdminFromClaims] = useState(false);
+  const [adminFromFirestore, setAdminFromFirestore] = useState(false);
   const [sessionError, setSessionError] = useState(null);
 
   const [sessionId] = useState(() => {
@@ -100,9 +102,20 @@ export function useAuth() {
         setCredits(null);
         setCreditsComprado(null);
         setCreditsBonus(null);
+        setAdminFromClaims(false);
+        setAdminFromFirestore(false);
         localStorage.removeItem("userCredits");
         return;
       }
+
+      (async () => {
+        try {
+          const tr = await u.getIdTokenResult();
+          setAdminFromClaims(tr.claims.admin === true || tr.claims.isAdmin === true);
+        } catch {
+          setAdminFromClaims(false);
+        }
+      })();
 
       // Créditos do localStorage enquanto aguarda Firestore
       const stored = localStorage.getItem("userCredits");
@@ -173,10 +186,10 @@ export function useAuth() {
           setCreditsComprado(comprado);
           setCreditsBonus(bonus);
           localStorage.setItem("userCredits", String(total));
-          setIsAdmin(data?.isAdmin === true || data?.role === "admin");
+          setAdminFromFirestore(data?.isAdmin === true || data?.role === "admin");
           setDailyQuota(data?.dossies_gratuitos_restantes ?? 0);
         } else {
-          setIsAdmin(false);
+          setAdminFromFirestore(false);
           setDailyQuota(0);
           setCreditsComprado(0);
           setCreditsBonus(0);
@@ -184,12 +197,20 @@ export function useAuth() {
       },
       (err) => {
         console.warn("onSnapshot (usuarios) error:", err.message);
-        setIsAdmin(false);
+        setAdminFromFirestore(false);
         setDailyQuota(0);
       },
     );
     return unsub;
   }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+    setIsAdmin(adminFromClaims || adminFromFirestore);
+  }, [user, adminFromClaims, adminFromFirestore]);
 
   // ── Validação de sessão periódica (anti-login simultâneo) ─────────────────
   useEffect(() => {

@@ -139,6 +139,8 @@ export default function PoliticoPage() {
   const [pageError, setPageError] = useState("");
   const [ceapAnos, setCeapAnos] = useState(() => anosCeapHistoricoCompleto());
   const [atividadeData, setAtividadeData] = useState(null);
+  const [camaraPerfil, setCamaraPerfil] = useState(null);
+  const [kpiFinanceirosReady, setKpiFinanceirosReady] = useState(false);
   const CEAP_LIST_MAX = 80;
 
   useEffect(() => {
@@ -170,6 +172,8 @@ export default function PoliticoPage() {
         setAuditError("");
         setEmendasOverride(null);
         setEmendasTotaisPortal(null);
+        setCamaraPerfil(null);
+        setKpiFinanceirosReady(false);
         window.scrollTo({ top: 0, behavior: "smooth" });
 
         const snap = await getDoc(doc(db, col, id));
@@ -189,6 +193,26 @@ export default function PoliticoPage() {
           politico = mergeDeputadoRankingOrg(politico, ext);
         } catch {/* seed / Firestore opcional */}
         if (isMounted) setPol(politico);
+
+        if (col === "deputados_federais" && Number.isFinite(Number(politico.idCamara))) {
+          (async () => {
+            try {
+              const depRes = await fetch(
+                `https://dadosabertos.camara.leg.br/api/v2/deputados/${Number(politico.idCamara)}`,
+              );
+              const depJ = await depRes.json();
+              const d0 = depJ?.dados;
+              if (isMounted && d0) {
+                setCamaraPerfil({
+                  municipio: d0.municipio || d0.ultimoStatus?.municipio || "",
+                  uf: d0.siglaUf || d0.ultimoStatus?.siglaUf || "",
+                });
+              }
+            } catch {
+              if (isMounted) setCamaraPerfil(null);
+            }
+          })();
+        }
 
         const anosCeap = anosCeapHistoricoCompleto();
         const nomeBusca = String(politico.nome || politico.nomeCompleto || data?.nome || "").trim();
@@ -268,7 +292,10 @@ export default function PoliticoPage() {
         })());
 
         await Promise.all(promises);
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setKpiFinanceirosReady(true);
+          setLoading(false);
+        }
       } catch (error) {
         console.error("Erro geral:", error);
         if (isMounted) { setPol(null); setGastos([]); setEmendas([]); setPageError("Não foi possível carregar o dossiê."); setLoading(false); }
@@ -329,7 +356,14 @@ export default function PoliticoPage() {
               {pol.nome}
             </h1>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginBottom: 10 }}>
-              {[pol.partido, normalizeUF(pol.uf, pol.estado), getCargoPolitico(pol)].filter(Boolean).map((t) => (
+              {[
+                pol.partido,
+                normalizeUF(pol.uf, pol.estado),
+                camaraPerfil?.municipio
+                  ? `${camaraPerfil.municipio}${camaraPerfil.uf ? `/${camaraPerfil.uf}` : ""} (Câmara)`
+                  : null,
+                getCargoPolitico(pol),
+              ].filter(Boolean).map((t) => (
                 <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 99, background: "#f3f4f6", color: "#6b7280" }}>
                   {t}
                 </span>
@@ -373,9 +407,9 @@ export default function PoliticoPage() {
 
       <div className="max-w-5xl mx-auto px-6 space-y-6">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
-          <StatCard label="Gasto CEAP auditado" value={fmtMoney(totalGastos)} />
-          <StatCard label="Notas fiscais" value={qtdNotas} />
-          <StatCard label="Emendas" value={fmtEmendaMoney(totalEmendas)} />
+          <StatCard label="Gasto CEAP auditado" value={kpiFinanceirosReady ? fmtMoney(totalGastos) : "…"} />
+          <StatCard label="Notas fiscais" value={kpiFinanceirosReady ? qtdNotas : "…"} />
+          <StatCard label="Emendas" value={kpiFinanceirosReady ? fmtEmendaMoney(totalEmendas) : "…"} />
           <StatCard label="Proposições" value={atividadeData?.totalProposicoes ?? "—"} />
         </div>
 

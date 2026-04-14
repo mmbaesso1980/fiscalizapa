@@ -9,8 +9,8 @@
  * Fallback: skeleton com mensagem informativa se o pacote não estiver instalado.
  *
  * Props:
- *  graphData  — { nodes: Node[], links: Link[] } (opcional — usa mock se ausente)
- *  politicoId — string (usado para personalizar mock)
+ *  graphData  — { nodes: Node[], links: Link[] } (obrigatório para exibir o grafo)
+ *  politicoId — string (reservado para futuras chaves de cache)
  *  height     — number (padrão: 420)
  *
  * Estrutura de dados para ingestão futura do BigQuery (Módulo 4):
@@ -21,34 +21,6 @@
  */
 
 import { useRef, useEffect, useState, lazy, Suspense, useCallback } from "react";
-
-// ─── Dados mock (Módulo 4: estrutura pronta para BigQuery) ──────────────────
-function buildMockGraph(politicoId) {
-  const polId = politicoId ?? "pol_mock";
-  return {
-    nodes: [
-      { id: polId,     name: "Parlamentar",          type: "politician",   val: 12, color: "#C82538" },
-      { id: "emp_1",   name: "Construtora Alpha S.A.", type: "company",    val: 8,  color: "#D97706" },
-      { id: "emp_2",   name: "TecnoSaúde Ltda.",       type: "company",    val: 6,  color: "#D97706" },
-      { id: "emp_3",   name: "Agro Fértil ME",         type: "company",    val: 5,  color: "#D97706" },
-      { id: "soc_1",   name: "José R. Santos",          type: "person",    val: 6,  color: "#3B82F6" },
-      { id: "soc_2",   name: "Maria F. Lima (cônjuge)", type: "person",    val: 5,  color: "#8B5CF6" },
-      { id: "mun_1",   name: "Belém/PA",                type: "municipality", val: 4, color: "#2E7F18" },
-      { id: "fund_1",  name: "Fundo Eleitoral XYZ",     type: "fund",      val: 4,  color: "#FBD87F" },
-    ],
-    links: [
-      { source: polId,   target: "emp_1",  label: "Emenda R$1,2M",    type: "amendment" },
-      { source: polId,   target: "emp_2",  label: "Contrato R$780k",  type: "contract"  },
-      { source: polId,   target: "soc_2",  label: "Parentesco (§3º)", type: "kinship"   },
-      { source: polId,   target: "fund_1", label: "Doação R$50k",     type: "donation"  },
-      { source: "soc_1", target: "emp_1",  label: "Sócio 35%",        type: "ownership" },
-      { source: "soc_2", target: "emp_3",  label: "Sócia 60%",        type: "ownership" },
-      { source: "emp_1", target: "mun_1",  label: "Obra Pública",     type: "contract"  },
-      { source: "emp_2", target: "mun_1",  label: "Serviço Saúde",    type: "contract"  },
-      { source: "soc_1", target: "soc_2",  label: "Familiar",         type: "kinship"   },
-    ],
-  };
-}
 
 // ─── Cores dos links por tipo ─────────────────────────────────────────────────
 const LINK_COLORS = {
@@ -145,7 +117,7 @@ function StaticGraphPreview() {
 }
 
 // ─── Componente do grafo real (lazy-loaded) ───────────────────────────────────
-function ForceGraphWrapper({ graphData, height, politicoId }) {
+function ForceGraphWrapper({ graphData, height }) {
   const [ForceGraph, setForceGraph] = useState(null);
   const [loadError,  setLoadError  ] = useState(false);
   const [hovered,    setHovered    ] = useState(null);
@@ -157,7 +129,11 @@ function ForceGraphWrapper({ graphData, height, politicoId }) {
       .catch(() => setLoadError(true));
   }, []);
 
-  const data = graphData ?? buildMockGraph(politicoId);
+  const hasRealData = graphData
+    && Array.isArray(graphData.nodes)
+    && graphData.nodes.length > 0
+    && Array.isArray(graphData.links);
+  const data = hasRealData ? graphData : { nodes: [], links: [] };
 
   const nodeLabel = useCallback(node => node.name, []);
   const linkColor = useCallback(link => LINK_COLORS[link.type] ?? "rgba(180,180,180,0.5)", []);
@@ -197,6 +173,32 @@ function ForceGraphWrapper({ graphData, height, politicoId }) {
 
   if (loadError) return <GraphError height={height} />;
   if (!ForceGraph) return <GraphSkeleton height={height} />;
+
+  if (!hasRealData) {
+    return (
+      <div style={{
+        height,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+        borderRadius: 14,
+        border: "1px dashed #DDD8D0",
+        background: "rgba(255,255,255,0.6)",
+        padding: 24,
+        textAlign: "center",
+      }}>
+        <div style={{ fontSize: 28 }}>🕸️</div>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "#64748b", margin: 0, maxWidth: 360 }}>
+          Nenhum grafo de conexões carregado para este deputado. O Módulo 4 (BigQuery / ingestão) ainda não populou nós e arestas reais.
+        </p>
+        <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>
+          Quando houver dados no cofre, o grafo será preenchido automaticamente.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ borderRadius: 14, overflow: "hidden",
@@ -257,8 +259,8 @@ export default function NetworkGraph({ graphData, politicoId, height = 420 }) {
           </p>
         </div>
         <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
-                       background: "rgba(217,119,6,0.1)", color: "#D97706" }}>
-          MOCK — BigQuery: módulo 4
+                       background: "rgba(100,116,139,0.12)", color: "#64748b" }}>
+          Dados do cofre (BigQuery) quando disponíveis
         </span>
       </div>
 
@@ -266,7 +268,6 @@ export default function NetworkGraph({ graphData, politicoId, height = 420 }) {
       <ForceGraphWrapper
         graphData={graphData}
         height={height}
-        politicoId={politicoId}
       />
 
       {/* Legenda */}

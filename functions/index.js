@@ -558,7 +558,11 @@ function portalApiGet(pathWithLeadingSlash) {
     const opts = {
       hostname: 'api.portaldatransparencia.gov.br',
       path: pathWithLeadingSlash,
-      headers: { Accept: 'application/json', 'chave-api-dados': key },
+      headers: {
+        Accept: 'application/json',
+        'chave-api-dados': key,
+        'chave-api-dados-abertos': key,
+      },
     };
     https.get(opts, (res) => {
       let data = '';
@@ -585,6 +589,12 @@ function fetchJson(url) {
       });
     }).on('error', reject);
   });
+}
+
+function logPortalEmendasDebug(label, info) {
+  if (process.env.DEBUG_PORTAL_EMENDAS === '1') {
+    console.log(`[getEmendas] ${label}`, info);
+  }
 }
 
 /** CEAP: float em reais; evita concatenação no cliente; centavos inteiros enormes → /100 */
@@ -817,14 +827,24 @@ exports.getEmendasParlamentar = onCall(OPTS, async (req) => {
   }
 
   try {
-    if (codigoAutor) {
-      await ingestAnos(() => `codigoAutor=${encodeURIComponent(codigoAutor)}`);
-    }
-    // id Câmara ≠ codigoAutor do Portal — se vier vazio, repetir com nome normalizado
-    if (byCodigo.size === 0 && nomeQuery) {
-      byCodigo.clear();
+    // id Câmara ≠ codigoAutor do Portal — priorizar nome (match correto no Portal)
+    if (nomeQuery) {
       await ingestAnos(() => `nomeAutor=${encodeURIComponent(nomeQuery)}`);
     }
+    logPortalEmendasDebug('after nomeAutor', {
+      politicoDocId,
+      linhas: byCodigo.size,
+      nomeQuery: Boolean(nomeQuery),
+    });
+    if (byCodigo.size === 0 && codigoAutor) {
+      byCodigo.clear();
+      await ingestAnos(() => `codigoAutor=${encodeURIComponent(codigoAutor)}`);
+    }
+    logPortalEmendasDebug('after codigoAutor fallback', {
+      politicoDocId,
+      linhas: byCodigo.size,
+      codigoAutor: codigoAutor || null,
+    });
 
     const emendas = [...byCodigo.values()].map((raw) => {
       const cod = String(raw.codigoEmenda);
@@ -1071,12 +1091,12 @@ exports.getEmendasMapaPontos = onCall(OPTS, async (req) => {
   }
 
   try {
-    if (codigoAutor) {
-      await ingestMapaAnos(() => `codigoAutor=${encodeURIComponent(codigoAutor)}`);
-    }
-    if (byCodigo.size === 0 && nomeQuery) {
-      byCodigo.clear();
+    if (nomeQuery) {
       await ingestMapaAnos(() => `nomeAutor=${encodeURIComponent(nomeQuery)}`);
+    }
+    if (byCodigo.size === 0 && codigoAutor) {
+      byCodigo.clear();
+      await ingestMapaAnos(() => `codigoAutor=${encodeURIComponent(codigoAutor)}`);
     }
 
     const rows = [...byCodigo.values()].map((raw) => {

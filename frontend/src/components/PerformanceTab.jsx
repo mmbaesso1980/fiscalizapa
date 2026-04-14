@@ -304,6 +304,7 @@ function GastosMonitor({ loading, metrics, fallbackGasto, fallbackLimite, fallba
   const percentual = real ? metrics.percentualAnual : fallbackPercentual;
   const anoRef = real ? metrics.anoRef : new Date().getFullYear();
 
+  const multiAno = real && metrics.primeiroAno < metrics.anoRef;
   const isCritico  = percentual >= ALERTA_USO_CRITICO;
   const isElevado  = percentual >= ALERTA_USO_ELEVADO && !isCritico;
 
@@ -384,6 +385,13 @@ function GastosMonitor({ loading, metrics, fallbackGasto, fallbackLimite, fallba
           </div>
         </div>
       </div>
+
+      {multiAno && real && (
+        <p style={{ fontSize: 10, color: "#64748b", margin: "0 0 12px", lineHeight: 1.45 }}>
+          Comparativo <strong>acumulado</strong> {metrics.labelPeriodo}:{" "}
+          {metrics.percentualAcumuladoVsTetoMulti.toFixed(1)}% do teto anual × número de anos com lançamentos (estimativa; resolução CEAP por UF).
+        </p>
+      )}
 
       <div style={{ marginBottom: 14 }}>
         <div style={{
