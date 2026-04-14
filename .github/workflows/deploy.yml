@@ -70,10 +70,7 @@ jobs:
         working-directory: functions
         run: |
           echo "PORTAL_TRANSPARENCIA_API_KEY=${{ secrets.PORTAL_TRANSPARENCIA_API_KEY }}" > .env
-          echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
-          echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-          echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
-          echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+          echo "SQLSERVER=${{ secrets.SQLSERVER }}" >> .env
       - name: "Setup credenciais"
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
