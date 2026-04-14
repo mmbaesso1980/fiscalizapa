@@ -1,60 +1,99 @@
-name: Deploy FiscalizaBR to Firebase
+name: Deploy TransparenciaBR — Hosting + Functions + Firestore
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  FIREBASE_PROJECT: fiscallizapa
+  NODE_VERSION: "20"
 
 jobs:
-  deploy:
+
+  deploy-hosting:
+    name: "Build Vite → Deploy Hosting"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      deployments: write
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '24'
-
-      - name: Install app dependencies
-        run: npm install --legacy-peer-deps
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: "frontend/package-lock.json"
+      - name: "Instalar frontend"
         working-directory: frontend
-
-      - name: Build React app
+        run: npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps
+      - name: "Build Vite"
+        working-directory: frontend
+        env:
+          NODE_ENV: production
+          VITE_FIREBASE_API_KEY:             ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN:         ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID:          ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET:      ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID:              ${{ secrets.VITE_FIREBASE_APP_ID }}
         run: npm run build
-        working-directory: frontend
-
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-
-      - name: Setup Google credentials
+      - name: "Setup credenciais"
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json" >> $GITHUB_ENV
-
-      - name: Deploy Hosting
-        run: firebase deploy --only hosting --non-interactive --project=fiscallizapa
+      - name: "Deploy Hosting"
+        run: |
+          npm install -g firebase-tools --silent
+          firebase deploy --only hosting --non-interactive --project=${{ env.FIREBASE_PROJECT }}
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
 
-      - name: Install functions dependencies
-        run: npm install --legacy-peer-deps
+  deploy-functions:
+    name: "Deploy Functions + Firestore Rules"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: "functions/package-lock.json"
+      - name: "Instalar functions"
         working-directory: functions
-
-      - name: Create .env for Functions
+        run: npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps
+      - name: "Criar .env"
+        working-directory: functions
         run: |
-          echo "DB_HOST=${{ secrets.DB_HOST }}" > .env
+          echo "PORTAL_TRANSPARENCIA_API_KEY=${{ secrets.PORTAL_TRANSPARENCIA_API_KEY }}" > .env
+          echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
           echo "DB_USER=${{ secrets.DB_USER }}" >> .env
           echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
           echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
-          echo "PORTAL_TRANSPARENCIA_API_KEY=${{ secrets.PORTAL_TRANSPARENCIA_API_KEY }}" >> .env
-        working-directory: functions
-
-      - name: Deploy Functions + Firestore rules
-        run: firebase deploy --only functions,firestore --non-interactive --project=fiscallizapa --force
+      - name: "Setup credenciais"
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json" >> $GITHUB_ENV
+      - name: "Deploy Functions + Firestore"
+        run: |
+          npm install -g firebase-tools --silent
+          firebase deploy --only functions,firestore --non-interactive --project=${{ env.FIREBASE_PROJECT }} --force
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
+
+  report:
+    name: "Relatorio"
+    runs-on: ubuntu-latest
+    needs: [deploy-hosting, deploy-functions]
+    if: always()
+    steps:
+      - name: "Status"
+        run: |
+          echo "Hosting:   ${{ needs.deploy-hosting.result }}"
+          echo "Functions: ${{ needs.deploy-functions.result }}"
+          echo "URL:       https://transparenciabr.com.br"
+          echo "Commit:    ${{ github.sha }}"
