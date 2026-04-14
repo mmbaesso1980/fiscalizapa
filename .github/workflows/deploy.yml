@@ -56,6 +56,9 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    env:
+      PORTAL_TRANSPARENCIA_API_KEY: ${{ secrets.PORTAL_TRANSPARENCIA_API_KEY }}
+      SQLSERVER: ${{ secrets.SQLSERVER }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -69,8 +72,8 @@ jobs:
       - name: "Criar .env"
         working-directory: functions
         run: |
-          echo "PORTAL_TRANSPARENCIA_API_KEY=${{ secrets.PORTAL_TRANSPARENCIA_API_KEY }}" > .env
-          echo "SQLSERVER=${{ secrets.SQLSERVER }}" >> .env
+          printf 'PORTAL_TRANSPARENCIA_API_KEY=%s\n' "$PORTAL_TRANSPARENCIA_API_KEY" > .env
+          printf 'SQLSERVER=%s\n' "$SQLSERVER" >> .env
       - name: "Setup credenciais"
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
