@@ -16,15 +16,15 @@ export function useCreditSystem() {
   const checkCredits = useCallback(
     async (custo) => {
       if (!user) return false;
+      if (isAdminFromAuth === true) return true;
       try {
         const snap = await getDoc(doc(db, "usuarios", user.uid));
         if (!snap.exists()) return true;
         const data = snap.data();
         if (usuarioCreditosIlimitados(data)) return true;
-        if (isAdminFromAuth === true) return true;
         return userHasEnoughCredits(db, user.uid, custo);
       } catch (err) {
-        console.error("checkCredits fail-open (transação é a barreira real):", err);
+        console.error("checkCredits error", err);
         return true;
       }
     },
