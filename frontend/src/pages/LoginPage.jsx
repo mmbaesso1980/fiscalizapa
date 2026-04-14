@@ -7,7 +7,7 @@ import LoginModal from "../components/LoginModal";
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, login, loginWithGitHub, loginWithEmail, registerWithEmail } = useAuth();
+  const { user, loading, login, loginWithGitHub, loginWithEmail, registerWithEmail } = useAuth();
   const [showModal, setShowModal] = useState(true);
 
   const from =
@@ -16,11 +16,10 @@ export default function LoginPage() {
     "/ranking";
 
   useEffect(() => {
-    if (user) {
-      const dest = typeof from === "string" && from.startsWith("/") ? from : "/ranking";
-      navigate(dest, { replace: true });
-    }
-  }, [user, from, navigate]);
+    if (loading || !user) return;
+    const dest = typeof from === "string" && from.startsWith("/") ? from : "/ranking";
+    navigate(dest, { replace: true });
+  }, [user, loading, from, navigate]);
 
   return (
     <div
