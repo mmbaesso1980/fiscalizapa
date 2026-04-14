@@ -46,13 +46,19 @@ export function CreditGate({ custo, descricao, children, onDesbloqueado }) {
       setDesbloqueado(true);
       onDesbloqueado?.();
     } catch (e) {
-      const msg = e?.message || "Não foi possível desbloquear.";
+      const msg = String(e?.message || "");
+      const code = e?.code;
       if (msg.includes("boas-vindas") || msg.includes("Bem-vindo")) {
         setErro("🎉 " + msg);
-      } else if (/permission|insufficient/i.test(msg) || e?.code === "permission-denied") {
+      } else if (
+        /permission/i.test(msg)
+        || code === "permission-denied"
+      ) {
         setErro("Erro de acesso. Recarregue a página e tente novamente.");
+      } else if (/saldo|crédito|credito|insuf/i.test(msg)) {
+        setErro("Créditos insuficientes. Adquira mais créditos para continuar.");
       } else {
-        setErro(msg);
+        setErro(msg || "Erro ao desbloquear. Tente novamente.");
       }
     } finally {
       setLoading(false);

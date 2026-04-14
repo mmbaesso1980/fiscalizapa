@@ -151,6 +151,7 @@ service cloud.firestore {
       // ── Subcoleção: historico_creditos/{id} (consumo via cliente) ────────
       match /historico_creditos/{histId} {
         allow read: if isOwner(uid) || isAdmin();
+        // ts: serverTimestamp() do cliente avalia como null nas rules — não exigir == request.time
         allow create: if isOwner(uid)
             && request.resource.data.keys().hasOnly(['tipo', 'valor', 'descricao', 'ts'])
             && request.resource.data.tipo == 'uso'
@@ -159,7 +160,7 @@ service cloud.firestore {
             && request.resource.data.valor >= -500
             && request.resource.data.descricao is string
             && request.resource.data.descricao.size() <= 500
-            && request.resource.data.ts == request.time;
+            && (request.resource.data.ts == null || request.resource.data.ts == request.time);
         allow update, delete: if false;
       }
 
@@ -173,9 +174,10 @@ service cloud.firestore {
         // Criado em DossiePage.jsx após deductCredits() confirmar débito
         allow create: if isOwner(uid) && isValidDossieCreate();
 
-        // Update/delete proibidos: a compra é permanente e imutável
-        allow update: if false;
-        allow delete:  if false;
+        // setDoc(..., { merge: true }) em doc existente = update — precisa da mesma validação
+        allow update: if isOwner(uid) && isValidDossieCreate();
+
+        allow delete: if false;
       }
     }
 
