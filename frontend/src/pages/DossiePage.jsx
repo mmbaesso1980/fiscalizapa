@@ -95,6 +95,70 @@ function sessionKey(id, tipo = "full") {
   return `dossie_${tipo}_${id}`;
 }
 
+/** JSON da API GET /deputados/{id} → campos usados na UI */
+async function fetchCamaraDeputadoJson(idCamara) {
+  const n = Number(idCamara);
+  if (!Number.isFinite(n)) return null;
+  try {
+    const res = await fetch(
+      `https://dadosabertos.camara.leg.br/api/v2/deputados/${n}`,
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.dados ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Mescla identidade da API da Câmara (ultimoStatus) em objeto político */
+function applyCamaraIdentityFromDados(d) {
+  if (!d) return {};
+  const us = d.ultimoStatus || {};
+  const idC = d.id != null ? Number(d.id) : NaN;
+  const nome = (us.nomeEleitoral || d.nome || d.nomeCivil || "").trim();
+  const siglaPartido = (us.siglaPartido || d.siglaPartido || "").trim();
+  const uf = (us.siglaUf || d.siglaUf || d.uf || "").trim();
+  let urlFoto = absolutizeCamaraUrl(us.urlFoto || d.urlFoto || "");
+  if (!urlFoto && Number.isFinite(idC)) {
+    urlFoto = `https://www.camara.leg.br/img/deputados/med/${idC}.jpg`;
+  }
+  return {
+    nome: nome || undefined,
+    nomeCompleto: d.nome || nome || undefined,
+    nomeCivil: d.nomeCivil || "",
+    cpf: d.cpf || "",
+    siglaPartido: siglaPartido || undefined,
+    partido: siglaPartido || undefined,
+    uf: uf || undefined,
+    idCamara: Number.isFinite(idC) ? idC : undefined,
+    urlFoto,
+    ultimoStatus: {
+      ...us,
+      nomeEleitoral: us.nomeEleitoral,
+      siglaPartido,
+      siglaUf: uf,
+      urlFoto: us.urlFoto || d.urlFoto,
+    },
+    situacao: us.situacao || d.situacao || "",
+    email: d.email || us.email || "",
+    gabinete: us.gabinete ?? d.gabinete,
+    municipioNascimento: d.municipioNascimento || "",
+    ufNascimento: d.ufNascimento || "",
+    dataNascimento: d.dataNascimento || "",
+    escolaridade: d.escolaridade || "",
+    sexo: d.sexo || "",
+  };
+}
+
+function needsIdentityEnrichment(pol) {
+  if (!pol) return true;
+  const nome = pol.nome || pol.nomeCompleto;
+  const partido = pol.siglaPartido || pol.partido;
+  const foto = pol.urlFoto || pol?.ultimoStatus?.urlFoto;
+  return !nome || !partido || !foto;
+}
+
 // ─── SEV config ────────────────────────────────────────────────────────────────
 const SEV = {
   ALTA:  { label: "Alto Risco", color: "#C82538", bg: "rgba(200,37,56,0.08)"  },
@@ -1160,43 +1224,82 @@ export default function DossiePage() {
     async function loadData() {
       setDataLoading(true);
       try {
-        const isNumericId = /^\d+$/.test(String(id));
+        const sid = String(id);
+        const isNumericRoute = /^\d+$/.test(sid);
         let pol = null;
         let allowPoliticosPhotoWrite = false;
 
-        if (isNumericId) {
-          const idCamaraNum = Number(id);
-          const pq = query(collection(db, "politicos"), where("idCamara", "==", idCamaraNum), limit(1));
-          const pr = await getDocs(pq);
-          if (pr.docs[0]) {
-            const d = pr.docs[0];
-            if (!cancelled) {
-              navigate(`/dossie/${d.id}`, { replace: true });
-            }
-            return;
-          }
-          const dq = query(collection(db, "deputados_federais"), where("idCamara", "==", idCamaraNum), limit(1));
-          const dr = await getDocs(dq);
-          if (!dr.docs[0]) {
-            if (!cancelled) setNotFound(true);
-            return;
-          }
-          pol = { id: dr.docs[0].id, ...dr.docs[0].data() };
-          if (!cancelled) setRealDocId(dr.docs[0].id);
+        const legFirst = await getDoc(doc(db, "deputados_federais", sid));
+        if (legFirst.exists()) {
+          pol = { id: legFirst.id, ...legFirst.data() };
+          if (!cancelled) setRealDocId(legFirst.id);
         } else {
-          const pSnap = await getDoc(doc(db, "politicos", id));
-          if (pSnap.exists()) {
-            pol = { id: pSnap.id, ...pSnap.data() };
-            if (!cancelled) setRealDocId(pSnap.id);
+          const pFirst = await getDoc(doc(db, "politicos", sid));
+          if (pFirst.exists()) {
+            pol = { id: pFirst.id, ...pFirst.data() };
+            if (!cancelled) setRealDocId(pFirst.id);
             allowPoliticosPhotoWrite = true;
+          }
+        }
+
+        if (!pol && isNumericRoute) {
+          const idCamaraNum = Number(sid);
+          const dq = query(
+            collection(db, "deputados_federais"),
+            where("idCamara", "==", idCamaraNum),
+            limit(1),
+          );
+          const dr = await getDocs(dq);
+          if (dr.docs[0]) {
+            pol = { id: dr.docs[0].id, ...dr.docs[0].data() };
+            if (!cancelled) setRealDocId(dr.docs[0].id);
           } else {
-            const leg = await getDoc(doc(db, "deputados_federais", id));
-            if (!leg.exists()) {
-              if (!cancelled) setNotFound(true);
+            const pq = query(
+              collection(db, "politicos"),
+              where("idCamara", "==", idCamaraNum),
+              limit(1),
+            );
+            const pr = await getDocs(pq);
+            if (pr.docs[0]) {
+              const d = pr.docs[0];
+              if (!cancelled) {
+                navigate(`/dossie/${d.id}`, { replace: true });
+              }
               return;
             }
-            pol = { id: leg.id, ...leg.data() };
-            if (!cancelled) setRealDocId(leg.id);
+          }
+        }
+
+        if (!pol && isNumericRoute) {
+          const camaraDados = await fetchCamaraDeputadoJson(sid);
+          if (camaraDados) {
+            const enriched = applyCamaraIdentityFromDados(camaraDados);
+            pol = {
+              id: sid,
+              ...enriched,
+              fromCamaraOnly: true,
+            };
+            if (!cancelled) setRealDocId(sid);
+          }
+        }
+
+        if (!pol) {
+          if (!cancelled) setNotFound(true);
+          return;
+        }
+
+        if (needsIdentityEnrichment(pol)) {
+          const idApi =
+            pol.idCamara != null && Number.isFinite(Number(pol.idCamara))
+              ? Number(pol.idCamara)
+              : isNumericRoute
+                ? Number(sid)
+                : NaN;
+          if (Number.isFinite(idApi)) {
+            const camaraDados = await fetchCamaraDeputadoJson(idApi);
+            if (camaraDados) {
+              pol = { ...pol, ...applyCamaraIdentityFromDados(camaraDados) };
+            }
           }
         }
 
