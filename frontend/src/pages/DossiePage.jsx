@@ -555,7 +555,7 @@ function OracleLaboratory({ politico, alertas, rank, rankTotal, fullUnlocked, pd
           background: "rgba(253,252,251,0.8)", borderRadius: 14,
           border: "1px solid rgba(237,235,232,0.8)", padding: "18px 18px 14px",
         }}>
-          <NetworkGraph politicoId={politico?.id} height={380} />
+          <NetworkGraph graphData={graphData} politicoId={politico?.id} height={380} />
         </div>
       ) : (
         <div style={{
@@ -801,7 +801,7 @@ function PDFLogo() {
 }
 
 // ─── Conteúdo PDF oculto ──────────────────────────────────────────────────────
-function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Alertas = [] }) {
+function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Alertas = [], ceapTotal }) {
   const rank1 = politico?.rank_externo != null
     ? Number(politico.rank_externo)
     : (typeof rank === "number" && rank >= 0 ? rank + 1 : 256);
@@ -844,7 +844,7 @@ function DossiePDFContent({ pdfRef, politico, alertas, rank, rankTotal, nivel5Al
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
         {[
-          { l: "CEAP Total",    v: fmtBRL(politico?.gastosCeapTotal ?? politico?.totalGasto) },
+          { l: "CEAP Total",    v: fmtBRL(ceapTotal ?? politico?.gastosCeapTotal ?? politico?.totalGasto) },
           { l: "Total Emendas", v: fmtBRL(politico?.totalEmendas) },
           { l: "Presença",      v: politico?.presenca ? `${politico.presenca}%` : "–" },
         ].map(m => (
@@ -1049,6 +1049,7 @@ export default function DossiePage() {
   const [emendasLoading,   setEmendasLoading ] = useState(false);
   const [mapaEmendasData,  setMapaEmendasData ] = useState(null);
   const [forensicHeader,   setForensicHeader ] = useState(null);
+  const [graphData, setGraphData] = useState(null);
   /** CEAP agregado (2019→ano atual) via getAuditoriaPolitico — alinha teto e totais com a API da Câmara */
   const [ceapState, setCeapState] = useState({
     status: "idle",
@@ -1133,10 +1134,27 @@ export default function DossiePage() {
         if (!cancelled && idx !== -1) setRank(idx);
 
         try {
-          const alertSnap = await getDocs(
-            query(collection(db, "alertas_bodes"), where("parlamentar_id", "==", id),
-                  orderBy("criadoEm", "desc"), limit(20))
-          );
+          let alertSnap;
+          try {
+            alertSnap = await getDocs(
+              query(collection(db, "alertas_bodes"), where("parlamentar_id", "==", id),
+                    orderBy("criadoEm", "desc"), limit(20)),
+            );
+          } catch {
+            alertSnap = await getDocs(
+              query(collection(db, "alertas_bodes"), where("parlamentar_id", "==", id), limit(20)),
+            );
+          }
+          if (alertSnap.empty && pol?.idCamara != null) {
+            const idCam = Number(pol.idCamara);
+            if (Number.isFinite(idCam)) {
+              try {
+                alertSnap = await getDocs(
+                  query(collection(db, "alertas_bodes"), where("idCamara", "==", idCam), limit(20)),
+                );
+              } catch {/* índice ou campo */}
+            }
+          }
           if (!cancelled) {
             const allAlertas = alertSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             setAlertas(allAlertas);
@@ -1189,7 +1207,7 @@ export default function DossiePage() {
   }, [id]);
 
   useEffect(() => {
-    if (!user || !id || !politico) return;
+    if (!id || !politico) return;
     let cancelled = false;
     const nome = politico.nome || politico.nomeCompleto;
     const idC = politico.idCamara != null ? Number(politico.idCamara) : null;
@@ -1226,10 +1244,10 @@ export default function DossiePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user, id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+  }, [id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
 
   useEffect(() => {
-    if (!user || !id || !politico) return;
+    if (!id || !politico) return;
     let cancelled = false;
     const nome = politico.nome || politico.nomeCompleto;
     const idC = politico.idCamara != null ? Number(politico.idCamara) : null;
@@ -1261,10 +1279,10 @@ export default function DossiePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user, id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+  }, [id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
 
   useEffect(() => {
-    if (!user || !id || !politico) return;
+    if (!id || !politico) return;
     let cancelled = false;
     const nome = politico.nome || politico.nomeCompleto;
     const idC = politico.idCamara != null ? Number(politico.idCamara) : null;
@@ -1286,7 +1304,37 @@ export default function DossiePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user, id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+  }, [id, politico?.id, politico?.nome, politico?.nomeCompleto, politico?.idCamara]);
+
+  useEffect(() => {
+    if (!id) return;
+    setGraphData(null);
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap1 = await getDoc(doc(db, "redes_conexoes", id));
+        if (cancelled) return;
+        if (snap1.exists()) {
+          const d = snap1.data();
+          const nodes = d.nodes ?? [];
+          const links = d.links ?? d.edges ?? [];
+          if (nodes.length) {
+            setGraphData({ nodes, links });
+            return;
+          }
+        }
+        const snap2 = await getDoc(doc(db, "politicos_rede", id));
+        if (cancelled || !snap2.exists()) return;
+        const d = snap2.data();
+        const nodes = d.nodes ?? [];
+        const links = d.links ?? d.edges ?? [];
+        if (nodes.length) setGraphData({ nodes, links });
+      } catch {
+        if (!cancelled) setGraphData(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -2019,7 +2067,15 @@ export default function DossiePage() {
         </div>
 
         {/* PDF oculto fora do fluxo */}
-        <DossiePDFContent pdfRef={pdfRef} politico={politico} alertas={alertas} rank={rank} rankTotal={rankTotal} nivel5Alertas={nivel5Alertas} />
+        <DossiePDFContent
+          pdfRef={pdfRef}
+          politico={politico}
+          alertas={alertas}
+          rank={rank}
+          rankTotal={rankTotal}
+          nivel5Alertas={nivel5Alertas}
+          ceapTotal={ceapMetricsDossie?.gastoTotalAcumulado}
+        />
       </div>
     </>
   );
