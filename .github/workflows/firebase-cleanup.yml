@@ -20,3 +20,8 @@ jobs:
         env:
           FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node scripts/firebaseCleanup.js
+
+      - name: Fix master account
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/fixMasterAccount.js

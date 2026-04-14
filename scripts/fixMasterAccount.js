@@ -7,19 +7,24 @@
 const path = require('path');
 const admin = require('firebase-admin');
 
-const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
-  || path.join(__dirname, '..', 'service-account.json');
-
 let credential;
-try {
-  // eslint-disable-next-line import/no-dynamic-require, global-require
-  credential = admin.credential.cert(require(serviceAccountPath));
-} catch (e) {
-  console.error(
-    'Defina GOOGLE_APPLICATION_CREDENTIALS ou coloque service-account.json na raiz do repo.',
-    e.message,
-  );
-  process.exit(1);
+if (process.env.FIREBASE_SA_JSON) {
+  // CI: service account como JSON string (GitHub Actions secret)
+  credential = admin.credential.cert(JSON.parse(process.env.FIREBASE_SA_JSON));
+} else {
+  // Local: arquivo JSON
+  const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
+    || path.join(__dirname, '..', 'service-account.json');
+  try {
+    // eslint-disable-next-line import/no-dynamic-require, global-require
+    credential = admin.credential.cert(require(serviceAccountPath));
+  } catch (e) {
+    console.error(
+      'Defina FIREBASE_SA_JSON ou GOOGLE_APPLICATION_CREDENTIALS.',
+      e.message,
+    );
+    process.exit(1);
+  }
 }
 
 admin.initializeApp({ credential });
@@ -43,6 +48,19 @@ async function fix() {
     { merge: true },
   );
   console.log('Master account atualizada em usuarios/', uid);
+
+  // Custom claims para rotas que verificam token
+  try {
+    await admin.auth().setCustomUserClaims(uid, { admin: true });
+    console.log('Custom claims {admin:true} setados para', uid);
+  } catch (e) {
+    console.warn('Aviso: custom claims não setados:', e.message);
+  }
+
+  // Verificar resultado
+  const doc = await db.collection('usuarios').doc(uid).get();
+  console.log('Doc final:', JSON.stringify(doc.data(), null, 2));
+
   process.exit(0);
 }
 
