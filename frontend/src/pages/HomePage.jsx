@@ -22,7 +22,6 @@ function getRankColor(rank, total = MANDATOS_CAMARA) {
   return `rgb(${r},${g},${b})`;
 }
 
-// ─── Bolinha com gradiente radial 3D premium ──────────────────────────────────
 function RankBall({ rank, total = MANDATOS_CAMARA }) {
   const color = getRankColor(rank, total);
   const [r, g, b] = color.match(/\d+/g).map(Number);
@@ -41,7 +40,6 @@ function RankBall({ rank, total = MANDATOS_CAMARA }) {
   );
 }
 
-// ─── Formata score ─────────────────────────────────────────────────────────
 function fmtScore(val) {
   if (val == null || val === '') return '—';
   const num = parseFloat(val);
@@ -49,10 +47,6 @@ function fmtScore(val) {
   return num.toFixed(2);
 }
 
-// ─── Card de linha do ranking ─────────────────────────────────────────────────
-// Regra de link:
-//   1. Se tem ID numérico real (Firestore) → /dossie/{id}
-//   2. Se só tem seed (sem match no Firestore) → link externo ranking.org.br
 function DeputadoCard({ dep, totalRanking }) {
   const total = totalRanking || MANDATOS_CAMARA;
   const color = getRankColor(dep.rank_externo || dep.rank || 1, total);
@@ -64,36 +58,35 @@ function DeputadoCard({ dep, totalRanking }) {
     : RANKING_ORG_PAGE;
 
   const inner = (
-      <div
-        style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          padding: '10px 14px', borderRadius: 12,
-          background: soft, border: `1px solid ${color}33`,
-          marginBottom: 6, transition: 'transform 0.15s, box-shadow 0.15s',
-          cursor: 'pointer',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.transform = 'translateX(3px)'; e.currentTarget.style.boxShadow = `0 4px 16px ${color}22`; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = 'translateX(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-      >
-        <RankBall rank={dep.rank_externo || dep.rank || 1} total={total} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#2D2D2D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {nome}
-          </div>
-          <div style={{ fontSize: 11, color: '#999' }}>{dep.partido || '–'} · {dep.uf || '–'}</div>
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '10px 14px', borderRadius: 12,
+        background: soft, border: `1px solid ${color}33`,
+        marginBottom: 6, transition: 'transform 0.15s, box-shadow 0.15s',
+        cursor: 'pointer',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateX(3px)'; e.currentTarget.style.boxShadow = `0 4px 16px ${color}22`; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'translateX(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+    >
+      <RankBall rank={dep.rank_externo || dep.rank || 1} total={total} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#2D2D2D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {nome}
         </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color }}>
-            {dep.ranking_org?.semNotaPublicada ? '—' : fmtScore(dep.nota_ranking_org ?? dep.ranking_org?.nota)}
-          </div>
-          <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>
-            {dep.ranking_org?.semNotaPublicada ? 'Sem nota na fonte' : 'Nota · Ranking dos Políticos'}
-          </div>
+        <div style={{ fontSize: 11, color: '#999' }}>{dep.partido || '–'} · {dep.uf || '–'}</div>
+      </div>
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color }}>
+          {dep.ranking_org?.semNotaPublicada ? '—' : fmtScore(dep.nota_ranking_org ?? dep.ranking_org?.nota)}
+        </div>
+        <div style={{ fontSize: 10, color: '#BBB', marginTop: 2 }}>
+          {dep.ranking_org?.semNotaPublicada ? 'Sem nota na fonte' : 'Nota · Ranking dos Políticos'}
         </div>
       </div>
+    </div>
   );
 
-  // Deputado sem match no Firestore → abre perfil externo no ranking.org.br
   if (isSeedOnly) {
     return (
       <a href={extUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
@@ -102,13 +95,21 @@ function DeputadoCard({ dep, totalRanking }) {
     );
   }
 
-  // Deputado com ID Firestore real → dossiê interno
   return (
     <Link to={`/dossie/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
       {inner}
     </Link>
   );
 }
+
+// ─── Planos resumidos para a seção da home ─────────────────────────────────────
+const HOME_PLANS = [
+  { name: 'Gratuito',      price: 'R$ 0',      credits: '10 cr bônus',  color: '#6b7280', icon: '👁',  highlight: false },
+  { name: 'Cidadão',       price: 'R$ 19,90',  credits: '200 cr/mês',   color: '#22c55e', icon: '🗳',  highlight: false },
+  { name: 'Jornalista',    price: 'R$ 59,90',  credits: '750 cr/mês',   color: '#3b82f6', icon: '📰',  highlight: true  },
+  { name: 'Pro',           price: 'R$ 149,90', credits: '2.000 cr/mês', color: '#8b5cf6', icon: '⚡',  highlight: false },
+  { name: 'Institucional', price: 'R$ 499,90', credits: 'Ilimitado',    color: '#f59e0b', icon: '🏛',  highlight: false },
+];
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
 export default function HomePage({ user, login, loginWithGitHub, loginWithEmail, registerWithEmail }) {
@@ -128,28 +129,20 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       try {
         const { map, mapByIdCamara, listCount, mandatosNoSeed: ms } = await loadRankingOrgExternoMap(db);
         setRankingListCount(listCount || 0);
-        // totalDeputados = total de entradas na lista externa (inclui ativos + suplentes com nota)
         const sortedExt = rankingOrgMapToSortedList(map);
         const totalExt = sortedExt.length || ms || MANDATOS_CAMARA;
         setTotalDeputados(totalExt);
 
-        // Monta lista base a partir do seed externo (posição 1 = melhor nota)
         const fromSeed = sortedExt.map((ext) => {
           const idCamara = ext.idCamara != null && Number.isFinite(Number(ext.idCamara))
             ? String(ext.idCamara)
             : `seed-${ext.rank_externo}`;
           return mergeDeputadoRankingOrg(
-            {
-              id: idCamara,
-              nome: ext.nome_ranking_org,
-              partido: ext.partido,
-              uf: ext.uf,
-            },
+            { id: idCamara, nome: ext.nome_ranking_org, partido: ext.partido, uf: ext.uf },
             ext,
           );
         });
 
-        // Substitui seed por dados reais do Firestore quando há match
         const col = collection(db, "deputados_federais");
         const snap = await getDocs(col);
         snap.docs.forEach((d) => {
@@ -162,20 +155,11 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           if (!ext) return;
           const merged = mergeDeputadoRankingOrg(base, ext);
           const idx = sortedExt.findIndex((e) => e.rank_externo === ext.rank_externo);
-          if (idx !== -1) {
-            fromSeed[idx] = { ...merged, id: String(d.id) };
-          }
+          if (idx !== -1) fromSeed[idx] = { ...merged, id: String(d.id) };
         });
 
-        // Top 10 = primeiros 10 da lista ordenada (melhor nota)
-        const top = fromSeed.slice(0, 10);
-        // Bottom 10 = últimos 10 da lista ordenada (pior nota), exibidos do pior para o menos pior
-        const bottom = fromSeed.length >= 10
-          ? fromSeed.slice(-10).reverse()
-          : [...fromSeed].reverse().slice(0, 10);
-
-        setTop10(top);
-        setBottom10(bottom);
+        setTop10(fromSeed.slice(0, 10));
+        setBottom10(fromSeed.length >= 10 ? fromSeed.slice(-10).reverse() : [...fromSeed].reverse().slice(0, 10));
       } catch (err) {
         console.error('Erro ao buscar ranking:', err);
       } finally {
@@ -184,8 +168,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
     }
     fetchRanking();
   }, []);
-
-  const gradientTotal = totalDeputados;
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault(); setAuthError(''); setAuthLoading(true);
@@ -225,20 +207,11 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
             {rankingListCount > 0 ? ` ${rankingListCount} com nota publicada.` : ''}
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link to="/ranking" style={{
-              padding: '12px 28px', borderRadius: 100,
-              background: '#1B5E3B', color: '#fff',
-              fontSize: 14, fontWeight: 600, textDecoration: 'none',
-            }}>
+            <Link to="/ranking" style={{ padding: '12px 28px', borderRadius: 100, background: '#1B5E3B', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
               Explorar ranking
             </Link>
-            <a href="#ranking-section" style={{
-              padding: '12px 28px', borderRadius: 100,
-              background: 'transparent', color: '#1B5E3B',
-              fontSize: 14, fontWeight: 500, textDecoration: 'none',
-              border: '1.5px solid #1B5E3B',
-            }}>
-              Top 10 / Bottom 10
+            <a href="#planos" style={{ padding: '12px 28px', borderRadius: 100, background: 'transparent', color: '#1B5E3B', fontSize: 14, fontWeight: 500, textDecoration: 'none', border: '1.5px solid #1B5E3B' }}>
+              Ver planos
             </a>
           </div>
         </div>
@@ -261,28 +234,21 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           <div style={{ textAlign: 'center', padding: '48px', color: '#AAA', fontSize: 14 }}>Carregando ranking...</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', gap: 24 }}>
-            {/* TOP 10 */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                 <span style={{ fontSize: 18 }}>🏆</span>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: '#2E7F18' }}>Top 10 — Mais transparentes</h3>
               </div>
-              {top10.map(dep => <DeputadoCard key={dep.id} dep={dep} totalRanking={gradientTotal} />)}
-              <Link to="/ranking" style={{ display: 'block', textAlign: 'center', marginTop: 12, fontSize: 13, color: '#AAA', textDecoration: 'none', fontWeight: 500 }}>
-                Ver lista completa →
-              </Link>
+              {top10.map(dep => <DeputadoCard key={dep.id} dep={dep} totalRanking={totalDeputados} />)}
+              <Link to="/ranking" style={{ display: 'block', textAlign: 'center', marginTop: 12, fontSize: 13, color: '#AAA', textDecoration: 'none', fontWeight: 500 }}>Ver lista completa →</Link>
             </div>
-
-            {/* BOTTOM 10 */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                 <span style={{ fontSize: 18 }}>⚠️</span>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: '#C82538' }}>Bottom 10 — Maior risco</h3>
               </div>
-              {bottom10.map(dep => <DeputadoCard key={dep.id} dep={dep} totalRanking={gradientTotal} />)}
-              <Link to="/ranking" style={{ display: 'block', textAlign: 'center', marginTop: 12, fontSize: 13, color: '#AAA', textDecoration: 'none', fontWeight: 500 }}>
-                Ver ranking completo →
-              </Link>
+              {bottom10.map(dep => <DeputadoCard key={dep.id} dep={dep} totalRanking={totalDeputados} />)}
+              <Link to="/ranking" style={{ display: 'block', textAlign: 'center', marginTop: 12, fontSize: 13, color: '#AAA', textDecoration: 'none', fontWeight: 500 }}>Ver ranking completo →</Link>
             </div>
           </div>
         )}
@@ -303,6 +269,49 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           </div>
         ))}
       </div>
+
+      {/* ─── SEÇÃO DE PLANOS ──────────────────────────────────────────────── */}
+      <section id="planos" style={{ maxWidth: 960, margin: '0 auto 56px', padding: '0 16px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <p style={{ fontSize: 11, letterSpacing: '2px', textTransform: 'uppercase', color: '#1B5E3B', fontWeight: 600, marginBottom: 8 }}>monetização</p>
+          <h2 style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 'clamp(20px, 3vw, 30px)', fontWeight: 600, color: '#3d2b1f', marginBottom: 10 }}>
+            Dado público grátis · Inteligência forense por crédito
+          </h2>
+          <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 500, margin: '0 auto' }}>
+            Comece grátis com 10 créditos. Assine um plano mensal ou compre créditos avulsos.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
+          {HOME_PLANS.map(plan => (
+            <div key={plan.name} style={{
+              border: plan.highlight ? `2px solid ${plan.color}` : '1.5px solid #e2e8f0',
+              borderRadius: 14, padding: '18px 14px', background: '#fff', textAlign: 'center', position: 'relative',
+              boxShadow: plan.highlight ? `0 4px 20px ${plan.color}33` : '0 1px 4px rgba(0,0,0,0.04)',
+            }}>
+              {plan.highlight && (
+                <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)', background: plan.color, color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+                  MAIS POPULAR
+                </div>
+              )}
+              <div style={{ fontSize: 24, marginBottom: 6 }}>{plan.icon}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>{plan.name}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: plan.color, marginBottom: 2 }}>{plan.price}</div>
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>{plan.credits}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <Link to="/creditos" style={{
+            display: 'inline-block', padding: '13px 36px', borderRadius: 100,
+            background: '#1B5E3B', color: '#fff', fontSize: 14, fontWeight: 600,
+            textDecoration: 'none', boxShadow: '0 4px 14px rgba(27,94,59,0.25)',
+          }}>
+            Ver todos os planos e comprar créditos →
+          </Link>
+        </div>
+      </section>
 
       {/* COMPLIANCE DISCLAIMER */}
       <section style={{ maxWidth: 960, margin: '0 auto 48px', padding: '0 16px' }}>
@@ -372,6 +381,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           <Link to="/metodologia" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Metodologia</Link>
           <Link to="/mapa" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Mapa</Link>
           <Link to="/emendas" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Emendas</Link>
+          <Link to="/creditos" style={{ color: '#6b7280', textDecoration: 'underline', fontSize: 12 }}>Planos & Créditos</Link>
         </div>
         transparenciabr · dados 100% públicos · apartidário
       </footer>
