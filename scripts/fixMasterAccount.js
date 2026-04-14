@@ -5,7 +5,14 @@
  * Cria/atualiza usuarios/{uid} para conta master (créditos altos + ilimitado + admin).
  */
 const path = require('path');
-const admin = require('firebase-admin');
+
+let admin;
+try {
+  admin = require('firebase-admin');
+} catch {
+  // CI: firebase-admin está em functions/node_modules
+  admin = require(path.join(__dirname, '..', 'functions', 'node_modules', 'firebase-admin'));
+}
 
 let credential;
 if (process.env.FIREBASE_SA_JSON) {
