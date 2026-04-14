@@ -7,7 +7,7 @@ import LoginModal from "../components/LoginModal";
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, login, loginWithGitHub, loginWithEmail, registerWithEmail } = useAuth();
+  const { user, loading, login, loginWithGitHub, loginWithEmail, registerWithEmail } = useAuth();
   const [showModal, setShowModal] = useState(true);
 
   const from =
@@ -16,11 +16,24 @@ export default function LoginPage() {
     "/ranking";
 
   useEffect(() => {
-    if (user) {
-      const dest = typeof from === "string" && from.startsWith("/") ? from : "/ranking";
-      navigate(dest, { replace: true });
+    if (loading || !user) return;
+    let dest = "/ranking";
+    try {
+      const saved = sessionStorage.getItem("tbr_auth_redirect");
+      if (saved && saved.startsWith("/") && saved !== "/login") {
+        dest = saved;
+        sessionStorage.removeItem("tbr_auth_redirect");
+      } else if (typeof from === "string" && from.startsWith("/") && from !== "/login") {
+        dest = from;
+      }
+    } catch {
+      dest =
+        typeof from === "string" && from.startsWith("/") && from !== "/login"
+          ? from
+          : "/ranking";
     }
-  }, [user, from, navigate]);
+    navigate(dest, { replace: true });
+  }, [user, loading, from, navigate]);
 
   return (
     <div
@@ -49,8 +62,20 @@ export default function LoginPage() {
       {showModal && (
         <LoginModal
           onClose={() => setShowModal(false)}
-          onGoogle={login}
-          onGitHub={loginWithGitHub}
+          onGoogle={() => {
+            const dest =
+              typeof from === "string" && from.startsWith("/") && from !== "/login"
+                ? from
+                : "/ranking";
+            login(dest);
+          }}
+          onGitHub={() => {
+            const dest =
+              typeof from === "string" && from.startsWith("/") && from !== "/login"
+                ? from
+                : "/ranking";
+            loginWithGitHub(dest);
+          }}
           onEmail={loginWithEmail}
           onRegister={registerWithEmail}
         />

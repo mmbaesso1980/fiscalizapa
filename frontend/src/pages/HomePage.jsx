@@ -185,6 +185,17 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
     fetchRanking();
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const saved = sessionStorage.getItem("tbr_auth_redirect");
+      if (saved && saved.startsWith("/") && saved !== "/login") {
+        sessionStorage.removeItem("tbr_auth_redirect");
+        // não redireciona da home — o usuário já está onde quer
+      }
+    } catch { /* noop */ }
+  }, [user]);
+
   const gradientTotal = totalDeputados;
 
   const handleEmailSubmit = async (e) => {
@@ -334,8 +345,32 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
             )}
             {authMode === 'choose' ? (
               <>
-                <button onClick={async () => { setAuthError(''); try { await login(); } catch(e) { setAuthError(e.message); } }} style={btn('#1B5E3B')}>Entrar com Google</button>
-                <button onClick={async () => { setAuthError(''); try { await loginWithGitHub(); } catch(e) { setAuthError(e.message); } }} style={btn('#24292E')}>Entrar com GitHub</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthError("");
+                    try {
+                      sessionStorage.setItem("tbr_auth_redirect", "/");
+                    } catch { /* noop */ }
+                    login();
+                  }}
+                  style={btn("#1B5E3B")}
+                >
+                  Entrar com Google
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthError("");
+                    try {
+                      sessionStorage.setItem("tbr_auth_redirect", "/");
+                    } catch { /* noop */ }
+                    loginWithGitHub();
+                  }}
+                  style={btn("#24292E")}
+                >
+                  Entrar com GitHub
+                </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0' }}>
                   <div style={{ flex: 1, height: 1, background: '#EDEBE8' }} />
                   <span style={{ fontSize: 12, color: '#AAA' }}>ou</span>

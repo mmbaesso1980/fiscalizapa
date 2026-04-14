@@ -96,14 +96,23 @@ export function useAuth() {
   });
 
   // ── Processar resultado do redirect (Google / GitHub) ─────────────────────
-  // Roda UMA vez ao montar — captura o resultado após o redirect OAuth.
+  // Roda UMA vez ao montar — captura o resultado após o redirect OAuth e provisiona Firestore cedo.
   useEffect(() => {
-    getRedirectResult(auth).catch((err) => {
-      // Erros esperados: popup_closed_by_user, cancelled — silenciar.
-      if (!err?.code?.includes("cancelled") && !err?.code?.includes("popup-closed")) {
-        console.warn("getRedirectResult error:", err.code, err.message);
-      }
-    });
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user) {
+          try {
+            await ensureUserDoc(result.user);
+          } catch {
+            /* onAuthStateChanged também chama ensureUserDoc */
+          }
+        }
+      })
+      .catch((err) => {
+        if (!err?.code?.includes("cancelled") && !err?.code?.includes("popup-closed")) {
+          console.warn("getRedirectResult error:", err.code, err.message);
+        }
+      });
   }, []);
 
   // ── Listener de autenticação ──────────────────────────────────────────────
@@ -230,8 +239,19 @@ export function useAuth() {
   // ─── Ações de autenticação ────────────────────────────────────────────────
   // signInWithRedirect: compatível com domínios customizados e browsers que
   // bloqueiam popups (Chrome, Safari em mobile, etc).
-  const login           = () => signInWithRedirect(auth, googleProvider);
-  const loginWithGitHub = () => signInWithRedirect(auth, githubProvider);
+  // redirectAfter: caminho interno salvo em sessionStorage (tbr_auth_redirect) para pós-login.
+  const login = (redirectAfter) => {
+    try {
+      if (redirectAfter) sessionStorage.setItem("tbr_auth_redirect", redirectAfter);
+    } catch { /* noop */ }
+    return signInWithRedirect(auth, googleProvider);
+  };
+  const loginWithGitHub = (redirectAfter) => {
+    try {
+      if (redirectAfter) sessionStorage.setItem("tbr_auth_redirect", redirectAfter);
+    } catch { /* noop */ }
+    return signInWithRedirect(auth, githubProvider);
+  };
   const loginWithEmail  = (email, password) => signInWithEmailAndPassword(auth, email, password);
 
   const registerWithEmail = async (email, password) => {
