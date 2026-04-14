@@ -50,6 +50,9 @@ function fmtScore(val) {
 }
 
 // ─── Card de linha do ranking ─────────────────────────────────────────────────
+// Regra de link:
+//   1. Se tem ID numérico real (Firestore) → /dossie/{id}
+//   2. Se só tem seed (sem match no Firestore) → link externo ranking.org.br
 function DeputadoCard({ dep, totalRanking }) {
   const total = totalRanking || MANDATOS_CAMARA;
   const color = getRankColor(dep.rank_externo || dep.rank || 1, total);
@@ -79,7 +82,7 @@ function DeputadoCard({ dep, totalRanking }) {
           </div>
           <div style={{ fontSize: 11, color: '#999' }}>{dep.partido || '–'} · {dep.uf || '–'}</div>
         </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color }}>
             {dep.ranking_org?.semNotaPublicada ? '—' : fmtScore(dep.nota_ranking_org ?? dep.ranking_org?.nota)}
           </div>
@@ -90,6 +93,7 @@ function DeputadoCard({ dep, totalRanking }) {
       </div>
   );
 
+  // Deputado sem match no Firestore → abre perfil externo no ranking.org.br
   if (isSeedOnly) {
     return (
       <a href={extUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
@@ -98,6 +102,7 @@ function DeputadoCard({ dep, totalRanking }) {
     );
   }
 
+  // Deputado com ID Firestore real → dossiê interno
   return (
     <Link to={`/dossie/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
       {inner}
@@ -111,7 +116,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
   const [bottom10, setBottom10] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [rankingListCount, setRankingListCount] = useState(0);
-  const [mandatosNoSeed, setMandatosNoSeed] = useState(MANDATOS_CAMARA);
+  const [totalDeputados, setTotalDeputados] = useState(MANDATOS_CAMARA);
   const [authMode,    setAuthMode]    = useState('choose');
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
@@ -123,9 +128,12 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       try {
         const { map, mapByIdCamara, listCount, mandatosNoSeed: ms } = await loadRankingOrgExternoMap(db);
         setRankingListCount(listCount || 0);
-        setMandatosNoSeed(ms || MANDATOS_CAMARA);
-
+        // totalDeputados = total de entradas na lista externa (inclui ativos + suplentes com nota)
         const sortedExt = rankingOrgMapToSortedList(map);
+        const totalExt = sortedExt.length || ms || MANDATOS_CAMARA;
+        setTotalDeputados(totalExt);
+
+        // Monta lista base a partir do seed externo (posição 1 = melhor nota)
         const fromSeed = sortedExt.map((ext) => {
           const idCamara = ext.idCamara != null && Number.isFinite(Number(ext.idCamara))
             ? String(ext.idCamara)
@@ -141,6 +149,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           );
         });
 
+        // Substitui seed por dados reais do Firestore quando há match
         const col = collection(db, "deputados_federais");
         const snap = await getDocs(col);
         snap.docs.forEach((d) => {
@@ -154,15 +163,16 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           const merged = mergeDeputadoRankingOrg(base, ext);
           const idx = sortedExt.findIndex((e) => e.rank_externo === ext.rank_externo);
           if (idx !== -1) {
-            fromSeed[idx] = {
-              ...merged,
-              id: String(d.id),
-            };
+            fromSeed[idx] = { ...merged, id: String(d.id) };
           }
         });
 
+        // Top 10 = primeiros 10 da lista ordenada (melhor nota)
         const top = fromSeed.slice(0, 10);
-        const bottom = fromSeed.length >= 10 ? fromSeed.slice(-10).reverse() : fromSeed.slice().reverse().slice(0, 10);
+        // Bottom 10 = últimos 10 da lista ordenada (pior nota), exibidos do pior para o menos pior
+        const bottom = fromSeed.length >= 10
+          ? fromSeed.slice(-10).reverse()
+          : [...fromSeed].reverse().slice(0, 10);
 
         setTop10(top);
         setBottom10(bottom);
@@ -175,7 +185,7 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
     fetchRanking();
   }, []);
 
-  const gradientTotal = MANDATOS_CAMARA;
+  const gradientTotal = totalDeputados;
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault(); setAuthError(''); setAuthLoading(true);
@@ -241,8 +251,8 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           <span style={{ fontSize: 12, color: '#AAA', fontStyle: 'italic', lineHeight: 1.5, textAlign: 'right', maxWidth: 320 }}>
             Posição e nota conforme{' '}
             <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: '#666', fontWeight: 600 }}>ranking.org.br</a>
-            {rankingListCount > 0 ? ` · ${rankingListCount} deputados na lista Câmara da fonte` : ''}
-            {' '}· escala de cores vs. {MANDATOS_CAMARA} mandatos.{' '}
+            {rankingListCount > 0 ? ` · ${rankingListCount} deputados na lista` : ''}
+            {' '}·{' '}
             <a href={RANKING_ORG_CRITERIA} target="_blank" rel="noopener noreferrer" style={{ color: '#666' }}>Metodologia ↗</a>
           </span>
         </div>
@@ -282,7 +292,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       <div style={{ maxWidth: 760, margin: '0 auto 48px', padding: '0 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12 }}>
         {[
           { n: String(MANDATOS_CAMARA), label: 'Mandatos na Câmara dos Deputados' },
-          { n: String(mandatosNoSeed), label: 'Deputados com dados da Câmara' },
           ...(rankingListCount > 0 ? [{ n: String(rankingListCount), label: 'Com nota publicada no ranking.org' }] : []),
           { n: '26',  label: 'Tabelas no banco de dados' },
           { n: '10+', label: 'APIs públicas integradas' },
@@ -295,15 +304,17 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
         ))}
       </div>
 
-      {/* AVISO DE METODOLOGIA */}
+      {/* COMPLIANCE DISCLAIMER */}
       <section style={{ maxWidth: 960, margin: '0 auto 48px', padding: '0 16px' }}>
-        <div style={{ background: '#eef5f0', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-          <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>i</span>
-          <p style={{ fontSize: 12, color: '#374151', margin: 0, lineHeight: 1.6 }}>
-            Score calculado a partir de dados públicos da{' '}
-            <a href="https://www.camara.leg.br" target="_blank" rel="noopener noreferrer" style={{ color: '#1B5E3B', fontWeight: 600, textDecoration: 'underline' }}>Câmara dos Deputados</a>{' '}e{' '}
-            <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer" style={{ color: '#1B5E3B', fontWeight: 600, textDecoration: 'underline' }}>Portal da Transparência</a>.
-            Análise probabilística — pode conter imprecisões.
+        <div style={{ background: '#F8F8F6', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 10, border: '1px solid #E8E8E4' }}>
+          <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1, color: '#6b7280' }}>ℹ</span>
+          <p style={{ fontSize: 12, color: '#6b7280', margin: 0, lineHeight: 1.7 }}>
+            Dados extraídos exclusivamente de fontes públicas oficiais:{' '}
+            <a href="https://www.camara.leg.br" target="_blank" rel="noopener noreferrer" style={{ color: '#1B5E3B', fontWeight: 600, textDecoration: 'underline' }}>Câmara dos Deputados</a>,{' '}
+            <a href="https://portaldatransparencia.gov.br" target="_blank" rel="noopener noreferrer" style={{ color: '#1B5E3B', fontWeight: 600, textDecoration: 'underline' }}>Portal da Transparência</a>{' '}
+            e <a href={RANKING_ORG_PAGE} target="_blank" rel="noopener noreferrer" style={{ color: '#1B5E3B', fontWeight: 600, textDecoration: 'underline' }}>ranking.org.br</a>.{' '}
+            Análise automatizada de caráter informativo — não constitui acusação ou juízo de valor definitivo.{' '}
+            <Link to="/metodologia" style={{ color: '#1B5E3B', fontWeight: 600, textDecoration: 'underline' }}>Ver metodologia completa.</Link>
           </p>
         </div>
       </section>
@@ -355,33 +366,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           </div>
         </section>
       )}
-
-      {/* PRODUTOS */}
-      <section style={{ maxWidth: 960, margin: '0 auto 48px', padding: '0 16px' }}>
-        <h2 style={{ fontFamily: "'Fraunces', Georgia, serif", fontSize: 20, fontWeight: 600, color: '#3d2b1f', marginBottom: 8 }}>O que você pode fazer</h2>
-        <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 20 }}>Pague por aquilo que precisa. Sem assinatura obrigatória.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14 }}>
-          {[
-            { title: 'Dossiê CEAP Básico',     price: 'R$ 9,90',          desc: 'Resumo de gastos, top fornecedores e 5 flags principais.',                           badge: 'Popular'  },
-            { title: 'Dossiê CEAP Matador',    price: 'R$ 39,90',         desc: 'Análise forense completa com todos os recibos, gráficos e PDF.',                       badge: 'Premium'  },
-            { title: 'Pergunta ao Agente IA',  price: 'R$ 2,00/pergunta', desc: 'Consulte o agente IA com dados parlamentares oficiais.',                                badge: 'IA'       },
-            { title: 'Módulos avulsos',        price: 'Emendas, Gabinete',desc: 'Emendas R$14,90 · Gabinete R$14,90 · Super Relatório R$79,90.',                     badge: 'Modular'  },
-          ].map((p, i) => (
-            <div key={i}
-              style={{ background: '#ffffff', borderRadius: 14, padding: '20px 16px', border: '1px solid #e5e7eb', position: 'relative' }}
-            >
-              {p.badge && (
-                <span style={{ position: 'absolute', top: 12, right: 12, fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: '#eef5f0', color: '#1B5E3B' }}>
-                  {p.badge}
-                </span>
-              )}
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 6, marginTop: 0 }}>{p.title}</h3>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#1B5E3B', marginBottom: 8 }}>{p.price}</div>
-              <p style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>{p.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
 
       <footer style={{ textAlign: 'center', padding: '32px 16px', fontSize: 13, color: '#9ca3af' }}>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 10, flexWrap: 'wrap' }}>
