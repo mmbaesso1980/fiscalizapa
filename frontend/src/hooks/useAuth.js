@@ -7,12 +7,16 @@
  *  • Saldo exibido = creditos + creditos_bonus (onSnapshot)
  *  • deductCredits — consome bônus primeiro (mesma regra que CreditGate)
  *  • Mantém compatibilidade com Cloud Functions legadas (getUser, session mgmt)
+ *
+ * NOTA: Usando signInWithRedirect em vez de signInWithPopup para evitar
+ *       bloqueio de popups em domínios customizados (transparenciabr.com.br).
  */
 
 import { useState, useEffect } from "react";
 import {
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -38,13 +42,8 @@ function generateSessionId() {
   return "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
 }
 
-const DAILY_QUOTA_DEFAULT = 2; // cotas gratuitas por dia (resetadas por 12_reset_quotes.py)
+const DAILY_QUOTA_DEFAULT = 2;
 
-/**
- * Garante que o documento usuarios/{uid} existe no Firestore.
- * Se não existir, cria com creditos + dossies_gratuitos_restantes iniciais.
- * Se existir, atualiza apenas campos de perfil (sem tocar em creditos ou cota).
- */
 async function ensureUserDoc(u) {
   const ref  = doc(db, "usuarios", u.uid);
   const snap = await getDoc(ref);
@@ -66,31 +65,46 @@ async function ensureUserDoc(u) {
     return CREDITOS_BONUS_BOAS_VINDAS;
   }
 
-  // Doc já existe: não escreve nada — onSnapshot já lê os dados em tempo real.
   const d = snap.data();
   return (d?.creditos ?? 0) + (d?.creditos_bonus ?? 0);
 }
 
 // ─── Hook principal ───────────────────────────────────────────────────────────
 export function useAuth() {
-  const [user,         setUser        ] = useState(null);
-  const [loading,      setLoading     ] = useState(true);
-  const [credits,      setCredits     ] = useState(null);
-  const [creditsComprado, setCreditsComprado] = useState(null);
-  const [creditsBonus, setCreditsBonus] = useState(null);
-  const [dailyQuota,   setDailyQuota  ] = useState(null); // dossies_gratuitos_restantes
-  const [isAdmin,      setIsAdmin     ] = useState(null); // null = carregando
-  const [adminFromClaims, setAdminFromClaims] = useState(false);
-  const [adminFromFirestore, setAdminFromFirestore] = useState(false);
-  const [sessionError, setSessionError] = useState(null);
+  const [user,              setUser             ] = useState(null);
+  const [loading,           setLoading          ] = useState(true);
+  const [credits,           setCredits          ] = useState(null);
+  const [creditsComprado,   setCreditsComprado  ] = useState(null);
+  const [creditsBonus,      setCreditsBonus     ] = useState(null);
+  const [dailyQuota,        setDailyQuota       ] = useState(null);
+  const [isAdmin,           setIsAdmin          ] = useState(null);
+  const [adminFromClaims,   setAdminFromClaims  ] = useState(false);
+  const [adminFromFirestore,setAdminFromFirestore] = useState(false);
+  const [sessionError,      setSessionError     ] = useState(null);
 
   const [sessionId] = useState(() => {
-    const existing = sessionStorage.getItem("tbr_session_id");
-    if (existing) return existing;
-    const newId = generateSessionId();
-    sessionStorage.setItem("tbr_session_id", newId);
-    return newId;
+    // sessionStorage pode falhar em contextos de terceiro — fallback para memória
+    try {
+      const existing = sessionStorage.getItem("tbr_session_id");
+      if (existing) return existing;
+      const newId = generateSessionId();
+      sessionStorage.setItem("tbr_session_id", newId);
+      return newId;
+    } catch {
+      return generateSessionId();
+    }
   });
+
+  // ── Processar resultado do redirect (Google / GitHub) ─────────────────────
+  // Roda UMA vez ao montar — captura o resultado após o redirect OAuth.
+  useEffect(() => {
+    getRedirectResult(auth).catch((err) => {
+      // Erros esperados: popup_closed_by_user, cancelled — silenciar.
+      if (!err?.code?.includes("cancelled") && !err?.code?.includes("popup-closed")) {
+        console.warn("getRedirectResult error:", err.code, err.message);
+      }
+    });
+  }, []);
 
   // ── Listener de autenticação ──────────────────────────────────────────────
   useEffect(() => {
@@ -104,7 +118,7 @@ export function useAuth() {
         setCreditsBonus(null);
         setAdminFromClaims(false);
         setAdminFromFirestore(false);
-        localStorage.removeItem("userCredits");
+        try { localStorage.removeItem("userCredits"); } catch { /* noop */ }
         return;
       }
 
@@ -117,38 +131,28 @@ export function useAuth() {
         }
       })();
 
-      // Créditos do localStorage enquanto aguarda Firestore
-      const stored = localStorage.getItem("userCredits");
-      if (stored) setCredits(parseInt(stored, 10));
+      try {
+        const stored = localStorage.getItem("userCredits");
+        if (stored) setCredits(parseInt(stored, 10));
+      } catch { /* noop */ }
 
-      // Cloud Functions legadas em background (não bloqueiam)
-      // ensureUserDoc também roda em background — onSnapshot já entrega os dados.
       (async () => {
-        try {
-          await ensureUserDoc(u);
-        } catch (e) {
-          console.warn("ensureUserDoc failed:", e.message);
-        }
+        try { await ensureUserDoc(u); } catch (e) { console.warn("ensureUserDoc:", e.message); }
 
         try {
           const registerSess = httpsCallable(functions, "registerUserSession");
           await registerSess({ sessionId, deviceInfo: { ua: navigator.userAgent } });
-        } catch (e) {
-          console.warn("Session registration failed:", e.message);
-        }
+        } catch (e) { console.warn("Session registration:", e.message); }
 
         try {
-          const getUser = httpsCallable(functions, "getUser");
-          const result  = await getUser();
-          const cloudCredits = result.data?.credits;
-          if (cloudCredits !== undefined) {
-            // Apenas atualiza se o Firestore ainda não respondeu
-            setCredits(prev => (prev === null ? cloudCredits : prev));
-            localStorage.setItem("userCredits", String(cloudCredits));
+          const getUser  = httpsCallable(functions, "getUser");
+          const result   = await getUser();
+          const cloudCr  = result.data?.credits;
+          if (cloudCr !== undefined) {
+            setCredits(prev => (prev === null ? cloudCr : prev));
+            try { localStorage.setItem("userCredits", String(cloudCr)); } catch { /* noop */ }
           }
-        } catch (e) {
-          console.warn("getUser (CF) failed:", e.message);
-        }
+        } catch (e) { console.warn("getUser (CF):", e.message); }
 
         try {
           const urlParams = new URLSearchParams(window.location.search);
@@ -158,9 +162,7 @@ export function useAuth() {
             await processRef({ codigoReferral: refCode });
             window.history.replaceState({}, "", window.location.pathname);
           }
-        } catch (e) {
-          console.warn("Referral processing failed:", e.message);
-        }
+        } catch (e) { console.warn("Referral:", e.message); }
       })();
     });
   }, []);
@@ -180,12 +182,12 @@ export function useAuth() {
         if (snap.exists()) {
           const data     = snap.data();
           const comprado = data?.creditos ?? 0;
-          const bonus = data?.creditos_bonus ?? 0;
-          const total = comprado + bonus;
+          const bonus    = data?.creditos_bonus ?? 0;
+          const total    = comprado + bonus;
           setCredits(total);
           setCreditsComprado(comprado);
           setCreditsBonus(bonus);
-          localStorage.setItem("userCredits", String(total));
+          try { localStorage.setItem("userCredits", String(total)); } catch { /* noop */ }
           setAdminFromFirestore(data?.isAdmin === true || data?.role === "admin");
           setDailyQuota(data?.dossies_gratuitos_restantes ?? 0);
         } else {
@@ -196,7 +198,7 @@ export function useAuth() {
         }
       },
       (err) => {
-        console.warn("onSnapshot (usuarios) error:", err.message);
+        console.warn("onSnapshot (usuarios):", err.message);
         setAdminFromFirestore(false);
         setDailyQuota(0);
       },
@@ -205,14 +207,11 @@ export function useAuth() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) {
-      setIsAdmin(false);
-      return;
-    }
+    if (!user) { setIsAdmin(false); return; }
     setIsAdmin(adminFromClaims || adminFromFirestore);
   }, [user, adminFromClaims, adminFromFirestore]);
 
-  // ── Validação de sessão periódica (anti-login simultâneo) ─────────────────
+  // ── Validação de sessão periódica ─────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
@@ -223,22 +222,18 @@ export function useAuth() {
           setSessionError(result.data.motivo || "Sessão encerrada em outro dispositivo.");
           await signOut(auth);
         }
-      } catch (_) {
-        // silently fail
-      }
+      } catch (_) { /* silently fail */ }
     }, 60_000);
     return () => clearInterval(interval);
   }, [user, sessionId]);
 
   // ─── Ações de autenticação ────────────────────────────────────────────────
-  const login           = () => signInWithPopup(auth, googleProvider);
-  const loginWithGitHub = () => signInWithPopup(auth, githubProvider);
+  // signInWithRedirect: compatível com domínios customizados e browsers que
+  // bloqueiam popups (Chrome, Safari em mobile, etc).
+  const login           = () => signInWithRedirect(auth, googleProvider);
+  const loginWithGitHub = () => signInWithRedirect(auth, githubProvider);
   const loginWithEmail  = (email, password) => signInWithEmailAndPassword(auth, email, password);
 
-  /**
-   * Cria conta com e-mail + senha e já provisiona o documento Firestore
-   * com o mesmo bônus de boas-vindas que ensureUserDoc (creditConstants).
-   */
   const registerWithEmail = async (email, password) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     try {
@@ -257,33 +252,22 @@ export function useAuth() {
       });
       setCredits(CREDITOS_BONUS_BOAS_VINDAS);
       setDailyQuota(DAILY_QUOTA_DEFAULT);
-      localStorage.setItem("userCredits", String(CREDITOS_BONUS_BOAS_VINDAS));
+      try { localStorage.setItem("userCredits", String(CREDITOS_BONUS_BOAS_VINDAS)); } catch { /* noop */ }
     } catch (e) {
-      console.warn("Erro ao criar documento de usuário:", e.message);
+      console.warn("Erro ao criar doc usuário:", e.message);
     }
     return cred;
   };
 
   const logout = () => signOut(auth);
 
-  /**
-   * Desconta `amount` créditos do usuário via transação atômica no Firestore.
-   * Lança Error se saldo insuficiente ou usuário não autenticado.
-   * O onSnapshot atualizará setCredits automaticamente após a transação.
-   */
   const deductCredits = async (amount, descricao = "Consumo de créditos") => {
     if (!user) throw new Error("Usuário não autenticado.");
     await spendUserCredits(db, user.uid, amount, descricao);
   };
 
-  /**
-   * Consome 1 cota diária gratuita via transação atômica no Firestore.
-   * Chamada no desbloqueio básico da Hotpage (IA simples).
-   * Reseta automaticamente todo dia via engines/12_reset_quotes.py.
-   */
   const useQuota = async () => {
     if (!user) throw new Error("Usuário não autenticado.");
-
     const ref = doc(db, "usuarios", user.uid);
     await runTransaction(db, async (tx) => {
       const snap    = await tx.get(ref);
@@ -299,22 +283,10 @@ export function useAuth() {
   };
 
   return {
-    user,
-    loading,
-    login,
-    loginWithGitHub,
-    loginWithEmail,
-    registerWithEmail,
-    logout,
-    credits,
-    creditsComprado,
-    creditsBonus,
-    deductCredits,
-    dailyQuota,
-    useQuota,
-    isAdmin,
-    sessionId,
-    sessionError,
-    setSessionError,
+    user, loading,
+    login, loginWithGitHub, loginWithEmail, registerWithEmail, logout,
+    credits, creditsComprado, creditsBonus, deductCredits,
+    dailyQuota, useQuota,
+    isAdmin, sessionId, sessionError, setSessionError,
   };
 }
