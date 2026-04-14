@@ -519,7 +519,7 @@ export default function CabinetAudit({ politicoId, politicoNome }) {
   const TABS = [
     { id: "tree",    label: "🏛 Árvore de Pessoal" },
     { id: "fuel",    label: "⛽ Combustível × Km" },
-    { id: "metrics", label: "📊 Métricas F.L.A.V.I.O." },
+    { id: "metrics", label: "📊 Métricas de gabinete" },
   ];
 
   return (
@@ -546,12 +546,12 @@ export default function CabinetAudit({ politicoId, politicoNome }) {
                 borderRadius: 4, padding: "2px 8px",
                 animation: "nivel5Banner 2s ease-in-out infinite",
               }}>
-                ⚠ F.L.A.V.I.O. ATIVO
+                ⚠ Auditoria ativa
               </span>
             )}
           </h3>
           <p style={{ margin: "4px 0 0", fontSize: "0.72rem", color: "rgba(255,255,255,0.4)" }}>
-            Protocolo F.L.A.V.I.O. — Funcionários, Lotação, Ausência e Vínculos Irregulares
+            Protocolo de gabinete — funcionários, lotação e vínculos
           </p>
         </div>
         <div style={{
