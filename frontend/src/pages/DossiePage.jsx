@@ -60,6 +60,7 @@ function fmtBRL(v) {
   if (v === null || v === undefined || v === "") return "–";
   const n = parseCamaraValorReais(v);
   if (!Number.isFinite(n)) return "–";
+  if (n === 0) return "–";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
 // Alias seguro para formatCurrency (jamais R$ NaN)
@@ -1045,6 +1046,7 @@ export default function DossiePage() {
   const [atividadeData,  setAtividadeData ] = useState(null);
   const [emendasPortal,   setEmendasPortal  ] = useState(null);
   const [emendasPortalErr, setEmendasPortalErr] = useState(null);
+  const [emendasLoading,   setEmendasLoading ] = useState(false);
   const [mapaEmendasData,  setMapaEmendasData ] = useState(null);
   const [forensicHeader,   setForensicHeader ] = useState(null);
   /** CEAP agregado (2019→ano atual) via getAuditoriaPolitico — alinha teto e totais com a API da Câmara */
@@ -1232,6 +1234,9 @@ export default function DossiePage() {
     const nome = politico.nome || politico.nomeCompleto;
     const idC = politico.idCamara != null ? Number(politico.idCamara) : null;
     if (!nome && !Number.isFinite(idC)) return;
+    setEmendasLoading(true);
+    setEmendasPortal(null);
+    setEmendasPortalErr(null);
     (async () => {
       try {
         const fn = httpsCallable(functions, "getEmendasParlamentar");
@@ -1251,6 +1256,8 @@ export default function DossiePage() {
           setEmendasPortal([]);
           setEmendasPortalErr(e?.message || "Falha ao carregar emendas.");
         }
+      } finally {
+        if (!cancelled) setEmendasLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -1575,11 +1582,15 @@ export default function DossiePage() {
             </div>
             <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
               <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>EMENDAS · EMPENHADO</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>{fmtBRL(emendasKpis.emp)}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>
+                {emendasLoading ? "…" : fmtBRL(emendasKpis.emp)}
+              </div>
             </div>
             <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, padding: "12px 14px" }}>
               <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>EMENDAS · PAGO</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#15803d" }}>{fmtBRL(emendasKpis.pag)}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#15803d" }}>
+                {emendasLoading ? "…" : fmtBRL(emendasKpis.pag)}
+              </div>
             </div>
           </div>
 
