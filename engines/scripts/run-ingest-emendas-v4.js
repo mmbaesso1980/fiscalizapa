@@ -26,6 +26,41 @@ const IDH_UF = {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+const CAMARA_DEP = id => `https://dadosabertos.camara.leg.br/api/v2/deputados/${id}`;
+
+async function fetchCamaraIdentity(depId) {
+  try {
+    const res = await fetch(CAMARA_DEP(depId));
+    if (!res.ok) return null;
+    const json = await res.json();
+    const d = json?.dados;
+    if (!d) return null;
+    const us = d.ultimoStatus || {};
+    const idC = d.id != null ? parseInt(String(d.id), 10) : NaN;
+    let urlFoto = us.urlFoto || d.urlFoto || "";
+    if (urlFoto && !/^https?:\/\//i.test(urlFoto)) {
+      urlFoto = urlFoto.startsWith("//") ? `https:${urlFoto}` : `https://www.camara.leg.br${urlFoto.startsWith("/") ? "" : "/"}${urlFoto}`;
+    }
+    if (!urlFoto && Number.isFinite(idC)) {
+      urlFoto = `https://www.camara.leg.br/img/deputados/med/${idC}.jpg`;
+    }
+    return {
+      idCamara: Number.isFinite(idC) ? idC : null,
+      nome: (us.nomeEleitoral || d.nome || "").trim() || null,
+      nomeCompleto: (d.nome || "").trim() || null,
+      nomeCivil: (d.nomeCivil || "").trim() || null,
+      cpf: d.cpf != null ? String(d.cpf) : "",
+      siglaPartido: (us.siglaPartido || d.siglaPartido || "").trim() || null,
+      partido: (us.siglaPartido || d.siglaPartido || "").trim() || null,
+      uf: (us.siglaUf || d.siglaUf || "").trim() || null,
+      urlFoto: urlFoto || null,
+      ultimoStatus: { ...us, urlFoto: us.urlFoto || d.urlFoto },
+    };
+  } catch {
+    return null;
+  }
+}
+
 function normalize(name) {
   return name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
@@ -96,8 +131,23 @@ async function main() {
   console.log(`Pedro Paulo mixed: ${t2.length} results`);
 
   const snap = await db.collection("deputados_federais").get();
-  const deps = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.nome);
-  console.log(`\n${deps.length} deputados federais.`);
+  const deps = [];
+  for (const d of snap.docs) {
+    let row = { id: d.id, ...d.data() };
+    const hasNome = row.nome || row.nomeCompleto;
+    const hasPartido = row.siglaPartido || row.partido;
+    const hasFoto = row.urlFoto || row?.ultimoStatus?.urlFoto;
+    if (!hasNome || !hasPartido || !hasFoto) {
+      const iden = await fetchCamaraIdentity(d.id);
+      await sleep(200);
+      if (iden && iden.nome) {
+        await d.ref.set(iden, { merge: true });
+        row = { ...row, ...iden };
+      }
+    }
+    if (row.nome || row.nomeCompleto) deps.push(row);
+  }
+  console.log(`\n${deps.length} deputados federais (com nome).`);
   console.log(`First 3: ${deps.slice(0,3).map(d => `${d.nome} -> ${normalize(d.nome)}`).join('; ')}`);
 
   const anos = [2023, 2024, 2025];
