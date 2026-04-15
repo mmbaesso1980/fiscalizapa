@@ -1,12 +1,14 @@
 /**
- * Enriquece documentos em deputados_federais com dados de identidade da API
- * Dados Abertos da Câmara (sem chave).
+ * Enriquece `deputados_federais` com dados da API aberta da Câmara (lista paginada + merge).
+ *
+ * Credenciais (qualquer uma):
+ *   gcloud auth application-default login
+ *   export GOOGLE_APPLICATION_CREDENTIALS=/caminho/service-account.json
  *
  * Uso:
- *   export GOOGLE_APPLICATION_CREDENTIALS=/caminho/service-account.json
  *   node scripts/enrich-firestore.js
  *
- * Projeto: fiscallizapa
+ * Projeto Firebase: fiscallizapa
  */
 
 const path = require("path");
@@ -18,110 +20,116 @@ try {
 }
 
 const PROJECT_ID = "fiscallizapa";
-const CAMARA_BASE = "https://dadosabertos.camara.leg.br/api/v2/deputados";
-const SLEEP_MS = 200;
+const CAMARA_LIST = "https://dadosabertos.camara.leg.br/api/v2/deputados";
+const BATCH_SIZE = 400;
+const PAGE_SLEEP_MS = 300;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 if (!admin.apps.length) {
-  admin.initializeApp({ projectId: PROJECT_ID });
+  admin.initializeApp({
+    credential: admin.credential.applicationDefault(),
+    projectId: PROJECT_ID,
+  });
 }
 
 const db = admin.firestore();
 
-async function fetchDeputado(id) {
-  const res = await fetch(`${CAMARA_BASE}/${id}`);
-  if (!res.ok) return null;
-  const json = await res.json();
-  return json?.dados ?? null;
+function absolutizeFoto(url, idCamara) {
+  let u = String(url || "").trim();
+  if (u && !/^https?:\/\//i.test(u)) {
+    u = u.startsWith("//") ? `https:${u}` : `https://www.camara.leg.br${u.startsWith("/") ? "" : "/"}${u}`;
+  }
+  if (!u && Number.isFinite(idCamara)) {
+    u = `https://www.camara.leg.br/img/deputados/med/${idCamara}.jpg`;
+  }
+  return u || null;
 }
 
-function mapCamaraToFirestore(d) {
-  if (!d) return null;
-  const us = d.ultimoStatus || {};
-  const idC = d.id != null ? parseInt(String(d.id), 10) : NaN;
-  let urlFoto = us.urlFoto || d.urlFoto || "";
-  if (urlFoto && !/^https?:\/\//i.test(urlFoto)) {
-    urlFoto = urlFoto.startsWith("//") ? `https:${urlFoto}` : `https://www.camara.leg.br${urlFoto.startsWith("/") ? "" : "/"}${urlFoto}`;
-  }
-  if (!urlFoto && Number.isFinite(idC)) {
-    urlFoto = `https://www.camara.leg.br/img/deputados/med/${idC}.jpg`;
-  }
+function mapListItem(dep) {
+  const idC = dep.id != null ? parseInt(String(dep.id), 10) : NaN;
+  const nome = (dep.nome || "").trim();
+  const siglaPartido = (dep.siglaPartido || "").trim();
+  const siglaUf = (dep.siglaUf || "").trim();
+  const urlFoto = absolutizeFoto(dep.urlFoto, idC);
   return {
     idCamara: Number.isFinite(idC) ? idC : null,
-    nome: (us.nomeEleitoral || d.nome || "").trim() || null,
-    nomeCompleto: (d.nome || "").trim() || null,
-    nomeCivil: (d.nomeCivil || "").trim() || null,
-    cpf: d.cpf != null ? String(d.cpf) : "",
-    siglaPartido: (us.siglaPartido || d.siglaPartido || "").trim() || null,
-    siglaUf: (us.siglaUf || d.siglaUf || "").trim() || null,
-    urlFoto: urlFoto || null,
-    situacao: (us.situacao || d.situacao || "").trim() || null,
-    email: (d.email || us.email || "").trim() || null,
-    gabinete: us.gabinete ?? d.gabinete ?? null,
-    municipioNascimento: (d.municipioNascimento || "").trim() || null,
-    ufNascimento: (d.ufNascimento || "").trim() || null,
-    dataNascimento: d.dataNascimento || null,
-    escolaridade: (d.escolaridade || "").trim() || null,
-    sexo: (d.sexo || "").trim() || null,
+    nome: nome || null,
+    nomeCompleto: nome || null,
+    siglaPartido: siglaPartido || null,
+    partido: siglaPartido || null,
+    siglaUf: siglaUf || null,
+    uf: siglaUf || null,
+    urlFoto,
+    ultimoStatus: {
+      nomeEleitoral: nome,
+      siglaPartido,
+      siglaUf,
+      urlFoto: dep.urlFoto || null,
+    },
     enrichedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
 }
 
-function hasIdentity(data) {
-  const nome = data.nome || data.nomeCompleto;
-  const partido = data.siglaPartido || data.partido;
-  const foto = data.urlFoto;
-  return Boolean(nome && partido && foto);
+async function fetchAllDeputadosLista() {
+  const all = [];
+  let pagina = 1;
+  for (;;) {
+    const url = `${CAMARA_LIST}?pagina=${pagina}&itens=100&ordem=ASC&ordenarPor=nome`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`API Câmara HTTP ${res.status} (página ${pagina})`);
+    }
+    const json = await res.json();
+    const dados = Array.isArray(json.dados) ? json.dados : [];
+    if (!dados.length) break;
+    all.push(...dados);
+    console.log(`  … lista página ${pagina}: +${dados.length} (total ${all.length})`);
+    if (dados.length < 100) break;
+    pagina++;
+    await sleep(PAGE_SLEEP_MS);
+  }
+  return all;
 }
 
 async function main() {
-  console.log(`=== enrich-firestore (${PROJECT_ID}) ===`);
-  const snap = await db.collection("deputados_federais").get();
-  const docs = snap.docs;
-  let i = 0;
-  let updated = 0;
-  let skipped = 0;
+  console.log(`=== enrich-firestore (${PROJECT_ID}) — lista API + merge em deputados_federais ===`);
+  console.log("Credencial: application-default (gcloud auth application-default login) ou GOOGLE_APPLICATION_CREDENTIALS\n");
 
-  for (const docSnap of docs) {
-    i++;
-    const data = docSnap.data() || {};
-    if (hasIdentity(data)) {
-      skipped++;
-      if (i % 10 === 0) {
-        console.log(`[${i}/${docs.length}] progress — updated ${updated}, skipped ${skipped}`);
-      }
-      continue;
-    }
+  const deputados = await fetchAllDeputadosLista();
+  if (!deputados.length) {
+    console.error("Nenhum deputado retornado pela API.");
+    process.exit(1);
+  }
 
-    const depId = docSnap.id;
-    const camara = await fetchDeputado(depId);
-    await sleep(SLEEP_MS);
+  let batch = db.batch();
+  let batchCount = 0;
+  let total = 0;
 
-    if (!camara) {
-      console.warn(`  [${depId}] API sem dados`);
-      if (i % 10 === 0) {
-        console.log(`[${i}/${docs.length}] progress — updated ${updated}, skipped ${skipped}`);
-      }
-      continue;
-    }
+  for (const dep of deputados) {
+    const docId = String(dep.id);
+    const patch = mapListItem(dep);
+    if (!patch.nome) continue;
 
-    const patch = mapCamaraToFirestore(camara);
-    if (!patch || !patch.nome) {
-      console.warn(`  [${depId}] map vazio`);
-      continue;
-    }
+    const ref = db.collection("deputados_federais").doc(docId);
+    batch.set(ref, patch, { merge: true });
+    batchCount++;
+    total++;
 
-    await docSnap.ref.update(patch);
-    updated++;
-    console.log(`  [${depId}] OK — ${patch.nome}`);
-
-    if (i % 10 === 0) {
-      console.log(`[${i}/${docs.length}] progress — updated ${updated}, skipped ${skipped}`);
+    if (batchCount >= BATCH_SIZE) {
+      await batch.commit();
+      console.log(`  commit batch (${total}/${deputados.length})`);
+      batch = db.batch();
+      batchCount = 0;
     }
   }
 
-  console.log(`\nConcluído: ${updated} atualizados, ${skipped} já tinham identidade, ${docs.length} docs no total.`);
+  if (batchCount > 0) {
+    await batch.commit();
+    console.log(`  commit final (${batchCount} docs)`);
+  }
+
+  console.log(`\nConcluído: ${total} documentos mesclados em deputados_federais/{idCamara}.`);
 }
 
 main().catch((e) => {

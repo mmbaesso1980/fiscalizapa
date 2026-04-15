@@ -1244,22 +1244,38 @@ export default function DossiePage() {
 
         if (!pol && isNumericRoute) {
           const idCamaraNum = Number(sid);
-          const dq = query(
+          let dq = query(
             collection(db, "deputados_federais"),
             where("idCamara", "==", idCamaraNum),
             limit(1),
           );
-          const dr = await getDocs(dq);
+          let dr = await getDocs(dq);
+          if (dr.empty) {
+            dq = query(
+              collection(db, "deputados_federais"),
+              where("idCamara", "==", sid),
+              limit(1),
+            );
+            dr = await getDocs(dq);
+          }
           if (dr.docs[0]) {
             pol = { id: dr.docs[0].id, ...dr.docs[0].data() };
             if (!cancelled) setRealDocId(dr.docs[0].id);
           } else {
-            const pq = query(
+            let pq = query(
               collection(db, "politicos"),
               where("idCamara", "==", idCamaraNum),
               limit(1),
             );
-            const pr = await getDocs(pq);
+            let pr = await getDocs(pq);
+            if (pr.empty) {
+              pq = query(
+                collection(db, "politicos"),
+                where("idCamara", "==", sid),
+                limit(1),
+              );
+              pr = await getDocs(pq);
+            }
             if (pr.docs[0]) {
               const d = pr.docs[0];
               if (!cancelled) {
