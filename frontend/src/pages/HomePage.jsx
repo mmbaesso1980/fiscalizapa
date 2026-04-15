@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import Galaxy3D from "../components/Galaxy3D";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import {
@@ -232,6 +233,8 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           </div>
         </div>
       </section>
+
+      <Galaxy3D />
 
       {/* TOP 10 / BOTTOM 10 */}
       <section id="ranking-section" style={{ maxWidth: 960, margin: '0 auto 48px', padding: '0 16px' }}>

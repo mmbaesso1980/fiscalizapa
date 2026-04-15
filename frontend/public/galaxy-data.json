@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    {
+      "id": "204536",
+      "name": "Exemplo A",
+      "val": 72,
+      "partido": "UNIÃO"
+    },
+    {
+      "id": "220593",
+      "name": "Exemplo B",
+      "val": 58,
+      "partido": "PL"
+    },
+    {
+      "id": "178990",
+      "name": "Exemplo C",
+      "val": 64,
+      "partido": "PSOL"
+    }
+  ],
+  "links": []
+}
