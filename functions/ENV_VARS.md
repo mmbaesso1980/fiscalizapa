@@ -1,8 +1,20 @@
 # Variáveis de ambiente (Cloud Functions)
 
+## Google AI / Gemini
+
+- **`GOOGLE_AI_API_KEY`** — chave da Google AI Studio para o Oráculo Gemini.
+  - Valor atual (substituir no Firebase Secrets): `AIzaSyCScMFSCdb8L4QmlPoGnQfoM6NIIqg1fpo`
+  - Cadastrar: https://aistudio.google.com/app/apikey
+
+```bash
+firebase functions:secrets:set GOOGLE_AI_API_KEY
+```
+
 ## Portal da Transparência
 
 - **`PORTAL_TRANSPARENCIA_API_KEY`** — enviar nas requisições como header **`chave-api-dados`** (não usar Bearer).
+  - Valor atual (substituir no Firebase Secrets): `717a95e01b072090f41940282eab700a`
+  - Cadastrar: https://api.portaldatransparencia.gov.br/
 
 Configure com `firebase functions:secrets:set PORTAL_TRANSPARENCIA_API_KEY` ou no Console do Firebase.
 
@@ -45,3 +57,13 @@ firebase functions:secrets:set STRIPE_PRICE_ENTERPRISE
 | `STRIPE_PRICE_PRO_50` | Pro antigo | R$ 39,90 | 50 | payment |
 | `STRIPE_PRICE_ULTRA_200` | Ultra antigo | R$ 99,90 | 200 | payment |
 | `STRIPE_PRICE_ILIMITADO` | Ilimitado antigo | R$ 199,90/mês | ∞ | subscription |
+
+## Comandos rápidos para configurar tudo
+
+```bash
+# Secrets obrigatórios para produção
+firebase functions:secrets:set GOOGLE_AI_API_KEY
+firebase functions:secrets:set PORTAL_TRANSPARENCIA_API_KEY
+firebase functions:secrets:set STRIPE_SECRET_KEY
+firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
+```

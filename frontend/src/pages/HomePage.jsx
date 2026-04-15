@@ -13,7 +13,6 @@ import {
   RANKING_ORG_CRITERIA,
 } from "../utils/rankingOrg";
 
-// ─── Cor da bolinha: verde (#2E7F18) → vermelho (#C82538) ─────────────────────
 function getRankColor(rank, total = MANDATOS_CAMARA) {
   const pct = Math.min(Math.max((rank - 1) / (total - 1), 0), 1);
   const r = Math.round(46  + pct * (200 - 46));
@@ -22,7 +21,6 @@ function getRankColor(rank, total = MANDATOS_CAMARA) {
   return `rgb(${r},${g},${b})`;
 }
 
-// ─── Bolinha com gradiente radial 3D premium ──────────────────────────────────
 function RankBall({ rank, total = MANDATOS_CAMARA }) {
   const color = getRankColor(rank, total);
   const [r, g, b] = color.match(/\d+/g).map(Number);
@@ -41,7 +39,6 @@ function RankBall({ rank, total = MANDATOS_CAMARA }) {
   );
 }
 
-// ─── Formata score ─────────────────────────────────────────────────────────
 function fmtScore(val) {
   if (val == null || val === '') return '—';
   const num = parseFloat(val);
@@ -49,10 +46,6 @@ function fmtScore(val) {
   return num.toFixed(2);
 }
 
-// ─── Card de linha do ranking ─────────────────────────────────────────────────
-// Regra de link:
-//   1. Se tem ID numérico real (Firestore) → /dossie/{id}
-//   2. Se só tem seed (sem match no Firestore) → link externo ranking.org.br
 function DeputadoCard({ dep, totalRanking }) {
   const total = totalRanking || MANDATOS_CAMARA;
   const color = getRankColor(dep.rank_externo || dep.rank || 1, total);
@@ -93,7 +86,6 @@ function DeputadoCard({ dep, totalRanking }) {
       </div>
   );
 
-  // Deputado sem match no Firestore → abre perfil externo no ranking.org.br
   if (isSeedOnly) {
     return (
       <a href={extUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
@@ -102,7 +94,6 @@ function DeputadoCard({ dep, totalRanking }) {
     );
   }
 
-  // Deputado com ID Firestore real → dossiê interno
   return (
     <Link to={`/dossie/${dep.id}`} style={{ textDecoration: 'none', display: 'block' }}>
       {inner}
@@ -110,7 +101,6 @@ function DeputadoCard({ dep, totalRanking }) {
   );
 }
 
-// ─── HOME ─────────────────────────────────────────────────────────────────────
 export default function HomePage({ user, login, loginWithGitHub, loginWithEmail, registerWithEmail }) {
   const [top10,    setTop10]    = useState([]);
   const [bottom10, setBottom10] = useState([]);
@@ -128,28 +118,20 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       try {
         const { map, mapByIdCamara, listCount, mandatosNoSeed: ms } = await loadRankingOrgExternoMap(db);
         setRankingListCount(listCount || 0);
-        // totalDeputados = total de entradas na lista externa (inclui ativos + suplentes com nota)
         const sortedExt = rankingOrgMapToSortedList(map);
         const totalExt = sortedExt.length || ms || MANDATOS_CAMARA;
         setTotalDeputados(totalExt);
 
-        // Monta lista base a partir do seed externo (posição 1 = melhor nota)
         const fromSeed = sortedExt.map((ext) => {
           const idCamara = ext.idCamara != null && Number.isFinite(Number(ext.idCamara))
             ? String(ext.idCamara)
             : `seed-${ext.rank_externo}`;
           return mergeDeputadoRankingOrg(
-            {
-              id: idCamara,
-              nome: ext.nome_ranking_org,
-              partido: ext.partido,
-              uf: ext.uf,
-            },
+            { id: idCamara, nome: ext.nome_ranking_org, partido: ext.partido, uf: ext.uf },
             ext,
           );
         });
 
-        // Substitui seed por dados reais do Firestore quando há match
         const col = collection(db, "deputados_federais");
         const snap = await getDocs(col);
         snap.docs.forEach((d) => {
@@ -162,14 +144,10 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           if (!ext) return;
           const merged = mergeDeputadoRankingOrg(base, ext);
           const idx = sortedExt.findIndex((e) => e.rank_externo === ext.rank_externo);
-          if (idx !== -1) {
-            fromSeed[idx] = { ...merged, id: String(d.id) };
-          }
+          if (idx !== -1) fromSeed[idx] = { ...merged, id: String(d.id) };
         });
 
-        // Top 10 = primeiros 10 da lista ordenada (melhor nota)
         const top = fromSeed.slice(0, 10);
-        // Bottom 10 = últimos 10 da lista ordenada (pior nota), exibidos do pior para o menos pior
         const bottom = fromSeed.length >= 10
           ? fromSeed.slice(-10).reverse()
           : [...fromSeed].reverse().slice(0, 10);
@@ -184,6 +162,17 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
     }
     fetchRanking();
   }, []);
+
+  // Limpa tbr_auth_redirect se usuário já está logado na home
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const saved = sessionStorage.getItem("tbr_auth_redirect");
+      if (saved && saved.startsWith("/") && saved !== "/login") {
+        sessionStorage.removeItem("tbr_auth_redirect");
+      }
+    } catch { /* noop */ }
+  }, [user]);
 
   const gradientTotal = totalDeputados;
 
@@ -261,7 +250,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
           <div style={{ textAlign: 'center', padding: '48px', color: '#AAA', fontSize: 14 }}>Carregando ranking...</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', gap: 24 }}>
-            {/* TOP 10 */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                 <span style={{ fontSize: 18 }}>🏆</span>
@@ -272,8 +260,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
                 Ver lista completa →
               </Link>
             </div>
-
-            {/* BOTTOM 10 */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                 <span style={{ fontSize: 18 }}>⚠️</span>
@@ -334,8 +320,28 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
             )}
             {authMode === 'choose' ? (
               <>
-                <button onClick={async () => { setAuthError(''); try { await login(); } catch(e) { setAuthError(e.message); } }} style={btn('#1B5E3B')}>Entrar com Google</button>
-                <button onClick={async () => { setAuthError(''); try { await loginWithGitHub(); } catch(e) { setAuthError(e.message); } }} style={btn('#24292E')}>Entrar com GitHub</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthError("");
+                    try { sessionStorage.setItem("tbr_auth_redirect", "/"); } catch { /* noop */ }
+                    login();
+                  }}
+                  style={btn('#1B5E3B')}
+                >
+                  Entrar com Google
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthError("");
+                    try { sessionStorage.setItem("tbr_auth_redirect", "/"); } catch { /* noop */ }
+                    loginWithGitHub();
+                  }}
+                  style={btn('#24292E')}
+                >
+                  Entrar com GitHub
+                </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0' }}>
                   <div style={{ flex: 1, height: 1, background: '#EDEBE8' }} />
                   <span style={{ fontSize: 12, color: '#AAA' }}>ou</span>

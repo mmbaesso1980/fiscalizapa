@@ -17,7 +17,21 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (loading || !user) return;
-    const dest = typeof from === "string" && from.startsWith("/") ? from : "/ranking";
+    let dest = "/ranking";
+    try {
+      const saved = sessionStorage.getItem("tbr_auth_redirect");
+      if (saved && saved.startsWith("/") && saved !== "/login") {
+        dest = saved;
+        sessionStorage.removeItem("tbr_auth_redirect");
+      } else if (typeof from === "string" && from.startsWith("/") && from !== "/login") {
+        dest = from;
+      }
+    } catch {
+      dest =
+        typeof from === "string" && from.startsWith("/") && from !== "/login"
+          ? from
+          : "/ranking";
+    }
     navigate(dest, { replace: true });
   }, [user, loading, from, navigate]);
 
@@ -48,8 +62,20 @@ export default function LoginPage() {
       {showModal && (
         <LoginModal
           onClose={() => setShowModal(false)}
-          onGoogle={login}
-          onGitHub={loginWithGitHub}
+          onGoogle={() => {
+            const dest =
+              typeof from === "string" && from.startsWith("/") && from !== "/login"
+                ? from
+                : "/ranking";
+            login(dest);
+          }}
+          onGitHub={() => {
+            const dest =
+              typeof from === "string" && from.startsWith("/") && from !== "/login"
+                ? from
+                : "/ranking";
+            loginWithGitHub(dest);
+          }}
           onEmail={loginWithEmail}
           onRegister={registerWithEmail}
         />
