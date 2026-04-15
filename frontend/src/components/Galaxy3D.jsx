@@ -23,7 +23,7 @@ export default function Galaxy3D() {
         nodeAutoColorBy="group"
         nodeRelSize={6}
         linkDirectionalParticles={2}
-        linkDirectionalParticleSpeed={d => d.value * 0.001}
+        linkDirectionalParticleSpeed={d => (d.value || 1) * 0.001}
         width={800} // responsive approach might need resize listener or flexible container
         height={400}
         backgroundColor="rgba(0,0,0,0)"
