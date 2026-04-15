@@ -7,8 +7,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import PageSkeleton from "./components/PageSkeleton";
 import Layout from "./components/Layout";
 import "./styles/tokens.css";
+import HomePage from "./pages/HomePage";
 
-const HomePage = lazy(() => import("./pages/HomePage"));
 const CreditosPage = lazy(() => import("./pages/CreditosPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const PoliticoPage = lazy(() => import("./pages/PoliticoPage"));

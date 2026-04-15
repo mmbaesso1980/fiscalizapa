@@ -4,19 +4,19 @@
 
 :root {
   /* ── Paleta base (tema claro — páginas de auditoria pública) ───────────── */
-  --bg-primary:          #fafaf8;
-  --bg-secondary:        #f2f0eb;
+  --bg-primary:          #f3f2f1;
+  --bg-secondary:        #f8f8f8;
   --bg-card:             #ffffff;
   --bg-dark:             #1a1a2e;
-  --text-primary:        #1a1a2e;
-  --text-secondary:      #5a5a6e;
-  --text-muted:          #8a8a9e;
-  --accent-gold:         #c9a84c;
+  --text-primary:        #0b0c0c;
+  --text-secondary:      #505a5f;
+  --text-muted:          #b1b4b6;
+  --accent-gold:         #1d70b8;
   --accent-gold-light:   #e8d48b;
-  --accent-green:        #3d6b5e;
+  --accent-green:        #00703c;
   --accent-green-light:  #5a9e8f;
-  --accent-orange:       #c4724e;
-  --accent-red:          #b54a4a;
+  --accent-orange:       #f47738;
+  --accent-red:          #d4351c;
   --border-light:        #e8e6e1;
   --border-medium:       #d4d2cd;
   --shadow-soft:         0 1px 3px rgba(26,26,46,0.06);

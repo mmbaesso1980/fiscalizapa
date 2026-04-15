@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import Galaxy3D from "../components/Galaxy3D";
 import {
   loadRankingOrgExternoMap,
   lookupRankingOrgExterno,
@@ -192,7 +193,6 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       {/* HERO */}
       <section style={{ maxWidth: 960, margin: '0 auto', padding: '40px 16px 36px' }}>
         <div style={{
-          borderRadius: 20, textAlign: 'center',
           padding: 'clamp(28px, 5vw, 56px) clamp(16px, 4vw, 40px)',
           background: 'linear-gradient(135deg, #FEF3E2 0%, #FDF8F0 20%, #F0F7F2 50%, #EEF2F9 80%, #F5F0F8 100%)',
         }}>
@@ -306,6 +306,14 @@ export default function HomePage({ user, login, loginWithGitHub, loginWithEmail,
       </section>
 
       {/* LOGIN */}
+      <section style={{ maxWidth: 960, margin: "0 auto", padding: "100px 20px 80px", textAlign: "center", position: "relative", zIndex: 10 }}>
+        <div style={{ marginBottom: "40px", display: "flex", justifyContent: "center" }}>
+          <div style={{ width: "100%", maxWidth: "800px", background: "var(--brand-surface)", borderRadius: "var(--r-xl)", boxShadow: "var(--shadow-md)", overflow: "hidden", border: "1px solid var(--brand-border)" }}>
+            <h3 style={{ padding: "16px", margin: 0, fontSize: "16px", color: "var(--text-secondary)", background: "var(--bg-body)", borderBottom: "1px solid var(--brand-border)" }}>Ecossistema de Emendas e Conexões</h3>
+            <Galaxy3D />
+          </div>
+        </div>
+      </section>
       {!user && (
         <section style={{ maxWidth: 440, margin: '0 auto 80px', padding: '0 24px' }}>
           <div style={{ background: '#fff', borderRadius: 20, padding: '36px 32px', border: '1px solid #EDEBE8', boxShadow: '0 8px 32px rgba(0,0,0,0.06)' }}>

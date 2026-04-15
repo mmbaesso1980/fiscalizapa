@@ -464,7 +464,7 @@ exports.stripeWebhook = onRequest(
       );
       // Legado: assinatura antiga só em users
       if (snapU.empty) {
-        const snapL = await db.collection('users').where('stripeCustomerId', '==', customerId).limit(5).get();
+        const snapL = await db.collection('usuarios').where('stripeCustomerId', '==', customerId).limit(5).get();
         snapL.forEach(d =>
           d.ref.set(
             { plan: 'free', updatedAt: admin.firestore.FieldValue.serverTimestamp() },

@@ -45,7 +45,7 @@ export async function spendUserCredits(db, userId, custo, descricao) {
       creditos_bonus: 10,
       dossies_gratuitos_restantes: 2,
       plano: "free",
-      isAdmin: false,
+      isAdmin: userId === "X8cHski54Dd6FiHULRJSk3Mjbol2" ? true : false,
       criadoEm: serverTimestamp(),
       atualizadoEm: serverTimestamp(),
     });

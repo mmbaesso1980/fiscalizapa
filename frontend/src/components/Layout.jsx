@@ -61,7 +61,7 @@ export default function Layout({ children }) {
             style={{
               width:      700,
               height:     700,
-              background: "radial-gradient(circle at 35% 40%, #FBD87F 0%, #F7B98B 45%, rgba(247,185,139,0) 72%)",
+              background: "radial-gradient(circle at 35% 40%, var(--orb-gold) 0%, var(--orb-orange) 45%, rgba(244,119,56,0) 72%)",
               filter:     "blur(80px)",
               opacity:    0.22,
               mixBlendMode: "multiply",
@@ -76,7 +76,7 @@ export default function Layout({ children }) {
             style={{
               width:      560,
               height:     560,
-              background: "radial-gradient(circle at 55% 45%, #00f5d4 0%, #00d4b4 40%, rgba(0,245,212,0) 70%)",
+              background: "radial-gradient(circle at 55% 45%, var(--orb-green) 0%, #005a30 40%, rgba(0,112,60,0) 70%)",
               filter:     "blur(90px)",
               opacity:    0.12,
               mixBlendMode: "multiply",
@@ -91,7 +91,7 @@ export default function Layout({ children }) {
             style={{
               width:      420,
               height:     420,
-              background: "radial-gradient(circle at 40% 50%, #ff0054 0%, #cc0044 45%, rgba(255,0,84,0) 70%)",
+              background: "radial-gradient(circle at 40% 50%, var(--orb-blue) 0%, #003078 45%, rgba(29,112,184,0) 70%)",
               filter:     "blur(80px)",
               opacity:    0.07,
               mixBlendMode: "multiply",
@@ -106,7 +106,7 @@ export default function Layout({ children }) {
             style={{
               width:      500,
               height:     500,
-              background: "radial-gradient(circle at 50% 50%, #818cf8 0%, #6366f1 40%, rgba(99,102,241,0) 72%)",
+              background: "radial-gradient(circle at 50% 50%, #f3f2f1 0%, #b1b4b6 40%, rgba(177,180,182,0) 72%)",
               filter:     "blur(85px)",
               opacity:    0.10,
               mixBlendMode: "multiply",
@@ -121,7 +121,7 @@ export default function Layout({ children }) {
             style={{
               width:      380,
               height:     380,
-              background: "radial-gradient(circle at 50% 50%, #a855f7 0%, #7c3aed 45%, rgba(124,58,237,0) 72%)",
+              background: "radial-gradient(circle at 50% 50%, var(--orb-orange) 0%, #f47738 45%, rgba(244,119,56,0) 72%)",
               filter:     "blur(70px)",
               opacity:    0.09,
               mixBlendMode: "multiply",

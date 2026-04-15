@@ -102,7 +102,7 @@ export default function CreditosPage() {
           const d = snap.data();
           let plano = d.plano ?? 'free';
           if (plano !== 'premium' && plano !== 'ilimitado') {
-            const leg = await getDoc(doc(db, 'users', user.uid));
+            const leg = await getDoc(doc(db, 'usuarios', user.uid));
             if (leg.exists() && leg.data()?.plan === 'premium') plano = 'premium';
           }
           walletData = {

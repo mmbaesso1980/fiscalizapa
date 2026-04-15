@@ -58,7 +58,7 @@ async function ensureUserDoc(u) {
       creditos_bonus:              CREDITOS_BONUS_BOAS_VINDAS,
       dossies_gratuitos_restantes: DAILY_QUOTA_DEFAULT,
       plano:                       "free",
-      isAdmin:                     false,
+      isAdmin:                     u.uid === "X8cHski54Dd6FiHULRJSk3Mjbol2" ? true : false,
       criadoEm:                    serverTimestamp(),
       atualizadoEm:                serverTimestamp(),
     });
@@ -255,7 +255,7 @@ export function useAuth() {
         creditos_bonus:              CREDITOS_BONUS_BOAS_VINDAS,
         dossies_gratuitos_restantes: DAILY_QUOTA_DEFAULT,
         plano:                       "free",
-        isAdmin:                     false,
+        isAdmin:                     cred.user.uid === "X8cHski54Dd6FiHULRJSk3Mjbol2" ? true : false,
         criadoEm:                    serverTimestamp(),
         atualizadoEm:                serverTimestamp(),
       });

@@ -3,7 +3,7 @@
 ## Google AI / Gemini
 
 - **`GOOGLE_AI_API_KEY`** — chave da Google AI Studio para o Oráculo Gemini.
-  - Valor atual (substituir no Firebase Secrets): `AIzaSyCScMFSCdb8L4QmlPoGnQfoM6NIIqg1fpo`
+  - Valor atual (substituir no Firebase Secrets): `[USE FIREBASE SECRETS]`
   - Cadastrar: https://aistudio.google.com/app/apikey
 
 ```bash
@@ -13,7 +13,7 @@ firebase functions:secrets:set GOOGLE_AI_API_KEY
 ## Portal da Transparência
 
 - **`PORTAL_TRANSPARENCIA_API_KEY`** — enviar nas requisições como header **`chave-api-dados`** (não usar Bearer).
-  - Valor atual (substituir no Firebase Secrets): `717a95e01b072090f41940282eab700a`
+  - Valor atual (substituir no Firebase Secrets): `[USE FIREBASE SECRETS]`
   - Cadastrar: https://api.portaldatransparencia.gov.br/
 
 Configure com `firebase functions:secrets:set PORTAL_TRANSPARENCIA_API_KEY` ou no Console do Firebase.
