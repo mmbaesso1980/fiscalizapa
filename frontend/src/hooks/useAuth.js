@@ -96,14 +96,23 @@ export function useAuth() {
   });
 
   // ── Processar resultado do redirect (Google / GitHub) ─────────────────────
-  // Roda UMA vez ao montar — captura o resultado após o redirect OAuth.
+  // Roda UMA vez ao montar — captura o resultado após o redirect OAuth e provisiona Firestore cedo.
   useEffect(() => {
-    getRedirectResult(auth).catch((err) => {
-      // Erros esperados: popup_closed_by_user, cancelled — silenciar.
-      if (!err?.code?.includes("cancelled") && !err?.code?.includes("popup-closed")) {
-        console.warn("getRedirectResult error:", err.code, err.message);
-      }
-    });
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user) {
+          try {
+            await ensureUserDoc(result.user);
+          } catch {
+            /* onAuthStateChanged também chama ensureUserDoc */
+          }
+        }
+      })
+      .catch((err) => {
+        if (!err?.code?.includes("cancelled") && !err?.code?.includes("popup-closed")) {
+          console.warn("getRedirectResult error:", err.code, err.message);
+        }
+      });
   }, []);
 
   // ── Listener de autenticação ──────────────────────────────────────────────
