@@ -1,7 +1,7 @@
 {
   "name": "fiscalizapa-functions",
   "version": "1.0.0",
-  "description": "TransparenciaBR - Backend m\u00ednimo est\u00e1vel (Transpar\u00eanciaBR)",
+  "description": "TransparenciaBR - Backend mínimo estável (TransparênciaBR)",
   "engines": {
     "node": "24"
   },
@@ -12,9 +12,10 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
-    "cheerio": "^1.0.0",
     "@google-cloud/bigquery": "^8.1.1",
     "@google-cloud/storage": "^7.15.0",
+    "axios": "^1.15.0",
+    "cheerio": "^1.0.0",
     "firebase-admin": "^13.6.0",
     "firebase-functions": "^7.0.0",
     "stripe": "^20.4.1"

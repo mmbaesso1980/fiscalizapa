@@ -256,15 +256,15 @@ async function fetchSancoes(cpf, nome, apiKey) {
  * Fórmula: SEP = (((Produtividade * 0.4) + (Fiscalizacao * 0.4)) / (Gastos/Media * 1.2)) * 100
  */
 function calcularScore({ ceap, emendas, proposicoes, discursos, sancoes }) {
-  const propSignificativas = proposicoes.itens.filter(
-    (p) => p.siglaTipo === 'PL' || p.siglaTipo === 'PEC' || p.siglaTipo === 'PLP'
-  ).length;
+  const propSignificativas = (proposicoes.tipos?.PL || 0) + (proposicoes.tipos?.PEC || 0) + (proposicoes.tipos?.PLP || 0);
 
   let produtividadeRaw = (propSignificativas * 2) + (discursos.total * 0.5);
   let produtividade = Math.min(produtividadeRaw, 100) * 0.4;
 
   let fiscalizacaoRaw = (emendas.taxaExecucao || 0);
-  const totalSancoes = sancoes.ceis.total + sancoes.cnep.total;
+  const sancoesCeisCount = sancoes?.ceis ? sancoes.ceis.length : 0;
+  const sancoesCnepCount = sancoes?.cnep ? sancoes.cnep.length : 0;
+  const totalSancoes = sancoesCeisCount + sancoesCnepCount;
   if (totalSancoes > 0) fiscalizacaoRaw -= (totalSancoes * 15);
   let fiscalizacao = Math.max(Math.min(fiscalizacaoRaw, 100), 0) * 0.4;
 

@@ -1258,3 +1258,8 @@ exports.atualizarRankingSemanal = onSchedule(
     console.log(`Ranking atualizado: ${rows.length} parlamentares`);
   }
 );
+
+// ─────────────────────────────────────────────
+// 12. MOTOR CHRONOS (Sincronização Diária)
+// ─────────────────────────────────────────────
+exports.scheduledAsmodeusSync = require('./chronosEngine').scheduledAsmodeusSync;

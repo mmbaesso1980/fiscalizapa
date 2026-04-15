@@ -10,22 +10,12 @@ export default function Galaxy3D() {
   const graphRef = useRef();
 
   useEffect(() => {
-    const loadGalaxyData = async () => {
-      try {
-        const storageUrl = `https://storage.googleapis.com/fiscallizapa.appspot.com/galaxy-data.json`;
-        const res = await fetch(storageUrl);
-        if (!res.ok) throw new Error("Falha ao ler dados da galáxia do storage.");
-        const json = await res.json();
+    fetch("/galaxy-data.json")
+      .then((res) => res.json())
+      .then((json) => {
         setData(json);
-      } catch (err) {
-        console.warn("Bucket data not found, falling back to static file.");
-        // Fallback para arquivo estático (para deploy inicial)
-        const fallbackRes = await fetch("/galaxy-data.json");
-        const fallbackJson = await fallbackRes.json();
-        setData(fallbackJson);
-      }
-    };
-    loadGalaxyData();
+      })
+      .catch((err) => console.error("Error loading galaxy data", err));
   }, []);
 
   return (
