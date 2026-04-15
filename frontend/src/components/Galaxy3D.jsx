@@ -3,6 +3,10 @@ import ForceGraph3D from "react-force-graph-3d";
 
 export default function Galaxy3D() {
   const [data, setData] = useState({ nodes: [], links: [] });
+  const handleNodeClick = node => {
+    // Ação: Abre Dossiê em Cards (Elimina tabela)
+    window.location.href = `/dossie/${node.id}`;
+  };
   const graphRef = useRef();
 
   useEffect(() => {
@@ -28,6 +32,11 @@ export default function Galaxy3D() {
         height={400}
         backgroundColor="rgba(0,0,0,0)"
         showNavInfo={false}
+        onNodeClick={handleNodeClick}
+        linkColor={() => "rgba(255,255,255,0.2)"}
+        linkWidth={1.5}
+        linkDirectionalArrowLength={3.5}
+        linkDirectionalArrowRelPos={1}
       />
     </div>
   );

@@ -251,76 +251,36 @@ async function fetchSancoes(cpf, nome, apiKey) {
  * Fornecedores 15%: diversidade de fornecedores; concentração = ruim
  * Sanções 15%: sem sanções = bom; CEIS/CNEP = muito ruim
  */
-function calcularScore(dados) {
-  const { ceap, emendas, proposicoes, discursos, sancoes, frentes, mediaCeap, stdDevCeap } = dados;
+/**
+ * Score de Eficiência Parlamentar (SEP) - Protocolo Asmodeus v2
+ * Fórmula: SEP = (((Produtividade * 0.4) + (Fiscalizacao * 0.4)) / (Gastos/Media * 1.2)) * 100
+ */
+function calcularScore({ ceap, emendas, proposicoes, discursos, sancoes }) {
+  const propSignificativas = proposicoes.itens.filter(
+    (p) => p.siglaTipo === 'PL' || p.siglaTipo === 'PEC' || p.siglaTipo === 'PLP'
+  ).length;
 
-  // ── CEAP (25 pontos) ──
-  let scoreCeap = 25;
-  if (ceap.total > 0 && mediaCeap > 0) {
-    const desvios = (ceap.total - mediaCeap) / (stdDevCeap || 1);
-    if (desvios > 2) scoreCeap = 5;       // Muito acima da média
-    else if (desvios > 1) scoreCeap = 12;  // Acima da média
-    else if (desvios > 0) scoreCeap = 18;  // Ligeiramente acima
-    else if (desvios > -1) scoreCeap = 22; // Na média ou abaixo
-    else scoreCeap = 25;                   // Bem abaixo (econômico)
-  }
+  let produtividadeRaw = (propSignificativas * 2) + (discursos.total * 0.5);
+  let produtividade = Math.min(produtividadeRaw, 100) * 0.4;
 
-  // ── Emendas (25 pontos) ──
-  let scoreEmendas = 15; // Neutro se sem dados
-  if (emendas.count > 0) {
-    if (emendas.taxaExecucao >= 90) scoreEmendas = 25;      // Execução excelente
-    else if (emendas.taxaExecucao >= 70) scoreEmendas = 20;
-    else if (emendas.taxaExecucao >= 50) scoreEmendas = 15;
-    else if (emendas.taxaExecucao >= 30) scoreEmendas = 10;
-    else scoreEmendas = 5;                                    // Execução muito baixa
-  }
+  let fiscalizacaoRaw = (emendas.taxaExecucao || 0);
+  const totalSancoes = sancoes.ceis.total + sancoes.cnep.total;
+  if (totalSancoes > 0) fiscalizacaoRaw -= (totalSancoes * 15);
+  let fiscalizacao = Math.max(Math.min(fiscalizacaoRaw, 100), 0) * 0.4;
 
-  // ── Votações / Atividade Parlamentar (20 pontos) ──
-  let scoreVotacoes = 10;
-  const atividade = (proposicoes.totalProps || 0) + (discursos.total || 0) + (frentes.total || 0);
-  // Proposições significativas (PL, PEC, PLP) pesam mais
-  const propSignificativas = (proposicoes.tipos?.PL || 0) + (proposicoes.tipos?.PEC || 0) + (proposicoes.tipos?.PLP || 0);
+  let desvios = ceap.desvioDaMedia != null ? ceap.desvioDaMedia : 0;
+  let gastoRatio = Math.max(desvios + 1, 0.1);
+  let deflator = gastoRatio * 1.2;
 
-  if (propSignificativas >= 20 && discursos.total >= 30) scoreVotacoes = 20;
-  else if (propSignificativas >= 10 && discursos.total >= 15) scoreVotacoes = 16;
-  else if (propSignificativas >= 5 || discursos.total >= 10) scoreVotacoes = 13;
-  else if (atividade >= 10) scoreVotacoes = 10;
-  else if (atividade >= 3) scoreVotacoes = 7;
-  else scoreVotacoes = 3; // Quase inativo
-
-  // ── Fornecedores (15 pontos) ──
-  let scoreFornecedores = 12;
-  if (ceap.count > 0) {
-    const numCategorias = Object.keys(ceap.porCategoria || {}).length;
-    // Concentração: se maioria dos gastos é em 1-2 categorias, red flag
-    const valores = Object.values(ceap.porCategoria || {});
-    const maxCategoria = Math.max(...valores, 0);
-    const concentracao = ceap.total > 0 ? maxCategoria / ceap.total : 0;
-
-    if (concentracao > 0.7 && numCategorias <= 3) scoreFornecedores = 5; // Alta concentração
-    else if (concentracao > 0.5) scoreFornecedores = 9;
-    else if (numCategorias >= 5) scoreFornecedores = 15; // Boa diversidade
-    else scoreFornecedores = 12;
-  }
-
-  // ── Sanções (15 pontos) ──
-  let scoreSancoes = 15;
-  const totalSancoes = (sancoes.ceis?.length || 0) + (sancoes.cnep?.length || 0);
-  if (totalSancoes > 5) scoreSancoes = 0;
-  else if (totalSancoes > 2) scoreSancoes = 5;
-  else if (totalSancoes > 0) scoreSancoes = 8;
-  else scoreSancoes = 15;
-
-  const total = scoreCeap + scoreEmendas + scoreVotacoes + scoreFornecedores + scoreSancoes;
+  let sepScore = ((produtividade + fiscalizacao) / deflator) * 100;
+  let total = Math.round(Math.max(Math.min(sepScore, 100), 0));
 
   return {
-    total: Math.round(total * 10) / 10,
+    total,
     componentes: {
-      ceap: { score: scoreCeap, max: 25, peso: '25%' },
-      emendas: { score: scoreEmendas, max: 25, peso: '25%' },
-      votacoes: { score: scoreVotacoes, max: 20, peso: '20%' },
-      fornecedores: { score: scoreFornecedores, max: 15, peso: '15%' },
-      sancoes: { score: scoreSancoes, max: 15, peso: '15%' },
+      produtividade: { score: produtividade, max: 40, peso: '0.4' },
+      fiscalizacao: { score: fiscalizacao, max: 40, peso: '0.4' },
+      deflator_gastos: { value: deflator, razao_media: gastoRatio, peso: '1.2' }
     },
   };
 }
@@ -472,6 +432,36 @@ function gerarFlags(dados) {
     });
   }
 
+  // Educação Fantasma (Módulo 12)
+  const emendasEdu = (emendas.itens || []).filter(e => e.funcao === 'Educação');
+  const valorEdu = emendasEdu.reduce((acc, curr) => acc + (curr.valorEmpenhado || 0), 0);
+  if (valorEdu > 10000000 && emendas.taxaExecucao < 30) {
+    flags.push({
+      nivel: 'CRÍTICO',
+      motivo: 'Flag Vermelha: Educação Fantasma. Alto volume de emendas para Educação com baixíssima taxa de execução municipal.',
+      contexto: 'Requer auditoria IDEB vs FNDE via Codex'
+    });
+  }
+
+  // RPPS Podre (Módulo 13)
+  const emendasPrev = (emendas.itens || []).filter(e => e.funcao === 'Previdência Social');
+  if (emendasPrev.length > 2) {
+    flags.push({
+      nivel: 'ALTO',
+      motivo: 'Alerta RPPS Podre: Monitoramento de ativos de risco nos fundos de previdência municipal requer atenção.',
+      contexto: 'Possível ligação com esquemas estruturados'
+    });
+  }
+
+  // Violência (Módulo 14)
+  const emendasSeg = (emendas.itens || []).filter(e => e.funcao === 'Segurança Pública');
+  if (emendasSeg.length > 5) {
+    flags.push({
+      nivel: 'MÉDIO',
+      motivo: 'Cruze emendas de segurança com os índices de criminalidade locais.',
+      contexto: 'Auditoria de eficácia de Segurança Pública'
+    });
+  }
   return flags;
 }
 
