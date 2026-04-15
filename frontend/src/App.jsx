@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { HelmetProvider, Helmet } from "react-helmet-async";
 import { useAuth } from "./hooks/useAuth";
@@ -44,20 +44,45 @@ function RedirectPoliticoLegadoUmaColuna() {
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return null;
+  const [bootBypass, setBootBypass] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setBootBypass(false);
+      return undefined;
+    }
+    setBootBypass(false);
+    const id = setTimeout(() => setBootBypass(true), AUTH_BOOT_MS);
+    return () => clearTimeout(id);
+  }, [loading]);
+  if (loading && !bootBypass) return null;
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   return children;
 }
 
+const AUTH_BOOT_MS = 5000;
+
 export default function App() {
   const { user, loading, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits, isAdmin } = useAuth();
+  const [authBootBypass, setAuthBootBypass] = useState(false);
 
-  if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#FAFAF8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 36, height: 36, border: '3px solid #A8D8B0', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
+  useEffect(() => {
+    if (!loading) {
+      setAuthBootBypass(false);
+      return undefined;
+    }
+    setAuthBootBypass(false);
+    const id = setTimeout(() => setAuthBootBypass(true), AUTH_BOOT_MS);
+    return () => clearTimeout(id);
+  }, [loading]);
+
+  if (loading && !authBootBypass) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#FAFAF8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 36, height: 36, border: "3px solid #A8D8B0", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <HelmetProvider>
