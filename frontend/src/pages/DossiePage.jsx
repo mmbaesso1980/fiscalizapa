@@ -1346,11 +1346,16 @@ export default function DossiePage() {
           console.log("[DossiePage] urlFoto raw:", pol?.urlFoto, pol?.ultimoStatus?.urlFoto);
         }
 
-        const rankSnap = await getDocs(
-          query(collection(db, "deputados_federais"), orderBy("score", "desc")),
-        );
-        const idx = rankSnap.docs.findIndex((d) => d.id === docIdAlertas);
-        if (!cancelled && idx !== -1) setRank(idx);
+        let rankIdx = -1;
+        try {
+          const rankSnap = await getDocs(
+            query(collection(db, "deputados_federais"), orderBy("score", "desc")),
+          );
+          rankIdx = rankSnap.docs.findIndex((d) => d.id === docIdAlertas);
+        } catch (rankErr) {
+          console.warn("DossiePage: ranking interno (score) indisponível — segue sem posição:", rankErr);
+        }
+        if (!cancelled && rankIdx !== -1) setRank(rankIdx);
 
         try {
           let alertSnap;
