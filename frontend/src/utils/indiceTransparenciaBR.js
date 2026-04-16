@@ -1,8 +1,8 @@
 /**
  * indiceTransparenciaBR.js — Índice e Motor SEP (Score de Equilíbrio Parlamentar)
  *
- * Motor SEP: combina produção legislativa e fiscalização (peso 0,4 cada).
- * Deflator 1,2: aplicado quando os gastos (CEAP/cota) superam a média geral do conjunto.
+ * Motor SEP (Asmodeus): scoreBase = 0,4·produção + 0,4·fiscalização; fatorGastos = gastos/média;
+ * se gastos > média, fatorGastos × 1,2; se fatorGastos === 0 → 0,1; SEP = (scoreBase/fatorGastos)·100 (0–100).
  *
  * Parâmetros explícitos em calcScoreSEP: producao, fiscalizacao, gastos, mediaGeral
  */
@@ -22,7 +22,7 @@ const SEP_DEFLATOR_ACIMA_MEDIA = 1.2;
  * @param {number} params.producao — score 0–100 (proposições / produção)
  * @param {number} params.fiscalizacao — score 0–100 (risco / processos / fiscalização)
  * @param {number} params.gastos — valor monetário de referência (ex.: total CEAP)
- * @param {number} params.mediaGeral — média dos gastos do universo (0 = não aplicar deflator)
+ * @param {number} params.mediaGeral — média dos gastos do universo (≤0 → score 0)
  * @returns {number} score 0–100 (score_sep)
  */
 export function calcScoreSEP({ producao, fiscalizacao, gastos, mediaGeral }) {
@@ -31,11 +31,15 @@ export function calcScoreSEP({ producao, fiscalizacao, gastos, mediaGeral }) {
   const g = Number(gastos) || 0;
   const m = Number(mediaGeral) || 0;
 
-  let sep = SEP_PESO_PRODUCAO * p + SEP_PESO_FISCALIZACAO * f;
-  if (m > 0 && g > m) {
-    sep *= SEP_DEFLATOR_ACIMA_MEDIA;
-  }
-  return Math.round(Math.max(0, Math.min(100, sep)));
+  if (m <= 0) return 0;
+
+  const scoreBase = SEP_PESO_PRODUCAO * p + SEP_PESO_FISCALIZACAO * f;
+  let fatorGastos = g / m;
+  if (g > m) fatorGastos *= SEP_DEFLATOR_ACIMA_MEDIA;
+  if (fatorGastos === 0) fatorGastos = 0.1;
+
+  const sep = (scoreBase / fatorGastos) * 100;
+  return Math.round(Math.min(Math.max(sep, 0), 100));
 }
 
 function calcFiscalizacaoInterno(p) {
@@ -55,7 +59,7 @@ function calcProducaoInterno(p) {
 /**
  * Score bruto composto (motor SEP + campos do político).
  * @param {Object} p — objeto do político
- * @param {{ mediaGeralGastos?: number }} [opts] — média de gastos do conjunto (para deflator)
+ * @param {{ mediaGeralGastos?: number }} [opts] — média de gastos do conjunto (denominador SEP)
  */
 export function calcularScoreBrutoTransparenciaBR(p, opts = {}) {
   const mediaGeral = opts.mediaGeralGastos ?? 0;
@@ -76,7 +80,7 @@ export function calcularScoreBrutoTransparenciaBR(p, opts = {}) {
 }
 
 /**
- * Normaliza scores; calcula média de gastos no lote para aplicar o deflator SEP.
+ * Normaliza scores; calcula média de gastos no lote para o denominador do SEP.
  */
 export function normalizarScoresPorKim(deputados) {
   const comScore = deputados.filter((p) => p.score != null && p.score > 0).length;
