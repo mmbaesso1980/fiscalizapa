@@ -1281,6 +1281,7 @@ export default function DossiePage() {
               if (!cancelled) {
                 navigate(`/dossie/${d.id}`, { replace: true });
               }
+              if (!cancelled) setDataLoading(false);
               return;
             }
           }
@@ -1301,6 +1302,7 @@ export default function DossiePage() {
 
         if (!pol) {
           if (!cancelled) setNotFound(true);
+          if (!cancelled) setDataLoading(false);
           return;
         }
 
