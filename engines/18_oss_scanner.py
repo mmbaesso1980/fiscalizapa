@@ -34,14 +34,11 @@ Cláusulas Suspeitas (detectadas pelo Gemini):
   - "devolução de saldo" não obrigatória
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import logging
 import os
 import re
-import sys
 import time
 import urllib.request
 from datetime import datetime, timezone
