@@ -111,6 +111,102 @@ exports.getRanking = onCall(OPTS, async (req) => {
 });
 
 // ─────────────────────────────────────────────
+// 3c. MOTOR ASMODEUS — score SEP (Firestore deputados_federais)
+//     Cruza produção, fiscalização e gastos; grava score_sep por parlamentar.
+// ─────────────────────────────────────────────
+
+/** Motor SEP — fórmula Asmodeus (espelhada no frontend onde aplicável). */
+function calcScoreSEP(producao, fiscalizacao, gastos, mediaGeral) {
+  if (mediaGeral <= 0) return 0;
+  const scoreBase = (producao * 0.4) + (fiscalizacao * 0.4);
+  let fatorGastos = gastos / mediaGeral;
+  if (gastos > mediaGeral) fatorGastos = fatorGastos * 1.2;
+  if (fatorGastos === 0) fatorGastos = 0.1;
+  const sep = (scoreBase / fatorGastos) * 100;
+  return Math.min(Math.max(sep, 0), 100);
+}
+
+function _calcFiscalizacaoInterno(d) {
+  const r = Number(d.riskScore) || 0;
+  if (r === 0) return 60;
+  return Math.max(0, Math.min(100, 100 - r * 1.8));
+}
+
+function _calcProducaoInterno(d) {
+  if (d.proposicoesScore != null && d.proposicoesScore !== '') {
+    return Math.min(100, Number(d.proposicoesScore) || 0);
+  }
+  const disp = Number(d.totalDespesas) || Number(d.proposicoes) || 0;
+  if (disp > 20) return 40;
+  if (disp > 0) return 20;
+  return 5;
+}
+
+function _scoresProducaoFiscalizacao(d) {
+  const gastos = Number(d.totalGastos) || 0;
+  const totalDespesas = Number(d.totalDespesas) || 0;
+  const riskR = Number(d.riskScore) || 0;
+  if (gastos === 0 && totalDespesas === 0 && riskR === 0) {
+    return { producao: 15, fiscalizacao: 25 };
+  }
+  return {
+    producao: _calcProducaoInterno(d),
+    fiscalizacao: _calcFiscalizacaoInterno(d),
+  };
+}
+
+exports.calculateAsmodeusScore = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const userRecord = await admin.auth().getUser(req.auth.uid);
+  if (!userRecord.customClaims?.admin) {
+    throw new HttpsError('permission-denied', 'Apenas administradores podem executar o motor Asmodeus.');
+  }
+
+  const snap = await db.collection('deputados_federais').get();
+  const docs = [];
+  snap.forEach((doc) => docs.push({ id: doc.id, data: doc.data() }));
+
+  const gastosVals = docs
+    .map(({ data }) => Number(data.totalGastos) || 0)
+    .filter((g) => g > 0);
+  const mediaGeral = gastosVals.length
+    ? gastosVals.reduce((a, b) => a + b, 0) / gastosVals.length
+    : 0;
+
+  let updated = 0;
+  const BATCH_MAX = 500;
+  let batch = db.batch();
+  let n = 0;
+
+  for (const { id, data } of docs) {
+    const gastos = Number(data.totalGastos) || 0;
+    const { producao, fiscalizacao } = _scoresProducaoFiscalizacao(data);
+    const scoreSep = calcScoreSEP(producao, fiscalizacao, gastos, mediaGeral);
+    const score_sep = Math.round(scoreSep);
+    batch.update(db.collection('deputados_federais').doc(id), {
+      score_sep,
+      score_sep_atualizado_em: admin.firestore.FieldValue.serverTimestamp(),
+      asmodeus_media_geral_gastos: mediaGeral,
+    });
+    n++;
+    updated++;
+    if (n >= BATCH_MAX) {
+      await batch.commit();
+      batch = db.batch();
+      n = 0;
+    }
+  }
+  if (n > 0) await batch.commit();
+
+  return {
+    ok: true,
+    atualizados: updated,
+    mediaGeralGastos: mediaGeral,
+    colecao: 'deputados_federais',
+  };
+});
+
+// ─────────────────────────────────────────────
 // 4. QUERY CONTROLADA NO BIGQUERY
 //    Aceita: tabela + filtros opcionais
 //    Retorna: até 500 linhas (seguro)
