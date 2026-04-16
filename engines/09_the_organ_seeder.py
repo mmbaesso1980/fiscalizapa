@@ -29,6 +29,8 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import secrets
+import string
 import sys
 from datetime import datetime, timezone
 from typing import Any
@@ -286,7 +288,7 @@ def seed_config(db: Any, dry_run: bool) -> None:
 
 
 # ─── Seed: admin principal ────────────────────────────────────────────────────
-def seed_admin(db: Any, fb_auth: Any, admin_email: str, dry_run: bool) -> None:
+def seed_admin(db: Any, fb_auth: Any, admin_email: str, admin_password: str | None, dry_run: bool) -> None:
     log.info("  → Buscando usuário admin: %s", admin_email)
 
     # 1. Buscar usuário pelo e-mail no Firebase Auth
@@ -300,10 +302,18 @@ def seed_admin(db: Any, fb_auth: Any, admin_email: str, dry_run: bool) -> None:
             return
         # Criar usuário se não existe
         log.info("    Usuário não encontrado. Criando…")
+
+        password = admin_password
+        if not password:
+            alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+            password = "".join(secrets.choice(alphabet) for _ in range(16))
+
         try:
-            user_record = fb_auth.create_user(email=admin_email, password="AlterEstePasswordImediatamente!")
+            user_record = fb_auth.create_user(email=admin_email, password=password)
             uid = user_record.uid
-            log.info("    ✓ Usuário criado: uid=%s · Altere a senha imediatamente!", uid)
+            log.info("    ✓ Usuário criado: uid=%s", uid)
+            log.info("    ⚠️  SENHA TEMPORÁRIA: %s", password)
+            log.info("    Altere a senha imediatamente após o primeiro login!")
         except Exception as e:
             log.error("    ✗ Erro ao criar usuário: %s", e)
             return
@@ -372,6 +382,8 @@ def main() -> None:
                         help="Projeto Firebase (padrão: fiscallizapa)")
     parser.add_argument("--admin-email",  default="admin@codex.com",
                         help="E-mail do administrador principal")
+    parser.add_argument("--admin-password",
+                        help="Senha do administrador principal (se não informada, gera uma aleatória)")
     parser.add_argument("--skip-deputies", action="store_true",
                         help="Não semeia deputados federais")
     parser.add_argument("--skip-config",   action="store_true",
@@ -405,7 +417,7 @@ def main() -> None:
     # 3. Semear admin
     if not args.skip_admin:
         log.info("─ Configurando admin principal ─")
-        seed_admin(db, fb_auth, args.admin_email, dry_run=args.dry_run)
+        seed_admin(db, fb_auth, args.admin_email, args.admin_password, dry_run=args.dry_run)
 
     print_summary(args, deputies_seeded)
 
