@@ -51,7 +51,7 @@ export default function Galaxy3D() {
   const graphData = useMemo(() => {
     const nodes = data.nodes.map((n) => ({
       ...n,
-      val: Math.max(1, Number(n.val) || Number(n.score_sep) || 5),
+      val: Math.max(1, (Number(n.val) || Number(n.score_sep) || 5) / 10),
     }));
     return { nodes, links: data.links };
   }, [data]);
@@ -65,61 +65,22 @@ export default function Galaxy3D() {
 
   return (
     <section
-      style={{
-        maxWidth: 960,
-        margin: "0 auto 40px",
-        padding: "0 16px",
-      }}
+      className="max-w-[960px] mx-auto mb-10 px-4"
       aria-label="Mapa de proximidade de parlamentares"
     >
-      <h2
-        style={{
-          fontFamily: "'Inter', system-ui, sans-serif",
-          fontSize: 15,
-          fontWeight: 600,
-          color: "#0f172a",
-          margin: "0 0 8px",
-          letterSpacing: "-0.02em",
-        }}
-      >
+      <h2 className="font-inter text-[15px] font-semibold text-[#0f172a] m-0 mb-2 tracking-tight">
         Rede de referência (SEP)
       </h2>
-      <p
-        style={{
-          fontSize: 13,
-          color: "#64748b",
-          margin: "0 0 16px",
-          lineHeight: 1.5,
-          maxWidth: 640,
-        }}
-      >
+      <p className="text-[13px] text-[#64748b] m-0 mb-4 leading-relaxed max-w-[640px]">
         Cada esfera representa um parlamentar; o tamanho reflete o score SEP. Clique para abrir o dossiê.
       </p>
       {err && (
-        <p style={{ fontSize: 13, color: "#b45309", marginBottom: 12 }}>{err}</p>
+        <p className="text-[13px] text-[#b45309] mb-3">{err}</p>
       )}
-      <div
-        style={{
-          width: "100%",
-          height: 360,
-          borderRadius: 8,
-          border: "1px solid #e2e8f0",
-          background: "#f8fafc",
-          overflow: "hidden",
-        }}
-      >
+      <div className="w-full h-[360px] rounded-xl overflow-hidden shadow-sm bg-transparent border border-[#e2e8f0]">
         <Suspense
           fallback={
-            <div
-              style={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 13,
-                color: "#94a3b8",
-              }}
-            >
+            <div className="h-full flex items-center justify-center text-[13px] text-[#94a3b8]">
               Carregando visualização…
             </div>
           }
@@ -132,23 +93,14 @@ export default function Galaxy3D() {
               nodeAutoColorBy={null}
               nodeColor={(n) => partidoColor(n.partido)}
               linkOpacity={0.2}
-              backgroundColor="#f8fafc"
+              backgroundColor="#FAFAF8"
               onNodeClick={onNodeClick}
               enableNodeDrag={true}
               cooldownTicks={80}
             />
           ) : (
             !err && (
-              <div
-                style={{
-                  height: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 13,
-                  color: "#94a3b8",
-                }}
-              >
+              <div className="h-full flex items-center justify-center text-[13px] text-[#94a3b8]">
                 Sem nós para exibir.
               </div>
             )
