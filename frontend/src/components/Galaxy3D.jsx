@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 
-const ForceGraph3D = lazy(() =>
-  import("react-force-graph").then((m) => ({ default: m.ForceGraph3D })),
-);
+const ForceGraph3D = lazy(() => import("react-force-graph-3d"));
 
 /** Cores discretas por sigla — estilo institucional */
 const PARTIDO_HEX = {
