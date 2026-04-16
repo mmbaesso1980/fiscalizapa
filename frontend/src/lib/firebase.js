@@ -12,6 +12,10 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+if (!firebaseConfig.apiKey) {
+  console.error("ERRO CRÍTICO: Chave de API do Firebase ausente no ambiente (VITE_FIREBASE_API_KEY). O build local foi gerado sem o arquivo .env ou as variáveis não foram injetadas na CI/CD.");
+}
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
