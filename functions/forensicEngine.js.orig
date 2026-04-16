@@ -437,9 +437,9 @@ function gerarFlags(dados) {
   const valorEdu = emendasEdu.reduce((acc, curr) => acc + (curr.valorEmpenhado || 0), 0);
   if (valorEdu > 10000000 && emendas.taxaExecucao < 30) {
     flags.push({
-      severidade: 'red',
-      titulo: 'Educação Fantasma (Módulo 12)',
-      descricao: 'Alto volume de emendas para Educação com baixíssima taxa de execução municipal. Requer auditoria IDEB vs FNDE via Codex.',
+      nivel: 'CRÍTICO',
+      motivo: 'Flag Vermelha: Educação Fantasma. Alto volume de emendas para Educação com baixíssima taxa de execução municipal.',
+      contexto: 'Requer auditoria IDEB vs FNDE via Codex'
     });
   }
 
@@ -447,9 +447,9 @@ function gerarFlags(dados) {
   const emendasPrev = (emendas.itens || []).filter(e => e.funcao === 'Previdência Social');
   if (emendasPrev.length > 2) {
     flags.push({
-      severidade: 'yellow',
-      titulo: 'Alerta RPPS Podre (Módulo 13)',
-      descricao: 'Monitoramento de ativos de risco nos fundos de previdência municipal requer atenção. Possível ligação com esquemas estruturados.',
+      nivel: 'ALTO',
+      motivo: 'Alerta RPPS Podre: Monitoramento de ativos de risco nos fundos de previdência municipal requer atenção.',
+      contexto: 'Possível ligação com esquemas estruturados'
     });
   }
 

@@ -35,7 +35,8 @@ export default function Galaxy3D() {
         graphData={data}
         nodeLabel="id"
         nodeAutoColorBy="group"
-        nodeRelSize={6}
+        nodeVal={node => Math.max(1, (node.val || 10) / 10)}
+        nodeResolution={16}
         linkDirectionalParticles={2}
         linkDirectionalParticleSpeed={d => (d.value || 1) * 0.001}
         width={800} // responsive approach might need resize listener or flexible container

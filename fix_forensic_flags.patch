@@ -1,0 +1,44 @@
+--- functions/forensicEngine.js
++++ functions/forensicEngine.js
+@@ -432,27 +432,27 @@
+   }
+
+   // Educação Fantasma (Módulo 12)
+   const emendasEdu = (emendas.itens || []).filter(e => e.funcao === 'Educação');
+   const valorEdu = emendasEdu.reduce((acc, curr) => acc + (curr.valorEmpenhado || 0), 0);
+   if (valorEdu > 10000000 && emendas.taxaExecucao < 30) {
+     flags.push({
+-      nivel: 'CRÍTICO',
+-      motivo: 'Flag Vermelha: Educação Fantasma. Alto volume de emendas para Educação com baixíssima taxa de execução municipal.',
+-      contexto: 'Requer auditoria IDEB vs FNDE via Codex'
++      severidade: 'red',
++      titulo: 'Educação Fantasma (Módulo 12)',
++      descricao: 'Alto volume de emendas para Educação com baixíssima taxa de execução municipal. Requer auditoria IDEB vs FNDE via Codex.',
+     });
+   }
+
+   // RPPS Podre (Módulo 13)
+   const emendasPrev = (emendas.itens || []).filter(e => e.funcao === 'Previdência Social');
+   if (emendasPrev.length > 2) {
+     flags.push({
+-      nivel: 'ALTO',
+-      motivo: 'Alerta RPPS Podre: Monitoramento de ativos de risco nos fundos de previdência municipal requer atenção.',
+-      contexto: 'Possível ligação com esquemas estruturados'
++      severidade: 'yellow',
++      titulo: 'Alerta RPPS Podre (Módulo 13)',
++      descricao: 'Monitoramento de ativos de risco nos fundos de previdência municipal requer atenção. Possível ligação com esquemas estruturados.',
+     });
+   }
+
+   // Violência (Módulo 14)
+   const emendasSeg = (emendas.itens || []).filter(e => e.funcao === 'Segurança Pública');
+   if (emendasSeg.length > 5) {
+     flags.push({
+-      nivel: 'MÉDIO',
+-      motivo: 'Cruze emendas de segurança com os índices de criminalidade locais.',
+-      contexto: 'Auditoria de eficácia de Segurança Pública'
++      severidade: 'yellow',
++      titulo: 'Auditoria de Segurança (Módulo 14)',
++      descricao: 'Alto volume de emendas para Segurança. Cruze emendas com os índices de criminalidade locais para auditoria de eficácia.',
+     });
+   }

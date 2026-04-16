@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { HelmetProvider, Helmet } from "react-helmet-async";
 import { useAuth } from "./hooks/useAuth";
@@ -51,8 +51,16 @@ function RequireAuth({ children }) {
 
 export default function App() {
   const { user, loading, login, loginWithGitHub, loginWithEmail, registerWithEmail, logout, credits, isAdmin } = useAuth();
+  const [authTimeout, setAuthTimeout] = useState(false);
 
-  if (loading) return (
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) setAuthTimeout(true);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  if (loading && !authTimeout) return (
     <div style={{ minHeight: '100vh', background: '#FAFAF8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: 36, height: 36, border: '3px solid #A8D8B0', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

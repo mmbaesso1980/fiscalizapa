@@ -229,7 +229,7 @@ exports.getWalletCredits = onCall(OPTS, async (req) => {
   const d = snap.data() || {};
   let plano = d.plano ?? 'free';
   if (plano !== 'premium' && plano !== 'ilimitado') {
-    const leg = await db.doc(`users/${uid}`).get();
+    const leg = await db.doc(`usuarios/${uid}`).get();
     if (leg.data()?.plan === 'premium') plano = 'premium';
   }
   const comprado = d.creditos ?? d.credits ?? 0;
@@ -464,7 +464,7 @@ exports.stripeWebhook = onRequest(
       );
       // Legado: assinatura antiga só em users
       if (snapU.empty) {
-        const snapL = await db.collection('users').where('stripeCustomerId', '==', customerId).limit(5).get();
+        const snapL = await db.collection('usuarios').where('stripeCustomerId', '==', customerId).limit(5).get();
         snapL.forEach(d =>
           d.ref.set(
             { plan: 'free', updatedAt: admin.firestore.FieldValue.serverTimestamp() },
@@ -491,7 +491,7 @@ exports.getPerfilParlamentar = onCall(OPTS, async (req) => {
     plan = userDoc.data()?.plano ?? 'free';
     // Legado: assinaturas antigas gravadas em users/{uid}
     if (plan !== 'premium') {
-      const leg = await db.doc(`users/${uid}`).get();
+      const leg = await db.doc(`usuarios/${uid}`).get();
       if (leg.data()?.plan === 'premium') plan = 'premium';
     }
   }
