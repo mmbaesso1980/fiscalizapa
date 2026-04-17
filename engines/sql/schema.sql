@@ -359,4 +359,31 @@ SELECT
     MAX(data_documento) AS ultima_data
 FROM emendas_documentos
 GROUP BY codigo_emenda, nome_autor, tipo_emenda, ano_emenda;
-ORDER BY total_valor DESC;
+
+-- ==========================================
+-- PROTOCOLO GÊNESE: Inteligência Forense (Asmodeus v2.0)
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS dim_processos_judiciais (
+    id                BIGSERIAL PRIMARY KEY,
+    id_relacional     VARCHAR(20) NOT NULL, -- CPF ou CNPJ
+    tipo_ente         VARCHAR(10) NOT NULL, -- 'POLITICO' ou 'FORNECEDOR'
+    data_consulta     TIMESTAMPTZ DEFAULT NOW(),
+    total_processos   INTEGER DEFAULT 0,
+    risco_juridico    NUMERIC(5,2) DEFAULT 0.00
+);
+CREATE INDEX idx_dim_processos_relacional ON dim_processos_judiciais(id_relacional);
+
+CREATE TABLE IF NOT EXISTS fato_citacoes (
+    id                BIGSERIAL PRIMARY KEY,
+    id_processo       BIGINT REFERENCES dim_processos_judiciais(id),
+    numero_processo   VARCHAR(50),
+    tribunal          VARCHAR(50),
+    data_citacao      DATE,
+    tipo_citacao      VARCHAR(100), -- 'Improbidade Administrativa', 'Peculato', etc
+    fonte_dados       VARCHAR(50), -- 'Datajud', 'Diário Oficial'
+    resumo_ocorrencia TEXT,
+    created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_fato_citacoes_processo ON fato_citacoes(id_processo);
+CREATE INDEX idx_fato_citacoes_tipo ON fato_citacoes(tipo_citacao);

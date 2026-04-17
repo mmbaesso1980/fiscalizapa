@@ -20,15 +20,25 @@ export default function Galaxy3D() {
   };
 
   return (
-    <div className="w-full h-full bg-slate-900">
+    <div className="w-full h-full bg-slate-900 relative">
+      <div className="absolute top-4 left-4 z-10 text-white bg-slate-800/80 p-4 rounded shadow">
+        <h3 className="font-cabinet font-bold text-lg">Asmodeus v2.0 - Radar</h3>
+        <p className="text-sm font-satoshi text-slate-300 max-w-xs">
+          Visualizador de conexões aguardando integração. Linhas vermelhas indicarão
+          Triangulação de Culpa (processos judiciais associados a emendas).
+        </p>
+      </div>
       <ForceGraph3D
         ref={fgRef}
         graphData={data}
         nodeId="id"
         nodeLabel="name"
         nodeAutoColorBy="id"
-        nodeVal={(node) => Math.sqrt(node.value) / 100} // Tamanho baseado no volume financeiro
-        linkWidth={(link) => link.value} // Espessura reage a risco/volume financeiro
+        nodeVal={(node) => Math.sqrt(node.value || 0) / 100} // Tamanho baseado no volume financeiro
+        linkWidth={(link) => link.value || 1}
+        linkColor={(link) => (link.risk && link.risk > 0 ? '#ef4444' : '#cbd5e1')} // Vermelho se risco jurídico
+        linkDirectionalParticles={(link) => (link.risk && link.risk > 0 ? 4 : 0)} // Pulsação em links de risco
+        linkDirectionalParticleSpeed={0.01}
         onNodeClick={handleNodeClick}
         backgroundColor="#0f172a"
         showNavInfo={false}
