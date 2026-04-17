@@ -1330,6 +1330,51 @@ const { renderPage } = require('./renderPage');
 exports.renderPage = renderPage;
 
 // ─────────────────────────────────────────────
+// 9.5.5 ENRICH COMPANY DATA (Sprint 3 - QSA/CNAE)
+// ─────────────────────────────────────────────
+exports.enrichCompanyData = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const userRecord = await admin.auth().getUser(req.auth.uid);
+  if (!userRecord.customClaims?.admin) {
+    throw new HttpsError('permission-denied', 'Apenas administradores podem enriquecer dados corporativos.');
+  }
+
+  const { cnpj, emenda_tipo } = req.data || {};
+  if (!cnpj) throw new HttpsError('invalid-argument', 'CNPJ obrigatório.');
+
+  const companyData = await fetchCnpjData(cnpj);
+  if (!companyData) {
+    return { ok: false, error: 'CNPJ não encontrado na base pública.' };
+  }
+
+  const cnaePrincipal = String(companyData.cnae_fiscal_descricao || '').toLowerCase();
+  const cnaesSecundarios = (companyData.cnaes_secundarios || []).map(c => String(c.descricao || '').toLowerCase());
+  const allCnaes = [cnaePrincipal, ...cnaesSecundarios];
+
+  // Regra Sprint 3: "Se empresa de confecção/varejo recebe emenda para obras/consultoria"
+  const isConfeccaoOrVarejo = allCnaes.some(c => c.includes('confecção') || c.includes('confeccao') || c.includes('comércio varejista') || c.includes('comercio varejista') || c.includes('roupas'));
+  const isObraOrConsultoria = String(emenda_tipo || '').toLowerCase().includes('obra') || String(emenda_tipo || '').toLowerCase().includes('consultoria');
+
+  let alerta_desvio_objeto = false;
+  let risco_cnae = 0;
+
+  if (isConfeccaoOrVarejo && isObraOrConsultoria) {
+    alerta_desvio_objeto = true;
+    risco_cnae = 50; // Alerta Crítico (máximo do eixo CNAE)
+  }
+
+  return {
+    ok: true,
+    cnpj: companyData.cnpj,
+    razao_social: companyData.razao_social,
+    alerta_desvio_objeto,
+    risco_cnae,
+    cnae_principal: cnaePrincipal,
+    qsa: companyData.qsa || []
+  };
+});
+
+// ─────────────────────────────────────────────
 // 9.6 DATAJUD BOT (Sprint 2 - Asmodeus v2.0)
 // ─────────────────────────────────────────────
 exports.botDatajud = onCall(OPTS, async (req) => {
@@ -1373,7 +1418,7 @@ exports.botDatajud = onCall(OPTS, async (req) => {
 // 10. MOTOR FORENSE (análise cruzada + scoring + flags)
 //     Módulo separado: forensicEngine.js
 // ─────────────────────────────────────────────
-const { registerForensicFunctions, fetchDatajudProcessos } = require('./forensicEngine');
+const { registerForensicFunctions, fetchDatajudProcessos, fetchCnpjData, calcularScoreAsmodeusV2 } = require('./forensicEngine');
 const forensic = registerForensicFunctions({
   onCall, HttpsError, db, bq, DATASET, BQ_LOCATION, OPTS,
 });

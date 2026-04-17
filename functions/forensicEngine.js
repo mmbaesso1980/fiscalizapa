@@ -18,6 +18,34 @@ const https = require('https');
 
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 
+async function fetchCnpjData(cnpj) {
+  // Sprint 3 - O Cerco às "Confecções" via BrasilAPI
+  if (!cnpj) return null;
+  const cnpj_limpo = String(cnpj).replace(/\D/g, '');
+  const url = `https://brasilapi.com.br/api/cnpj/v1/${cnpj_limpo}`;
+  try {
+    const res = await fetchJson(url);
+    return res || null;
+  } catch (error) {
+    console.error(`Erro ao consultar CNPJ ${cnpj_limpo}:`, error.message);
+    return null;
+  }
+}
+
+function calcularScoreAsmodeusV2(cnaeRisco, parentescoRisco, inidoneidadeFator) {
+  // Sprint 3 - Tarefa 2: Asmodeus v2.0 Triangulação de Culpa
+  // Fórmula: Score Risco Total = (cnaeRisco + parentescoRisco) * inidoneidadeFator
+
+  const cnaeScore = Math.max(0, Math.min(50, Number(cnaeRisco) || 0));
+  const parentescoScore = Math.max(0, Math.min(50, Number(parentescoRisco) || 0));
+  const fator = Number(inidoneidadeFator) === 2 ? 2 : 1; // 2 se CEIS/CNEP/CEPIM ativo, 1 se ficha limpa
+
+  let scoreTotal = (cnaeScore + parentescoScore) * fator;
+
+  // Max cap: 200 pontos (Nível máximo: Audit)
+  return Math.min(scoreTotal, 200);
+}
+
 async function fetchDatajudProcessos(cpfCnpj) {
   // Protocolo Gênese - Bot Datajud (CNJ)
   // Sem API KEY ativa no momento, não criar dados sintéticos.
@@ -820,4 +848,4 @@ function registerForensicFunctions(deps) {
   return { forensicEngine, getForensicCache, getAtividadeParlamentar };
 }
 
-module.exports = { registerForensicFunctions, fetchDatajudProcessos };
+module.exports = { registerForensicFunctions, fetchDatajudProcessos, fetchCnpjData, calcularScoreAsmodeusV2 };
