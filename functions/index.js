@@ -42,6 +42,29 @@ const getStripe = () => {
 };
 
 // ─────────────────────────────────────────────
+// 0. CHECKOUT ASSINATURA AUDITOR/PREMIUM
+// ─────────────────────────────────────────────
+exports.createPremiumSubscription = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Login obrigatório para assinatura.');
+
+  const stripe = getStripe();
+  const priceId = process.env.STRIPE_PRICE_PREMIUM || 'price_placeholder'; // Configure no Firebase ENV
+
+  const publicOrigin = process.env.APP_PUBLIC_ORIGIN || 'https://fiscallizapa.web.app';
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${publicOrigin}/?success=true`,
+    cancel_url: `${publicOrigin}/?canceled=true`,
+    metadata: { uid: req.auth.uid, plan: 'auditor_premium' }
+  });
+
+  return { url: session.url };
+});
+
+// ─────────────────────────────────────────────
 // 1. HEALTH CHECK
 // ─────────────────────────────────────────────
 exports.health = onRequest(OPTS, (req, res) => {
@@ -128,8 +151,12 @@ function calcScoreSEP(producao, fiscalizacao, gastos, mediaGeral) {
 
 function _calcFiscalizacaoInterno(d) {
   const r = Number(d.riskScore) || 0;
-  if (r === 0) return 60;
-  return Math.max(0, Math.min(100, 100 - r * 1.8));
+  // Integração Asmodeus v2.0: 'score_risco' oriundo das citações Datajud.
+  const scoreRiscoLegal = Number(d.score_risco) || 0;
+  const riskCombined = r + (scoreRiscoLegal * 2); // Peso maior para passivo legal comprovado
+
+  if (riskCombined === 0) return 60;
+  return Math.max(0, Math.min(100, 100 - riskCombined * 1.8));
 }
 
 function _calcProducaoInterno(d) {
@@ -183,10 +210,15 @@ exports.calculateAsmodeusScore = onCall(OPTS, async (req) => {
     const { producao, fiscalizacao } = _scoresProducaoFiscalizacao(data);
     const scoreSep = calcScoreSEP(producao, fiscalizacao, gastos, mediaGeral);
     const score_sep = Math.round(scoreSep);
+
+    // Sprint 2: Gravar de volta no doc os fatores pesados para tracking histórico
+    const asmodeus_score_risco = Number(data.score_risco) || 0;
+
     batch.update(db.collection('deputados_federais').doc(id), {
       score_sep,
       score_sep_atualizado_em: admin.firestore.FieldValue.serverTimestamp(),
       asmodeus_media_geral_gastos: mediaGeral,
+      asmodeus_score_risco,
     });
     n++;
     updated++;
@@ -1321,10 +1353,95 @@ const { renderPage } = require('./renderPage');
 exports.renderPage = renderPage;
 
 // ─────────────────────────────────────────────
+// 9.5.5 ENRICH COMPANY DATA (Sprint 3 - QSA/CNAE)
+// ─────────────────────────────────────────────
+exports.enrichCompanyData = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const userRecord = await admin.auth().getUser(req.auth.uid);
+  if (!userRecord.customClaims?.admin) {
+    throw new HttpsError('permission-denied', 'Apenas administradores podem enriquecer dados corporativos.');
+  }
+
+  const { cnpj, emenda_tipo } = req.data || {};
+  if (!cnpj) throw new HttpsError('invalid-argument', 'CNPJ obrigatório.');
+
+  const companyData = await fetchCnpjData(cnpj);
+  if (!companyData) {
+    return { ok: false, error: 'CNPJ não encontrado na base pública.' };
+  }
+
+  const cnaePrincipal = String(companyData.cnae_fiscal_descricao || '').toLowerCase();
+  const cnaesSecundarios = (companyData.cnaes_secundarios || []).map(c => String(c.descricao || '').toLowerCase());
+  const allCnaes = [cnaePrincipal, ...cnaesSecundarios];
+
+  // Regra Sprint 3: "Se empresa de confecção/varejo recebe emenda para obras/consultoria"
+  const isConfeccaoOrVarejo = allCnaes.some(c => c.includes('confecção') || c.includes('confeccao') || c.includes('comércio varejista') || c.includes('comercio varejista') || c.includes('roupas'));
+  const isObraOrConsultoria = String(emenda_tipo || '').toLowerCase().includes('obra') || String(emenda_tipo || '').toLowerCase().includes('consultoria');
+
+  let alerta_desvio_objeto = false;
+  let risco_cnae = 0;
+
+  if (isConfeccaoOrVarejo && isObraOrConsultoria) {
+    alerta_desvio_objeto = true;
+    risco_cnae = 50; // Alerta Crítico (máximo do eixo CNAE)
+  }
+
+  return {
+    ok: true,
+    cnpj: companyData.cnpj,
+    razao_social: companyData.razao_social,
+    alerta_desvio_objeto,
+    risco_cnae,
+    cnae_principal: cnaePrincipal,
+    qsa: companyData.qsa || []
+  };
+});
+
+// ─────────────────────────────────────────────
+// 9.6 DATAJUD BOT (Sprint 2 - Asmodeus v2.0)
+// ─────────────────────────────────────────────
+exports.botDatajud = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const userRecord = await admin.auth().getUser(req.auth.uid);
+  if (!userRecord.customClaims?.admin) {
+    throw new HttpsError('permission-denied', 'Apenas administradores podem acionar o Bot Datajud.');
+  }
+
+  const snap = await db.collection('deputados_federais').limit(50).get();
+  let batch = db.batch();
+  let updated = 0;
+
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    // Exemplo: usar o CPF se cadastrado ou um default nulo para evitar falso disparo sem chave
+    const cpfCnpj = data.cpf || '';
+    const processos = await fetchDatajudProcessos(cpfCnpj);
+
+    let score_risco = 0;
+    if (processos.length > 0) {
+      // Heurística simples de Triangulação (Asmodeus v2.0)
+      // Cada processo adiciona severidade (máx de 10)
+      score_risco = Math.min(processos.length * 2.5, 10);
+    }
+
+    batch.update(db.collection('deputados_federais').doc(doc.id), {
+      score_risco,
+      datajud_last_sync: admin.firestore.FieldValue.serverTimestamp(),
+      datajud_processos_count: processos.length
+    });
+    updated++;
+  }
+
+  if (updated > 0) await batch.commit();
+
+  return { ok: true, sincronizados: updated, target: 'deputados_federais' };
+});
+
+// ─────────────────────────────────────────────
 // 10. MOTOR FORENSE (análise cruzada + scoring + flags)
 //     Módulo separado: forensicEngine.js
 // ─────────────────────────────────────────────
-const { registerForensicFunctions } = require('./forensicEngine');
+const { registerForensicFunctions, fetchDatajudProcessos, fetchCnpjData, calcularScoreAsmodeusV2 } = require('./forensicEngine');
 const forensic = registerForensicFunctions({
   onCall, HttpsError, db, bq, DATASET, BQ_LOCATION, OPTS,
 });
