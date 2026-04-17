@@ -1,0 +1,296 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+:root {
+  /* ── Paleta base (tema claro — páginas de auditoria pública) ───────────── */
+  --bg-primary:          #fafaf8;
+  --bg-secondary:        #f2f0eb;
+  --bg-card:             #ffffff;
+  --bg-dark:             #1a1a2e;
+  --text-primary:        #1a1a2e;
+  --text-secondary:      #5a5a6e;
+  --text-muted:          #8a8a9e;
+  --accent-gold:         #c9a84c;
+  --accent-gold-light:   #e8d48b;
+  --accent-green:        #3d6b5e;
+  --accent-green-light:  #5a9e8f;
+  --accent-orange:       #c4724e;
+  --accent-red:          #b54a4a;
+  --border-light:        #e8e6e1;
+  --border-medium:       #d4d2cd;
+  --shadow-soft:         0 1px 3px rgba(26,26,46,0.06);
+  --shadow-medium:       0 4px 12px rgba(26,26,46,0.08);
+  --shadow-glow:         0 0 20px rgba(201,168,76,0.15);
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  16px;
+  --radius-xl:  24px;
+
+  /* ── Protocolo A.F.R.O.D.I.T.E. — Operação D.R.A.C.U.L.A. ────────────── */
+  /* Verde Médico: dados limpos, fluxos regulares, aprovações */
+  --afrodite-clean:        #00f5d4;
+  --afrodite-clean-glow:   rgba(0, 245, 212, 0.25);
+  --afrodite-clean-bg:     rgba(0, 245, 212, 0.08);
+  --afrodite-clean-border: rgba(0, 245, 212, 0.25);
+
+  /* Carmesim Pulsante: anomalias, fantasmas, fraudes, alertas críticos */
+  --dracula-red:           #ff0054;
+  --dracula-red-glow:      rgba(255, 0, 84, 0.35);
+  --dracula-red-bg:        rgba(255, 0, 84, 0.08);
+  --dracula-red-border:    rgba(255, 0, 84, 0.3);
+
+  /* Fundo escuro do HealthMap e componentes DRACULA */
+  --dracula-bg:            #0a0a1e;
+  --dracula-card:          rgba(15, 15, 35, 0.75);
+  --dracula-border:        rgba(255, 255, 255, 0.08);
+  --dracula-text:          #e2e8f0;
+  --dracula-muted:         #64748b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; line-height: 1.2; color: #3d2b1f; }
+
+.logo-glow { filter: drop-shadow(0 0 8px rgba(201,168,76,0.4)); }
+.logo-glow:hover { filter: drop-shadow(0 0 14px rgba(201,168,76,0.6)); }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes lightReveal {
+  from { opacity: 0; transform: scaleY(0.8); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0); }
+  50% { box-shadow: 0 0 16px 2px rgba(201,168,76,0.2); }
+}
+.animate-fadeInUp { animation: fadeInUp 0.5s ease-out forwards; }
+.animate-lightReveal { animation: lightReveal 0.4s ease-out forwards; }
+.animate-pulseGlow { animation: pulseGlow 2s ease-in-out infinite; }
+
+.grain-texture {
+  position: relative;
+}
+.grain-texture::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.risk-badge-low { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+.risk-badge-medium { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+.risk-badge-high { background: #fbe9e7; color: #b71c1c; border: 1px solid #ef9a9a; }
+
+.card-hover {
+  transition: all 0.25s ease;
+  border: 1px solid var(--border-light);
+}
+.card-hover:hover {
+  border-color: var(--accent-gold);
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-2px);
+}
+
+input, select {
+  font-family: 'Inter', sans-serif;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 3px; }
+
+/* ── Orb animation (slow drift) ─────────────────────────────────────────── */
+@keyframes orbDrift {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(18px, -14px) scale(1.04); }
+  66%  { transform: translate(-10px, 20px) scale(0.97); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes orbDrift2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  40%  { transform: translate(-20px, 12px) scale(1.03); }
+  80%  { transform: translate(14px, -18px) scale(0.98); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+.orb-drift-1 { animation: orbDrift  28s ease-in-out infinite; }
+.orb-drift-2 { animation: orbDrift2 34s ease-in-out infinite; }
+.orb-drift-3 { animation: orbDrift  40s ease-in-out infinite reverse; }
+.orb-drift-4 { animation: orbDrift2 22s ease-in-out infinite; }
+
+/* ── Animações: Alerta Nível 5 (Sangue e Poder) ─────────────────────────── */
+
+/* Pulso roxo para estados com Corrupção Provável (BrazilHeatmap) */
+@keyframes nivel5Pulse {
+  0%,  100% { box-shadow: 0 0 14px rgba(124, 58, 237, 0.55); opacity: 1;    filter: brightness(1);    }
+  50%        { box-shadow: 0 0 32px rgba(124, 58, 237, 0.85); opacity: 0.82; filter: brightness(1.15); }
+}
+
+/* Banner de Alerta Nível 5 na DossiePage */
+@keyframes nivel5Banner {
+  0%,  100% { border-color: rgba(124, 58, 237, 0.35); }
+  50%        { border-color: rgba(124, 58, 237, 0.65); }
+}
+.nivel5-banner {
+  animation: nivel5Banner 2.8s ease-in-out infinite;
+}
+
+/* Ponto da linha do tempo */
+@keyframes timelineDot {
+  0%,  100% { transform: scale(1); }
+  50%        { transform: scale(1.35); }
+}
+.timeline-dot-processo { animation: timelineDot 3s ease-in-out infinite; }
+
+/* ── Typography refinements ─────────────────────────────────────────────── */
+p, li, td { font-variant-numeric: tabular-nums; }
+strong, b  { font-weight: 600; }
+::selection { background: rgba(201,168,76,0.18); color: inherit; }
+
+/* ── Glassmorphism utility (cards sobre fundo com orbs) ──────────────────── */
+
+/* Vidro claro — páginas públicas (tema padrão) */
+.glass {
+  background:    rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+/* Vidro fosco escuro — componentes DRACULA/AFRODITE */
+.glass-dark {
+  background:    rgba(10, 10, 30, 0.82);
+  backdrop-filter: blur(25px) saturate(140%);
+  -webkit-backdrop-filter: blur(25px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+/* Vidro Verde Médico — dados limpos (AFRODITE) */
+.glass-medical {
+  background:    rgba(0, 245, 212, 0.04);
+  backdrop-filter: blur(25px) saturate(160%);
+  -webkit-backdrop-filter: blur(25px) saturate(160%);
+  border: 1px solid var(--afrodite-clean-border);
+  box-shadow: 0 4px 24px var(--afrodite-clean-glow), 0 0 1px var(--afrodite-clean-border);
+}
+
+/* Vidro Carmesim — alertas críticos (DRACULA) */
+.glass-alert {
+  background:    rgba(255, 0, 84, 0.06);
+  backdrop-filter: blur(25px) saturate(160%);
+  -webkit-backdrop-filter: blur(25px) saturate(160%);
+  border: 1px solid var(--dracula-red-border);
+  box-shadow: 0 4px 24px var(--dracula-red-glow), 0 0 1px var(--dracula-red-border);
+}
+
+/* ── Cores de texto AFRODITE ──────────────────────────────────────────────── */
+.text-clean    { color: var(--afrodite-clean); }
+.text-dracula  { color: var(--dracula-red); }
+.text-dracula-muted { color: var(--dracula-muted); }
+
+/* ── Animações D.R.A.C.U.L.A. / A.F.R.O.D.I.T.E. ────────────────────────── */
+
+/* Pulso do Carmesim — labels críticos, tiles de alto risco */
+@keyframes draculaPulse {
+  0%,  100% { opacity: 1;    box-shadow: 0 0 8px  var(--dracula-red-glow); }
+  50%        { opacity: 0.8;  box-shadow: 0 0 22px rgba(255,0,84,0.55);     }
+}
+.dracula-pulse { animation: draculaPulse 1.8s ease-in-out infinite; }
+
+/* Brilho do Verde Médico — dados limpos confirmados */
+@keyframes cleanGlow {
+  0%,  100% { box-shadow: 0 0 6px  var(--afrodite-clean-glow); }
+  50%        { box-shadow: 0 0 18px rgba(0,245,212,0.4);         }
+}
+.clean-glow { animation: cleanGlow 2.4s ease-in-out infinite; }
+
+/* Scan de linha — efeito "lendo dados" para loading states */
+@keyframes scanLine {
+  0%   { transform: translateY(0%);    opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(100%);  opacity: 0; }
+}
+
+/* Fade-in suave para modal AFRODITE */
+@keyframes afroditeFadeIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+.afrodite-modal { animation: afroditeFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* Typing cursor para displays Fira Code */
+@keyframes blinkCursor {
+  0%, 100% { border-right-color: var(--afrodite-clean); }
+  50%       { border-right-color: transparent; }
+}
+.fira-typing {
+  border-right: 2px solid var(--afrodite-clean);
+  animation: blinkCursor 1s step-end infinite;
+}
+
+/* ── Mobile responsive ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .nav-desktop { display: none !important; }
+  .nav-mobile-btn { display: flex !important; }
+}
+@media (min-width: 769px) {
+  .nav-mobile-btn { display: none !important; }
+}
+
+/* Área de toque mínima (~44px) em mobile — botões e CTAs de navegação */
+@media (max-width: 768px) {
+  button:not(.no-touch-min),
+  [role="button"]:not(.no-touch-min),
+  input[type="submit"]:not(.no-touch-min) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  nav a[href],
+  footer a[href],
+  .credit-gate-wrapper button {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+  .politician-links a,
+  .source-links a,
+  .presenca-link a {
+    padding: 10px 12px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
+  }
+}

@@ -1315,6 +1315,12 @@ exports.portalTransparenciaProxy = onCall(OPTS, async (req) => {
 });
 
 // ─────────────────────────────────────────────
+// 9.5 SEO DINÂMICO SSR
+// ─────────────────────────────────────────────
+const { renderPage } = require('./renderPage');
+exports.renderPage = renderPage;
+
+// ─────────────────────────────────────────────
 // 10. MOTOR FORENSE (análise cruzada + scoring + flags)
 //     Módulo separado: forensicEngine.js
 // ─────────────────────────────────────────────

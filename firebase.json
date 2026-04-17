@@ -27,7 +27,7 @@
         "type": 301
       }
     ],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    "rewrites": [{ "source": "**", "function": "renderPage" }]
   },
   "functions": {
     "source": "functions",
