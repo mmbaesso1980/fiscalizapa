@@ -18,6 +18,22 @@ const https = require('https');
 
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 
+async function fetchDatajudProcessos(cpfCnpj) {
+  // Protocolo Gênese - Bot Datajud (CNJ)
+  // Sem API KEY ativa no momento, não criar dados sintéticos.
+  const apiKey = process.env.DATAJUD_API_KEY;
+  if (!apiKey || !cpfCnpj) return [];
+
+  const url = `https://api-publica.datajud.cnj.jus.br/api_publica_datajud/v1/processos/partes/${encodeURIComponent(cpfCnpj)}`;
+  try {
+    const res = await fetchJson(url, { 'Authorization': `APIKey ${apiKey}` });
+    return res?.processos || [];
+  } catch (error) {
+    console.error(`Erro ao consultar Datajud para ${cpfCnpj}:`, error.message);
+    return [];
+  }
+}
+
 function fetchJson(url, headers = {}) {
   return new Promise((resolve, reject) => {
     const defaultHeaders = { Accept: 'application/json', ...headers };
@@ -804,4 +820,4 @@ function registerForensicFunctions(deps) {
   return { forensicEngine, getForensicCache, getAtividadeParlamentar };
 }
 
-module.exports = { registerForensicFunctions };
+module.exports = { registerForensicFunctions, fetchDatajudProcessos };

@@ -36,8 +36,8 @@ export default function Galaxy3D() {
         nodeAutoColorBy="id"
         nodeVal={(node) => Math.sqrt(node.value || 0) / 100} // Tamanho baseado no volume financeiro
         linkWidth={(link) => link.value || 1}
-        linkColor={(link) => (link.risk && link.risk > 0 ? '#ef4444' : '#cbd5e1')} // Vermelho se risco jurídico
-        linkDirectionalParticles={(link) => (link.risk && link.risk > 0 ? 4 : 0)} // Pulsação em links de risco
+        linkColor={(link) => (link.score_risco && link.score_risco > 7.5 ? '#ef4444' : '#cbd5e1')} // Vermelho estrito em risco extremo
+        linkDirectionalParticles={(link) => (link.score_risco && link.score_risco > 7.5 ? 4 : 0)} // Pulsação baseada no score_risco do Asmodeus
         linkDirectionalParticleSpeed={0.01}
         onNodeClick={handleNodeClick}
         backgroundColor="#0f172a"

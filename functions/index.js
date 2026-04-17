@@ -128,8 +128,12 @@ function calcScoreSEP(producao, fiscalizacao, gastos, mediaGeral) {
 
 function _calcFiscalizacaoInterno(d) {
   const r = Number(d.riskScore) || 0;
-  if (r === 0) return 60;
-  return Math.max(0, Math.min(100, 100 - r * 1.8));
+  // Integração Asmodeus v2.0: 'score_risco' oriundo das citações Datajud.
+  const scoreRiscoLegal = Number(d.score_risco) || 0;
+  const riskCombined = r + (scoreRiscoLegal * 2); // Peso maior para passivo legal comprovado
+
+  if (riskCombined === 0) return 60;
+  return Math.max(0, Math.min(100, 100 - riskCombined * 1.8));
 }
 
 function _calcProducaoInterno(d) {
@@ -183,10 +187,15 @@ exports.calculateAsmodeusScore = onCall(OPTS, async (req) => {
     const { producao, fiscalizacao } = _scoresProducaoFiscalizacao(data);
     const scoreSep = calcScoreSEP(producao, fiscalizacao, gastos, mediaGeral);
     const score_sep = Math.round(scoreSep);
+
+    // Sprint 2: Gravar de volta no doc os fatores pesados para tracking histórico
+    const asmodeus_score_risco = Number(data.score_risco) || 0;
+
     batch.update(db.collection('deputados_federais').doc(id), {
       score_sep,
       score_sep_atualizado_em: admin.firestore.FieldValue.serverTimestamp(),
       asmodeus_media_geral_gastos: mediaGeral,
+      asmodeus_score_risco,
     });
     n++;
     updated++;
@@ -1321,10 +1330,50 @@ const { renderPage } = require('./renderPage');
 exports.renderPage = renderPage;
 
 // ─────────────────────────────────────────────
+// 9.6 DATAJUD BOT (Sprint 2 - Asmodeus v2.0)
+// ─────────────────────────────────────────────
+exports.botDatajud = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Login obrigatório.');
+  const userRecord = await admin.auth().getUser(req.auth.uid);
+  if (!userRecord.customClaims?.admin) {
+    throw new HttpsError('permission-denied', 'Apenas administradores podem acionar o Bot Datajud.');
+  }
+
+  const snap = await db.collection('deputados_federais').limit(50).get();
+  let batch = db.batch();
+  let updated = 0;
+
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    // Exemplo: usar o CPF se cadastrado ou um default nulo para evitar falso disparo sem chave
+    const cpfCnpj = data.cpf || '';
+    const processos = await fetchDatajudProcessos(cpfCnpj);
+
+    let score_risco = 0;
+    if (processos.length > 0) {
+      // Heurística simples de Triangulação (Asmodeus v2.0)
+      // Cada processo adiciona severidade (máx de 10)
+      score_risco = Math.min(processos.length * 2.5, 10);
+    }
+
+    batch.update(db.collection('deputados_federais').doc(doc.id), {
+      score_risco,
+      datajud_last_sync: admin.firestore.FieldValue.serverTimestamp(),
+      datajud_processos_count: processos.length
+    });
+    updated++;
+  }
+
+  if (updated > 0) await batch.commit();
+
+  return { ok: true, sincronizados: updated, target: 'deputados_federais' };
+});
+
+// ─────────────────────────────────────────────
 // 10. MOTOR FORENSE (análise cruzada + scoring + flags)
 //     Módulo separado: forensicEngine.js
 // ─────────────────────────────────────────────
-const { registerForensicFunctions } = require('./forensicEngine');
+const { registerForensicFunctions, fetchDatajudProcessos } = require('./forensicEngine');
 const forensic = registerForensicFunctions({
   onCall, HttpsError, db, bq, DATASET, BQ_LOCATION, OPTS,
 });
