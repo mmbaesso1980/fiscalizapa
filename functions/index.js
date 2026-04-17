@@ -42,6 +42,29 @@ const getStripe = () => {
 };
 
 // ─────────────────────────────────────────────
+// 0. CHECKOUT ASSINATURA AUDITOR/PREMIUM
+// ─────────────────────────────────────────────
+exports.createPremiumSubscription = onCall(OPTS, async (req) => {
+  if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Login obrigatório para assinatura.');
+
+  const stripe = getStripe();
+  const priceId = process.env.STRIPE_PRICE_PREMIUM || 'price_placeholder'; // Configure no Firebase ENV
+
+  const publicOrigin = process.env.APP_PUBLIC_ORIGIN || 'https://fiscallizapa.web.app';
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${publicOrigin}/?success=true`,
+    cancel_url: `${publicOrigin}/?canceled=true`,
+    metadata: { uid: req.auth.uid, plan: 'auditor_premium' }
+  });
+
+  return { url: session.url };
+});
+
+// ─────────────────────────────────────────────
 // 1. HEALTH CHECK
 // ─────────────────────────────────────────────
 exports.health = onRequest(OPTS, (req, res) => {

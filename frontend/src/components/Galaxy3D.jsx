@@ -1,11 +1,16 @@
 import React, { useRef, useEffect, useState } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
 import { useNavigate } from 'react-router-dom';
+import ForensicPanel from './ForensicPanel';
 
 export default function Galaxy3D() {
   const fgRef = useRef();
   const navigate = useNavigate();
   const [data, setData] = useState({ nodes: [], links: [] });
+  const [selectedNode, setSelectedNode] = useState(null);
+
+  // Exemplo de estado Premium vindo do contexto de auth
+  const isPremium = false;
 
   useEffect(() => {
     // Dados vazios para evitar alucinação; aguarda integração futura com Firestore.
@@ -14,13 +19,13 @@ export default function Galaxy3D() {
 
   const handleNodeClick = (node) => {
     if (node && node.id) {
-       // Navega para o Dossier do nó correspondente
-       navigate(`/dossie/${node.id}`);
+       // Em vez de navegar de imediato, abre o ForensicPanel
+       setSelectedNode(node);
     }
   };
 
   return (
-    <div className="w-full h-full bg-slate-900 relative">
+    <div className="w-full h-full bg-slate-900 relative overflow-hidden">
       <div className="absolute top-4 left-4 z-10 text-white bg-slate-800/80 p-4 rounded shadow">
         <h3 className="font-cabinet font-bold text-lg">Asmodeus v2.0 - Radar</h3>
         <p className="text-sm font-satoshi text-slate-300 max-w-xs">
@@ -43,6 +48,14 @@ export default function Galaxy3D() {
         backgroundColor="#0f172a"
         showNavInfo={false}
       />
+
+      {selectedNode && (
+        <ForensicPanel
+          node={selectedNode}
+          isPremium={isPremium}
+          onClose={() => setSelectedNode(null)}
+        />
+      )}
     </div>
   );
 }
