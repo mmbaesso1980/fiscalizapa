@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "app",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,28 +11,30 @@
     "test": "node --test src/utils/*.test.js"
   },
   "dependencies": {
-    "@capacitor/cli": "^8.3.1",
-    "@capacitor/core": "^8.3.1",
+    "firebase": "^12.10.0",
+    "html2pdf.js": "^0.10.2",
+    "leaflet": "^1.9.4",
     "lucide-react": "^1.8.0",
-    "maplibre-gl": "^5.23.0",
-    "pmtiles": "^4.4.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-force-graph-2d": "^1.29.1",
     "react-force-graph-3d": "^1.29.1",
-    "react-router-dom": "^7.14.1",
-    "three": "^0.184.0"
+    "react-helmet-async": "^2.0.5",
+    "react-leaflet": "^5.0.0",
+    "react-router-dom": "^7.13.1",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
-    "@tailwindcss/vite": "^4.2.2",
+    "@tailwindcss/vite": "^4.2.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-react": "^6.0.0",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
-    "tailwindcss": "^4.2.2",
-    "vite": "^8.0.4"
+    "tailwindcss": "^4.2.1",
+    "vite": "^8.0.0"
   }
 }
