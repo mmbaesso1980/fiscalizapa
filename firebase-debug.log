@@ -1,0 +1,55 @@
+[debug] [2026-04-18T18:27:30.513Z] ----------------------------------------------------------------------
+[debug] [2026-04-18T18:27:30.517Z] Command:       /usr/local/nvm/versions/node/v24.14.1/bin/node /usr/local/node_packages/node_modules/.bin/firebase deploy --only functions,hosting
+[debug] [2026-04-18T18:27:30.517Z] CLI Version:   15.10.1
+[debug] [2026-04-18T18:27:30.517Z] Platform:      linux
+[debug] [2026-04-18T18:27:30.518Z] Node Version:  v24.14.1
+[debug] [2026-04-18T18:27:30.518Z] Time:          Sat Apr 18 2026 18:27:30 GMT+0000 (Coordinated Universal Time)
+[debug] [2026-04-18T18:27:30.518Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-04-18T18:27:31.905Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-18T18:27:31.906Z] > authorizing via signed-in user (manusalt13@gmail.com)
+[debug] [2026-04-18T18:27:31.906Z] [iam] checking project production for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-04-18T18:27:31.907Z] Checked if tokens are valid: false, expires at: 1776529470531
+[debug] [2026-04-18T18:27:31.908Z] Checked if tokens are valid: false, expires at: 1776529470531
+[debug] [2026-04-18T18:27:31.908Z] > refreshing access token with scopes: []
+[debug] [2026-04-18T18:27:31.910Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-04-18T18:27:31.910Z] >>> [apiv2][(partial)header] POST https://www.googleapis.com/oauth2/v3/token  x-goog-user-project=fiscallizapa
+[debug] [2026-04-18T18:27:31.910Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-04-18T18:27:31.985Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-04-18T18:27:31.985Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-04-18T18:27:32.000Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/production:testIamPermissions [none]
+[debug] [2026-04-18T18:27:32.000Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/production:testIamPermissions  x-goog-user-project=fiscallizapa
+[debug] [2026-04-18T18:27:32.000Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/production:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-04-18T18:27:32.219Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/production:testIamPermissions 200
+[debug] [2026-04-18T18:27:32.219Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/production:testIamPermissions {}
+[debug] [2026-04-18T18:27:32.220Z] [iam] error while checking permissions, command may fail: Authorization failed. This account is missing the following required permissions on project production:
+
+  cloudfunctions.functions.create
+  cloudfunctions.functions.delete
+  cloudfunctions.functions.get
+  cloudfunctions.functions.list
+  cloudfunctions.functions.update
+  cloudfunctions.operations.get
+  firebase.projects.get
+  firebasehosting.sites.update
+[debug] [2026-04-18T18:27:32.220Z] Checked if tokens are valid: true, expires at: 1776540450986
+[debug] [2026-04-18T18:27:32.220Z] Checked if tokens are valid: true, expires at: 1776540450986
+[debug] [2026-04-18T18:27:32.221Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/production/serviceAccounts/production@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-04-18T18:27:32.221Z] >>> [apiv2][(partial)header] POST https://iam.googleapis.com/v1/projects/production/serviceAccounts/production@appspot.gserviceaccount.com:testIamPermissions  x-goog-user-project=fiscallizapa
+[debug] [2026-04-18T18:27:32.221Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/production/serviceAccounts/production@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-04-18T18:27:32.261Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/production/serviceAccounts/production@appspot.gserviceaccount.com:testIamPermissions 404
+[debug] [2026-04-18T18:27:32.261Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/production/serviceAccounts/production@appspot.gserviceaccount.com:testIamPermissions {"error":{"code":404,"message":"Unknown service account","status":"NOT_FOUND"}}
+[debug] [2026-04-18T18:27:32.262Z] [functions] service account IAM check errored, deploy may fail: Request to https://iam.googleapis.com/v1/projects/production/serviceAccounts/production@appspot.gserviceaccount.com:testIamPermissions had HTTP Error: 404, Unknown service account {"name":"FirebaseError","children":[],"context":{"body":{"error":{"code":404,"message":"Unknown service account","status":"NOT_FOUND"}},"response":{"statusCode":404}},"exit":1,"message":"Request to https://iam.googleapis.com/v1/projects/production/serviceAccounts/production@appspot.gserviceaccount.com:testIamPermissions had HTTP Error: 404, Unknown service account","status":404}
+[debug] [2026-04-18T18:27:32.262Z] Checked if tokens are valid: true, expires at: 1776540450986
+[debug] [2026-04-18T18:27:32.263Z] Checked if tokens are valid: true, expires at: 1776540450986
+[debug] [2026-04-18T18:27:32.263Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/production [none]
+[debug] [2026-04-18T18:27:32.263Z] >>> [apiv2][(partial)header] GET https://firebase.googleapis.com/v1beta1/projects/production  x-goog-user-project=fiscallizapa
+[debug] [2026-04-18T18:27:32.526Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/production 403
+[debug] [2026-04-18T18:27:32.526Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/production {"error":{"code":403,"message":"The caller does not have permission","status":"PERMISSION_DENIED"}}
+[debug] [2026-04-18T18:27:32.526Z] Request to https://firebase.googleapis.com/v1beta1/projects/production had HTTP Error: 403, The caller does not have permission
+[debug] [2026-04-18T18:27:32.527Z] FirebaseError: Request to https://firebase.googleapis.com/v1beta1/projects/production had HTTP Error: 403, The caller does not have permission
+    at responseToError (/usr/local/node_packages/node_modules/firebase-tools/lib/responseToError.js:53:12)
+    at RetryOperation._fn (/usr/local/node_packages/node_modules/firebase-tools/lib/apiv2.js:333:77)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[error] 
+[error] Error: Failed to get Firebase project production. Please make sure the project exists and your account has permission to access it.
