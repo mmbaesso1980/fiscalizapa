@@ -25,7 +25,7 @@ const gcs = new Storage();
 
 const DATASET = 'dados_camara';
 const BQ_LOCATION = 'us-central1'; // Iowa — onde o dataset dados_camara está armazenado
-const REGION = 'southamerica-east1'; // Functions ficam perto dos usuários BR
+const REGION = 'us-central1'; // Sincronizado estritamente para us-central1 (Iowa)
 const OPTS = { region: REGION };
 
 // Stripe inicializado lazy — evita crash quando STRIPE_SECRET_KEY não está
@@ -46,7 +46,7 @@ const getStripe = () => {
 // ─────────────────────────────────────────────
 exports.createPremiumSubscription = onCall(OPTS, async (req) => {
   if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Login obrigatório para assinatura.');
-
+  
   const stripe = getStripe();
   const priceId = process.env.STRIPE_PRICE_PREMIUM || 'price_placeholder'; // Configure no Firebase ENV
 
@@ -152,7 +152,7 @@ function calcScoreSEP(producao, fiscalizacao, gastos, mediaGeral) {
 function _calcFiscalizacaoInterno(d) {
   const r = Number(d.riskScore) || 0;
   // Integração Asmodeus v2.0: 'score_risco' oriundo das citações Datajud.
-  const scoreRiscoLegal = Number(d.score_risco) || 0;
+  const scoreRiscoLegal = Number(d.score_risco) || 0; 
   const riskCombined = r + (scoreRiscoLegal * 2); // Peso maior para passivo legal comprovado
 
   if (riskCombined === 0) return 60;
@@ -210,7 +210,7 @@ exports.calculateAsmodeusScore = onCall(OPTS, async (req) => {
     const { producao, fiscalizacao } = _scoresProducaoFiscalizacao(data);
     const scoreSep = calcScoreSEP(producao, fiscalizacao, gastos, mediaGeral);
     const score_sep = Math.round(scoreSep);
-
+    
     // Sprint 2: Gravar de volta no doc os fatores pesados para tracking histórico
     const asmodeus_score_risco = Number(data.score_risco) || 0;
 
@@ -1353,6 +1353,43 @@ const { renderPage } = require('./renderPage');
 exports.renderPage = renderPage;
 
 // ─────────────────────────────────────────────
+// 9.5.1 GET PUBLIC FORENSIC DATA (Sprint 5 - Passive Read)
+// ─────────────────────────────────────────────
+exports.getPublicForensicData = onCall(OPTS, async (req) => {
+  // Leitura segura, focada em hidratar passivamente a UI (Galaxy3D)
+  // Sem trigger de mutação no BQ ou cálculos pesados on-demand
+  try {
+    const snap = await db.collection('deputados_federais')
+      .limit(300) // Limite de payload para performance web GL
+      .get();
+      
+    if (snap.empty) {
+      return { nodes: [], links: [], status: 'processing' };
+    }
+
+    const nodes = [];
+    snap.forEach(doc => {
+      const data = doc.data();
+      nodes.push({
+        id: doc.id,
+        name: data.nome || 'Desconhecido',
+        partido: data.partido || 'S/P',
+        value: data.totalGastos || 1000, // Tamanho base no graph
+        score_risco: data.score_risco || 0, // Ditará cor e partículas
+      });
+    });
+
+    // Links de relações serão consumidos nas próximas Sprints de IA
+    const links = [];
+
+    return { nodes, links, status: 'ready' };
+  } catch (error) {
+    console.error('Erro na leitura passiva de dados forenses:', error);
+    return { nodes: [], links: [], status: 'error' };
+  }
+});
+
+// ─────────────────────────────────────────────
 // 9.5.5 ENRICH COMPANY DATA (Sprint 3 - QSA/CNAE)
 // ─────────────────────────────────────────────
 exports.enrichCompanyData = onCall(OPTS, async (req) => {
@@ -1416,14 +1453,14 @@ exports.botDatajud = onCall(OPTS, async (req) => {
     // Exemplo: usar o CPF se cadastrado ou um default nulo para evitar falso disparo sem chave
     const cpfCnpj = data.cpf || '';
     const processos = await fetchDatajudProcessos(cpfCnpj);
-
+    
     let score_risco = 0;
     if (processos.length > 0) {
       // Heurística simples de Triangulação (Asmodeus v2.0)
       // Cada processo adiciona severidade (máx de 10)
       score_risco = Math.min(processos.length * 2.5, 10);
     }
-
+    
     batch.update(db.collection('deputados_federais').doc(doc.id), {
       score_risco,
       datajud_last_sync: admin.firestore.FieldValue.serverTimestamp(),

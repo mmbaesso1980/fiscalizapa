@@ -1,0 +1,69 @@
+[debug] [2026-04-06T16:16:42.492Z] ----------------------------------------------------------------------
+[debug] [2026-04-06T16:16:42.494Z] Command:       /usr/local/nvm/versions/node/v24.14.1/bin/node /usr/local/node_packages/node_modules/.bin/firebase deploy --only functions --debug
+[debug] [2026-04-06T16:16:42.495Z] CLI Version:   15.10.1
+[debug] [2026-04-06T16:16:42.495Z] Platform:      linux
+[debug] [2026-04-06T16:16:42.495Z] Node Version:  v24.14.1
+[debug] [2026-04-06T16:16:42.495Z] Time:          Mon Apr 06 2026 16:16:42 GMT+0000 (Coordinated Universal Time)
+[debug] [2026-04-06T16:16:42.496Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-04-06T16:16:46.657Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-06T16:16:46.658Z] > authorizing via signed-in user (manusalt13@gmail.com)
+[debug] [2026-04-06T16:16:46.659Z] [iam] checking project fiscallizapa for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-04-06T16:16:46.660Z] Checked if tokens are valid: false, expires at: 1775428066172
+[debug] [2026-04-06T16:16:46.661Z] Checked if tokens are valid: false, expires at: 1775428066172
+[debug] [2026-04-06T16:16:46.661Z] > refreshing access token with scopes: []
+[debug] [2026-04-06T16:16:46.664Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-04-06T16:16:46.664Z] >>> [apiv2][(partial)header] POST https://www.googleapis.com/oauth2/v3/token  x-goog-user-project=fiscalizapa
+[debug] [2026-04-06T16:16:46.665Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-04-06T16:16:46.737Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-04-06T16:16:46.738Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-04-06T16:16:46.753Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa:testIamPermissions [none]
+[debug] [2026-04-06T16:16:46.753Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa:testIamPermissions  x-goog-user-project=fiscalizapa
+[debug] [2026-04-06T16:16:46.753Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-04-06T16:16:46.818Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa:testIamPermissions 400
+[debug] [2026-04-06T16:16:46.818Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa:testIamPermissions {"error":{"code":400,"message":"Project 'projects/fiscalizapa' not found or deleted.","status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"USER_PROJECT_DENIED","domain":"googleapis.com","metadata":{"containerInfo":"projects/fiscalizapa","service":"cloudresourcemanager.googleapis.com","consumer":"projects/fiscalizapa"}}]}}
+[debug] [2026-04-06T16:16:46.819Z] [iam] error while checking permissions, command may fail: Request to https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa:testIamPermissions had HTTP Error: 400, Project 'projects/fiscalizapa' not found or deleted.
+[debug] [2026-04-06T16:16:46.820Z] Checked if tokens are valid: true, expires at: 1775495805738
+[debug] [2026-04-06T16:16:46.820Z] Checked if tokens are valid: true, expires at: 1775495805738
+[debug] [2026-04-06T16:16:46.820Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/fiscallizapa/serviceAccounts/fiscallizapa@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-04-06T16:16:46.820Z] >>> [apiv2][(partial)header] POST https://iam.googleapis.com/v1/projects/fiscallizapa/serviceAccounts/fiscallizapa@appspot.gserviceaccount.com:testIamPermissions  x-goog-user-project=fiscalizapa
+[debug] [2026-04-06T16:16:46.820Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/fiscallizapa/serviceAccounts/fiscallizapa@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-04-06T16:16:46.910Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/fiscallizapa/serviceAccounts/fiscallizapa@appspot.gserviceaccount.com:testIamPermissions 404
+[debug] [2026-04-06T16:16:46.911Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/fiscallizapa/serviceAccounts/fiscallizapa@appspot.gserviceaccount.com:testIamPermissions {"error":{"code":404,"message":"Unknown service account","status":"NOT_FOUND"}}
+[debug] [2026-04-06T16:16:46.911Z] [functions] service account IAM check errored, deploy may fail: Request to https://iam.googleapis.com/v1/projects/fiscallizapa/serviceAccounts/fiscallizapa@appspot.gserviceaccount.com:testIamPermissions had HTTP Error: 404, Unknown service account {"name":"FirebaseError","children":[],"context":{"body":{"error":{"code":404,"message":"Unknown service account","status":"NOT_FOUND"}},"response":{"statusCode":404}},"exit":1,"message":"Request to https://iam.googleapis.com/v1/projects/fiscallizapa/serviceAccounts/fiscallizapa@appspot.gserviceaccount.com:testIamPermissions had HTTP Error: 404, Unknown service account","status":404}
+[info] 
+[info] === Deploying to 'fiscallizapa'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-04-06T16:16:46.914Z] Checked if tokens are valid: true, expires at: 1775495805738
+[debug] [2026-04-06T16:16:46.915Z] Checked if tokens are valid: true, expires at: 1775495805738
+[debug] [2026-04-06T16:16:46.915Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa [none]
+[debug] [2026-04-06T16:16:46.915Z] >>> [apiv2][(partial)header] GET https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa  x-goog-user-project=fiscalizapa
+[debug] [2026-04-06T16:16:47.030Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa 400
+[debug] [2026-04-06T16:16:47.030Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa {"error":{"code":400,"message":"Project 'projects/fiscalizapa' not found or deleted.","status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"USER_PROJECT_DENIED","domain":"googleapis.com","metadata":{"containerInfo":"projects/fiscalizapa","consumer":"projects/fiscalizapa","service":"cloudresourcemanager.googleapis.com"}}]}}
+[error] 
+[error] Error: Request to https://cloudresourcemanager.googleapis.com/v1/projects/fiscallizapa had HTTP Error: 400, Project 'projects/fiscalizapa' not found or deleted.
+[debug] [2026-04-06T16:16:47.032Z] Error Context: {
+  "body": {
+    "error": {
+      "code": 400,
+      "message": "Project 'projects/fiscalizapa' not found or deleted.",
+      "status": "INVALID_ARGUMENT",
+      "details": [
+        {
+          "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+          "reason": "USER_PROJECT_DENIED",
+          "domain": "googleapis.com",
+          "metadata": {
+            "containerInfo": "projects/fiscalizapa",
+            "consumer": "projects/fiscalizapa",
+            "service": "cloudresourcemanager.googleapis.com"
+          }
+        }
+      ]
+    }
+  },
+  "response": {
+    "statusCode": 400
+  }
+}
