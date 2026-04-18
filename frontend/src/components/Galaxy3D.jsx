@@ -1,21 +1,15 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
-import { useNavigate } from 'react-router-dom';
 import ForensicPanel from './ForensicPanel';
 
 export default function Galaxy3D() {
   const fgRef = useRef();
-  const navigate = useNavigate();
-  const [data, setData] = useState({ nodes: [], links: [] });
+  // Dados vazios para evitar alucinação; aguarda integração futura com Firestore.
+  const [data] = useState({ nodes: [], links: [] });
   const [selectedNode, setSelectedNode] = useState(null);
 
   // Exemplo de estado Premium vindo do contexto de auth
   const isPremium = false;
-
-  useEffect(() => {
-    // Dados vazios para evitar alucinação; aguarda integração futura com Firestore.
-    setData({ nodes: [], links: [] });
-  }, []);
 
   const handleNodeClick = (node) => {
     if (node && node.id) {

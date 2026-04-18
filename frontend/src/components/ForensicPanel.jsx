@@ -25,7 +25,12 @@ export default function ForensicPanel({ node, onClose, isPremium = false }) {
       />
 
       {/* Drawer Lateral */}
-      <div className="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-300 translate-x-0">
+      <div
+        className="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-300 translate-x-0"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="forensic-panel-title"
+      >
 
         {/* Header */}
         <header className="p-6 bg-slate-900 text-white flex justify-between items-start border-b border-slate-700">
@@ -33,7 +38,7 @@ export default function ForensicPanel({ node, onClose, isPremium = false }) {
             <span className="text-xs uppercase tracking-wider font-cabinet text-slate-400 mb-1 block">
               Raio-X Forense
             </span>
-            <h2 className="text-xl font-bold font-cabinet">{node.name || 'Entidade Desconhecida'}</h2>
+            <h2 id="forensic-panel-title" className="text-xl font-bold font-cabinet">{node.name || 'Entidade Desconhecida'}</h2>
             <div className="mt-2 inline-flex items-center bg-red-500/20 text-red-400 px-2 py-1 rounded text-sm font-satoshi">
               <AlertOctagon size={14} className="mr-1" />
               Score Asmodeus: {node.score_risco || 0}
@@ -41,7 +46,8 @@ export default function ForensicPanel({ node, onClose, isPremium = false }) {
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors p-1"
+            aria-label="Fechar painel forense"
+            className="text-slate-400 hover:text-white transition-colors p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded"
           >
             <X size={20} />
           </button>
