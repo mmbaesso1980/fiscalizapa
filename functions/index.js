@@ -1353,6 +1353,43 @@ const { renderPage } = require('./renderPage');
 exports.renderPage = renderPage;
 
 // ─────────────────────────────────────────────
+// 9.5.1 GET PUBLIC FORENSIC DATA (Sprint 5 - Passive Read)
+// ─────────────────────────────────────────────
+exports.getPublicForensicData = onCall(OPTS, async (req) => {
+  // Leitura segura, focada em hidratar passivamente a UI (Galaxy3D)
+  // Sem trigger de mutação no BQ ou cálculos pesados on-demand
+  try {
+    const snap = await db.collection('deputados_federais')
+      .limit(300) // Limite de payload para performance web GL
+      .get();
+
+    if (snap.empty) {
+      return { nodes: [], links: [], status: 'processing' };
+    }
+
+    const nodes = [];
+    snap.forEach(doc => {
+      const data = doc.data();
+      nodes.push({
+        id: doc.id,
+        name: data.nome || 'Desconhecido',
+        partido: data.partido || 'S/P',
+        value: data.totalGastos || 1000, // Tamanho base no graph
+        score_risco: data.score_risco || 0, // Ditará cor e partículas
+      });
+    });
+
+    // Links de relações serão consumidos nas próximas Sprints de IA
+    const links = [];
+
+    return { nodes, links, status: 'ready' };
+  } catch (error) {
+    console.error('Erro na leitura passiva de dados forenses:', error);
+    return { nodes: [], links: [], status: 'error' };
+  }
+});
+
+// ─────────────────────────────────────────────
 // 9.5.5 ENRICH COMPANY DATA (Sprint 3 - QSA/CNAE)
 // ─────────────────────────────────────────────
 exports.enrichCompanyData = onCall(OPTS, async (req) => {
