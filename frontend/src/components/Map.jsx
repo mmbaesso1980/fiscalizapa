@@ -3,12 +3,51 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import * as pmtiles from 'pmtiles';
 import ForensicPanel from './ForensicPanel';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase';
 
 export default function Map() {
   const mapContainer = useRef(null);
   const map = useRef(null);
 
   const [selectedNode, setSelectedNode] = React.useState(null);
+  const [geoData, setGeoData] = React.useState({ type: 'FeatureCollection', features: [] });
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const getEmendasMapaPontos = httpsCallable(functions, 'getEmendasMapaPontos');
+        // Usa fallback (Mock / Anon mode) se o auth não exigir
+        const result = await getEmendasMapaPontos({});
+
+        if (result.data && result.data.pontos) {
+            const features = result.data.pontos.map((p, idx) => ({
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [p.lng, p.lat]
+                },
+                properties: {
+                    id: String(idx),
+                    name: p.municipio,
+                    value: p.valor || 0,
+                    risk: p.tipoPix ? 1 : 0 // Exemplo de heuristic
+                }
+            }));
+            setGeoData({ type: 'FeatureCollection', features });
+        }
+      } catch (err) {
+        console.error('Falha no fetch dos pontos do BQ Iowa:', err);
+      }
+    }
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (map.current && map.current.getSource('forensic-points')) {
+        map.current.getSource('forensic-points').setData(geoData);
+    }
+  }, [geoData]);
 
   useEffect(() => {
     if (map.current) return;
@@ -25,14 +64,10 @@ export default function Map() {
     });
 
     map.current.on('load', () => {
-      // Sprint 4.5: MapLibre Nacional com Clustering (Zero Hallucination)
-      // Fonte inicial vazia; será populada pelo Firestore via PMTiles ou GeoJSON APIs futuramente
+      // Sprint 4.5: MapLibre Nacional com Clustering
       map.current.addSource('forensic-points', {
           type: 'geojson',
-          data: {
-              type: 'FeatureCollection',
-              features: []
-          },
+          data: geoData,
           cluster: true,
           clusterMaxZoom: 14,
           clusterRadius: 50

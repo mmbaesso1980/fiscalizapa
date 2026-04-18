@@ -17,4 +17,4 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const githubProvider = new GithubAuthProvider();
 export const db = getFirestore(app);
-export const functions = getFunctions(app, "southamerica-east1");
+export const functions = getFunctions(app, "us-central1");

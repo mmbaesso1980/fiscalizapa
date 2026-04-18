@@ -4,7 +4,7 @@ const path = require('path');
 
 exports.renderPage = onRequest({ region: 'us-central1' }, async (req, res) => {
   try {
-    let html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>TransparênciaBR</title></head><body><div id="root"></div><script type="module" src="/assets/index.js"></script></body></html>`;
+    let html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>TransparênciaBR</title><link rel="stylesheet" href="/assets/index.css"></head><body><div id="root"></div><script type="module" src="/assets/index.js"></script></body></html>`;
 
     // Tenta ler o index.html embutido durante o build localmente
     const indexPath = path.resolve(__dirname, 'index.html');

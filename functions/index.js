@@ -25,7 +25,7 @@ const gcs = new Storage();
 
 const DATASET = 'dados_camara';
 const BQ_LOCATION = 'us-central1'; // Iowa — onde o dataset dados_camara está armazenado
-const REGION = 'southamerica-east1'; // Functions ficam perto dos usuários BR
+const REGION = 'us-central1'; // Sincronizado estritamente para us-central1 (Iowa)
 const OPTS = { region: REGION };
 
 // Stripe inicializado lazy — evita crash quando STRIPE_SECRET_KEY não está

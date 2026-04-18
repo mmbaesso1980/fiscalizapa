@@ -7,194 +7,169 @@
 -- POLITICOS (tabela mestre)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS politicos (
-  id_politico     INTEGER PRIMARY KEY,
-  casa            VARCHAR(20) NOT NULL DEFAULT 'CAMARA', -- CAMARA, SENADO, ASSEMBLEIA
-  nome            VARCHAR(200) NOT NULL,
-  nome_urna       VARCHAR(200),
-  partido         VARCHAR(30),
-  uf              VARCHAR(2),
-  cargo           VARCHAR(50) DEFAULT 'Deputado Federal',
-  foto_url        TEXT,
-  email           VARCHAR(200),
-  id_legislatura  INTEGER DEFAULT 57,
-  situacao        VARCHAR(30) DEFAULT 'Exercicio',
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
+  id_politico     INT64,
+  casa            STRING DEFAULT 'CAMARA', -- CAMARA, SENADO, ASSEMBLEIA
+  nome            STRING NOT NULL,
+  nome_urna       STRING,
+  partido         STRING,
+  uf              STRING,
+  cargo           STRING DEFAULT 'Deputado Federal',
+  foto_url        STRING,
+  email           STRING,
+  id_legislatura  INT64 DEFAULT 57,
+  situacao        STRING DEFAULT 'Exercicio',
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_politicos_uf ON politicos(uf);
-CREATE INDEX idx_politicos_partido ON politicos(partido);
-CREATE INDEX idx_politicos_casa ON politicos(casa);
 
 -- ==========================================
 -- GASTOS_CEAP (Cota Parlamentar)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS gastos_ceap (
-  id              BIGSERIAL PRIMARY KEY,
-  politico_id     INTEGER NOT NULL REFERENCES politicos(id_politico),
-  ano             SMALLINT NOT NULL,
-  mes             SMALLINT,
-  tipo_despesa    VARCHAR(200),
-  fornecedor_nome VARCHAR(300),
-  cnpj_cpf        VARCHAR(20),
-  valor_documento NUMERIC(14,2) DEFAULT 0,
-  valor_liquido   NUMERIC(14,2) DEFAULT 0,
-  url_documento   TEXT,
+  id              INT64,
+  politico_id     INT64 NOT NULL,
+  ano             INT64 NOT NULL,
+  mes             INT64,
+  tipo_despesa    STRING,
+  fornecedor_nome STRING,
+  cnpj_cpf        STRING,
+  valor_documento NUMERIC DEFAULT 0,
+  valor_liquido   NUMERIC DEFAULT 0,
+  url_documento   STRING,
   data_documento  DATE,
-  num_documento   VARCHAR(50),
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(politico_id, ano, mes, cnpj_cpf, valor_liquido)
+  num_documento   STRING,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_gastos_politico ON gastos_ceap(politico_id);
-CREATE INDEX idx_gastos_ano ON gastos_ceap(ano);
-CREATE INDEX idx_gastos_fornecedor ON gastos_ceap(fornecedor_nome);
-CREATE INDEX idx_gastos_cnpj ON gastos_ceap(cnpj_cpf);
-CREATE INDEX idx_gastos_tipo ON gastos_ceap(tipo_despesa);
 
 -- ==========================================
 -- FORNECEDORES (normalizado)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS fornecedores (
-  id              BIGSERIAL PRIMARY KEY,
-  cnpj_cpf        VARCHAR(20) UNIQUE NOT NULL,
-  nome            VARCHAR(300),
-  total_recebido  NUMERIC(14,2) DEFAULT 0,
-  num_politicos   INTEGER DEFAULT 0,
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
+  id              INT64,
+  cnpj_cpf        STRING NOT NULL,
+  nome            STRING,
+  total_recebido  NUMERIC DEFAULT 0,
+  num_politicos   INT64 DEFAULT 0,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_fornecedores_cnpj ON fornecedores(cnpj_cpf);
 
 -- ==========================================
 -- EMENDAS PARLAMENTARES
 -- ==========================================
 CREATE TABLE IF NOT EXISTS emendas (
-  id              BIGSERIAL PRIMARY KEY,
-  codigo_emenda   VARCHAR(50) UNIQUE,
-  politico_id     INTEGER REFERENCES politicos(id_politico),
-  autor_nome      VARCHAR(200),
-  autor_partido   VARCHAR(30),
-  autor_uf        VARCHAR(2),
-  ano             SMALLINT,
-  tipo_emenda     VARCHAR(100),
-  localidade      VARCHAR(200),
-  uf_destino      VARCHAR(2),
-  funcao          VARCHAR(100),
-  subfuncao       VARCHAR(100),
-  programa        VARCHAR(200),
-  valor_empenhado NUMERIC(14,2) DEFAULT 0,
-  valor_liquidado NUMERIC(14,2) DEFAULT 0,
-  valor_pago      NUMERIC(14,2) DEFAULT 0,
-  taxa_execucao   SMALLINT DEFAULT 0,
-  criticidade     VARCHAR(10) DEFAULT 'BAIXA',
-  alertas         TEXT[],
-  idh_local       NUMERIC(5,3),
-  is_show         BOOLEAN DEFAULT FALSE,
-  beneficiario    VARCHAR(300),
-  cnpj_recebedor  VARCHAR(20),
-  nome_recebedor  VARCHAR(300),
-  created_at      TIMESTAMPTZ DEFAULT NOW()
+  id              INT64,
+  codigo_emenda   STRING,
+  politico_id     INT64,
+  autor_nome      STRING,
+  autor_partido   STRING,
+  autor_uf        STRING,
+  ano             INT64,
+  tipo_emenda     STRING,
+  localidade      STRING,
+  uf_destino      STRING,
+  funcao          STRING,
+  subfuncao       STRING,
+  programa        STRING,
+  valor_empenhado NUMERIC DEFAULT 0,
+  valor_liquidado NUMERIC DEFAULT 0,
+  valor_pago      NUMERIC DEFAULT 0,
+  taxa_execucao   INT64 DEFAULT 0,
+  criticidade     STRING DEFAULT 'BAIXA',
+  alertas         ARRAY<STRING>,
+  idh_local       NUMERIC,
+  is_show         BOOL DEFAULT FALSE,
+  beneficiario    STRING,
+  cnpj_recebedor  STRING,
+  nome_recebedor  STRING,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_emendas_politico ON emendas(politico_id);
-CREATE INDEX idx_emendas_ano ON emendas(ano);
-CREATE INDEX idx_emendas_uf ON emendas(uf_destino);
-CREATE INDEX idx_emendas_tipo ON emendas(tipo_emenda);
-CREATE INDEX idx_emendas_criticidade ON emendas(criticidade);
 
 -- ==========================================
 -- SESSOES / PRESENCA PLENARIO
 -- ==========================================
 CREATE TABLE IF NOT EXISTS sessoes_plenario (
-  id              BIGSERIAL PRIMARY KEY,
-  politico_id     INTEGER NOT NULL REFERENCES politicos(id_politico),
+  id              INT64,
+  politico_id     INT64 NOT NULL,
   data_sessao     DATE,
-  tipo_sessao     VARCHAR(50),
-  ano             SMALLINT,
-  presente        BOOLEAN DEFAULT FALSE,
-  justificativa   VARCHAR(200),
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(politico_id, data_sessao, tipo_sessao)
+  tipo_sessao     STRING,
+  ano             INT64,
+  presente        BOOL DEFAULT FALSE,
+  justificativa   STRING,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_sessoes_politico ON sessoes_plenario(politico_id);
-CREATE INDEX idx_sessoes_ano ON sessoes_plenario(ano);
 
 -- ==========================================
 -- VERBAS DE GABINETE
 -- ==========================================
 CREATE TABLE IF NOT EXISTS verbas_gabinete (
-  id              BIGSERIAL PRIMARY KEY,
-  politico_id     INTEGER NOT NULL REFERENCES politicos(id_politico),
-  ano             SMALLINT,
-  mes             SMALLINT,
-  valor_disponivel NUMERIC(14,2) DEFAULT 0,
-  valor_gasto     NUMERIC(14,2) DEFAULT 0,
-  economia        NUMERIC(14,2) DEFAULT 0,
-  pct_utilizado   NUMERIC(5,1) DEFAULT 0,
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(politico_id, ano, mes)
+  id              INT64,
+  politico_id     INT64 NOT NULL,
+  ano             INT64,
+  mes             INT64,
+  valor_disponivel NUMERIC DEFAULT 0,
+  valor_gasto     NUMERIC DEFAULT 0,
+  economia        NUMERIC DEFAULT 0,
+  pct_utilizado   NUMERIC DEFAULT 0,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_verbas_politico ON verbas_gabinete(politico_id);
 
 -- ==========================================
 -- PESSOAL DE GABINETE
 -- ==========================================
 CREATE TABLE IF NOT EXISTS pessoal_gabinete (
-  id              BIGSERIAL PRIMARY KEY,
-  politico_id     INTEGER NOT NULL REFERENCES politicos(id_politico),
-  nome            VARCHAR(200),
-  grupo_funcional VARCHAR(100),
-  cargo           VARCHAR(100),
-  periodo         VARCHAR(100),
-  ano             SMALLINT,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
+  id              INT64,
+  politico_id     INT64 NOT NULL,
+  nome            STRING,
+  grupo_funcional STRING,
+  cargo           STRING,
+  periodo         STRING,
+  ano             INT64,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_pessoal_politico ON pessoal_gabinete(politico_id);
 
 -- ==========================================
 -- ALERTAS DE FRETAMENTO
 -- ==========================================
 CREATE TABLE IF NOT EXISTS alertas_fretamento (
-  id              BIGSERIAL PRIMARY KEY,
-  politico_id     INTEGER NOT NULL REFERENCES politicos(id_politico),
-  tipo            VARCHAR(50),
-  gravidade       VARCHAR(10),
-  despesa_id      VARCHAR(100),
+  id              INT64,
+  politico_id     INT64 NOT NULL,
+  tipo            STRING,
+  gravidade       STRING,
+  despesa_id      STRING,
   data            DATE,
-  valor           NUMERIC(14,2),
-  fornecedor      VARCHAR(300),
-  cnpj            VARCHAR(20),
-  descricao       TEXT,
-  detalhes        JSONB,
-  url_documento   TEXT,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
+  valor           NUMERIC,
+  fornecedor      STRING,
+  cnpj            STRING,
+  descricao       STRING,
+  detalhes        JSON,
+  url_documento   STRING,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_alertas_politico ON alertas_fretamento(politico_id);
-CREATE INDEX idx_alertas_gravidade ON alertas_fretamento(gravidade);
 
 -- ==========================================
 -- SCORES E INDICES
 -- ==========================================
 CREATE TABLE IF NOT EXISTS scores (
-  id              BIGSERIAL PRIMARY KEY,
-  politico_id     INTEGER NOT NULL REFERENCES politicos(id_politico) UNIQUE,
-  score_final     NUMERIC(5,1),
-  classificacao   VARCHAR(30),
-  eixo1_presenca  NUMERIC(5,1),
-  eixo2_protagonismo NUMERIC(5,1),
-  eixo3_producao  NUMERIC(5,1),
-  eixo4_fiscalizacao NUMERIC(5,1),
-  eixo5_posicionamento NUMERIC(5,1),
-  eixo6_eficiencia NUMERIC(5,1),
-  ranking_economia INTEGER,
-  percentil       INTEGER,
-  total_gastos    NUMERIC(14,2) DEFAULT 0,
-  total_emendas   NUMERIC(14,2) DEFAULT 0,
-  num_gastos      INTEGER DEFAULT 0,
-  presenca_pct    NUMERIC(5,1) DEFAULT 0,
-  concentracao_top3 NUMERIC(5,1) DEFAULT 0,
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
+  id              INT64,
+  politico_id     INT64 NOT NULL,
+  score_final     NUMERIC,
+  classificacao   STRING,
+  eixo1_presenca  NUMERIC,
+  eixo2_protagonismo NUMERIC,
+  eixo3_producao  NUMERIC,
+  eixo4_fiscalizacao NUMERIC,
+  eixo5_posicionamento NUMERIC,
+  eixo6_eficiencia NUMERIC,
+  ranking_economia INT64,
+  percentil       INT64,
+  total_gastos    NUMERIC DEFAULT 0,
+  total_emendas   NUMERIC DEFAULT 0,
+  num_gastos      INT64 DEFAULT 0,
+  presenca_pct    NUMERIC DEFAULT 0,
+  concentracao_top3 NUMERIC DEFAULT 0,
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_scores_ranking ON scores(ranking_economia);
-CREATE INDEX idx_scores_final ON scores(score_final DESC);
 
 -- ==========================================
 -- VIEWS UTEIS
@@ -246,77 +221,66 @@ GROUP BY g.politico_id, g.tipo_despesa
 -- Fase 2.2 - Rastreamento do caminho da emenda
 -- ==========================================
 CREATE TABLE IF NOT EXISTS emendas_documentos (
-    id                  BIGSERIAL PRIMARY KEY,
-    codigo_emenda       VARCHAR(20) NOT NULL,
-    ano_emenda          SMALLINT,
-    codigo_autor        VARCHAR(20),
-    nome_autor          VARCHAR(200),
-    numero_emenda       VARCHAR(20),
-    tipo_emenda         VARCHAR(100),
-    fase_despesa        VARCHAR(20) NOT NULL, -- EMPENHO, LIQUIDACAO, PAGAMENTO
+    id                  INT64,
+    codigo_emenda       STRING NOT NULL,
+    ano_emenda          INT64,
+    codigo_autor        STRING,
+    nome_autor          STRING,
+    numero_emenda       STRING,
+    tipo_emenda         STRING,
+    fase_despesa        STRING NOT NULL, -- EMPENHO, LIQUIDACAO, PAGAMENTO
     data_documento      DATE,
-    codigo_documento    VARCHAR(50),
-    valor_empenhado     NUMERIC(14,2) DEFAULT 0,
-    valor_pago          NUMERIC(14,2) DEFAULT 0,
-    codigo_favorecido   VARCHAR(20),
-    nome_favorecido     VARCHAR(300),
-    tipo_favorecido     VARCHAR(50),
-    uf_favorecido       VARCHAR(2),
-    municipio_favorecido VARCHAR(200),
-    localidade_aplicacao VARCHAR(200),
-    uf_aplicacao        VARCHAR(2),
-    municipio_aplicacao VARCHAR(200),
-    codigo_ibge_municipio VARCHAR(10),
-    codigo_ug           VARCHAR(20),
-    nome_ug             VARCHAR(300),
-    codigo_orgao        VARCHAR(20),
-    nome_orgao          VARCHAR(300),
-    codigo_orgao_superior VARCHAR(20),
-    nome_orgao_superior VARCHAR(300),
-    codigo_funcao       VARCHAR(10),
-    nome_funcao         VARCHAR(100),
-    codigo_subfuncao    VARCHAR(10),
-    nome_subfuncao      VARCHAR(100),
-    codigo_programa     VARCHAR(10),
-    nome_programa       VARCHAR(200),
-    codigo_acao         VARCHAR(10),
-    nome_acao           VARCHAR(200),
-    grupo_despesa       VARCHAR(100),
-    elemento_despesa    VARCHAR(200),
-    modalidade_aplicacao VARCHAR(200),
-    possui_convenio     BOOLEAN DEFAULT FALSE,
-    created_at          TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(codigo_emenda, codigo_documento, fase_despesa)
+    codigo_documento    STRING,
+    valor_empenhado     NUMERIC DEFAULT 0,
+    valor_pago          NUMERIC DEFAULT 0,
+    codigo_favorecido   STRING,
+    nome_favorecido     STRING,
+    tipo_favorecido     STRING,
+    uf_favorecido       STRING,
+    municipio_favorecido STRING,
+    localidade_aplicacao STRING,
+    uf_aplicacao        STRING,
+    municipio_aplicacao STRING,
+    codigo_ibge_municipio STRING,
+    codigo_ug           STRING,
+    nome_ug             STRING,
+    codigo_orgao        STRING,
+    nome_orgao          STRING,
+    codigo_orgao_superior STRING,
+    nome_orgao_superior STRING,
+    codigo_funcao       STRING,
+    nome_funcao         STRING,
+    codigo_subfuncao    STRING,
+    nome_subfuncao      STRING,
+    codigo_programa     STRING,
+    nome_programa       STRING,
+    codigo_acao         STRING,
+    nome_acao           STRING,
+    grupo_despesa       STRING,
+    elemento_despesa    STRING,
+    modalidade_aplicacao STRING,
+    possui_convenio     BOOL DEFAULT FALSE,
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_emendas_docs_emenda ON emendas_documentos(codigo_emenda);
-CREATE INDEX idx_emendas_docs_autor ON emendas_documentos(codigo_autor);
-CREATE INDEX idx_emendas_docs_fase ON emendas_documentos(fase_despesa);
-CREATE INDEX idx_emendas_docs_favorecido ON emendas_documentos(codigo_favorecido);
-CREATE INDEX idx_emendas_docs_data ON emendas_documentos(data_documento);
-CREATE INDEX idx_emendas_docs_ano ON emendas_documentos(ano_emenda);
-CREATE INDEX idx_emendas_docs_uf ON emendas_documentos(uf_aplicacao);
 
 -- ==========================================
 -- EMENDAS CONVENIOS (vinculo emenda-convenio)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS emendas_convenios (
-    id                  BIGSERIAL PRIMARY KEY,
-    codigo_emenda       VARCHAR(20) NOT NULL,
-    numero_convenio     VARCHAR(50),
-    convenente          VARCHAR(300),
-    objeto_convenio     TEXT,
-    valor_convenio      NUMERIC(14,2) DEFAULT 0,
+    id                  INT64,
+    codigo_emenda       STRING NOT NULL,
+    numero_convenio     STRING,
+    convenente          STRING,
+    objeto_convenio     STRING,
+    valor_convenio      NUMERIC DEFAULT 0,
     data_publicacao     DATE,
-    codigo_funcao       VARCHAR(10),
-    nome_funcao         VARCHAR(100),
-    nome_subfuncao      VARCHAR(100),
-    localidade_gasto    VARCHAR(200),
-    tipo_emenda         VARCHAR(100),
-    created_at          TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(codigo_emenda, numero_convenio)
+    codigo_funcao       STRING,
+    nome_funcao         STRING,
+    nome_subfuncao      STRING,
+    localidade_gasto    STRING,
+    tipo_emenda         STRING,
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_emendas_conv_emenda ON emendas_convenios(codigo_emenda);
-CREATE INDEX idx_emendas_conv_convenio ON emendas_convenios(numero_convenio);
 
 -- ==========================================
 -- VIEW: Encaminhamento completo da emenda
@@ -365,25 +329,22 @@ GROUP BY codigo_emenda, nome_autor, tipo_emenda, ano_emenda;
 -- ==========================================
 
 CREATE TABLE IF NOT EXISTS dim_processos_judiciais (
-    id                BIGSERIAL PRIMARY KEY,
-    id_relacional     VARCHAR(20) NOT NULL, -- CPF ou CNPJ
-    tipo_ente         VARCHAR(10) NOT NULL, -- 'POLITICO' ou 'FORNECEDOR'
-    data_consulta     TIMESTAMPTZ DEFAULT NOW(),
-    total_processos   INTEGER DEFAULT 0,
-    risco_juridico    NUMERIC(5,2) DEFAULT 0.00
+    id                INT64,
+    id_relacional     STRING NOT NULL, -- CPF ou CNPJ
+    tipo_ente         STRING NOT NULL, -- 'POLITICO' ou 'FORNECEDOR'
+    data_consulta     TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
+    total_processos   INT64 DEFAULT 0,
+    risco_juridico    NUMERIC DEFAULT 0.00
 );
-CREATE INDEX idx_dim_processos_relacional ON dim_processos_judiciais(id_relacional);
 
 CREATE TABLE IF NOT EXISTS fato_citacoes (
-    id                BIGSERIAL PRIMARY KEY,
-    id_processo       BIGINT REFERENCES dim_processos_judiciais(id),
-    numero_processo   VARCHAR(50),
-    tribunal          VARCHAR(50),
+    id                INT64,
+    id_processo       INT64,
+    numero_processo   STRING,
+    tribunal          STRING,
     data_citacao      DATE,
-    tipo_citacao      VARCHAR(100), -- 'Improbidade Administrativa', 'Peculato', etc
-    fonte_dados       VARCHAR(50), -- 'Datajud', 'Diário Oficial'
-    resumo_ocorrencia TEXT,
-    created_at        TIMESTAMPTZ DEFAULT NOW()
+    tipo_citacao      STRING, -- 'Improbidade Administrativa', 'Peculato', etc
+    fonte_dados       STRING, -- 'Datajud', 'Diário Oficial'
+    resumo_ocorrencia STRING,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP()
 );
-CREATE INDEX idx_fato_citacoes_processo ON fato_citacoes(id_processo);
-CREATE INDEX idx_fato_citacoes_tipo ON fato_citacoes(tipo_citacao);
