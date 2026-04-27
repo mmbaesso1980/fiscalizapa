@@ -1,3 +1,3 @@
-## 2024-05-24 - Accessible Off-Canvas Drawers
-**Learning:** Using `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` ensures that screen readers properly interpret side drawers (like ForensicPanel) as modal dialogs.
-**Action:** Always apply these modal ARIA attributes when implementing off-canvas UI or side panels that act as a focused overlay.
+## 2023-10-27 - [Interactive Search Results Accessibility]
+**Learning:** Interactive search results (like those in dropdowns) need to be implemented as semantic `<button type="button">` elements rather than `<div>` with `onClick` handlers. This ensures native keyboard focus, `Space`/`Enter` key activation, and proper screen reader interaction without needing to manually manage `tabIndex` and keyboard events. Additionally, when dynamic search returns no results, an empty state with `role="status"` is crucial so screen readers announce the lack of results to users who cannot see the UI change.
+**Action:** Always use `<button type="button">` for interactive list items. When implementing search functionality, include an explicit "No results found" state and use `role="status"` on that container to ensure screen readers announce updates.
