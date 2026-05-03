@@ -40,7 +40,7 @@ export default function ForensicPanel({ node, onClose, isPremium = false }) {
             </span>
             <h2 id="forensic-panel-title" className="text-xl font-bold font-cabinet">{node.name || 'Entidade Desconhecida'}</h2>
             <div className="mt-2 inline-flex items-center bg-red-500/20 text-red-400 px-2 py-1 rounded text-sm font-satoshi">
-              <AlertOctagon size={14} className="mr-1" />
+              <AlertOctagon size={14} className="mr-1" aria-hidden="true" />
               Score Asmodeus: {node.score_risco || 0}
             </div>
           </div>
@@ -49,7 +49,7 @@ export default function ForensicPanel({ node, onClose, isPremium = false }) {
             aria-label="Fechar painel forense"
             className="text-slate-400 hover:text-white transition-colors p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded"
           >
-            <X size={20} />
+            <X size={20} aria-hidden="true" />
           </button>
         </header>
 
@@ -59,7 +59,7 @@ export default function ForensicPanel({ node, onClose, isPremium = false }) {
           {/* Seção 1: Ficha Asmodeus */}
           <section>
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3 flex items-center border-b border-slate-200 pb-2">
-              <AlertOctagon size={16} className="mr-2 text-slate-500" />
+              <AlertOctagon size={16} className="mr-2 text-slate-500" aria-hidden="true" />
               Breakdown de Risco
             </h3>
             <div className="space-y-3">
@@ -89,7 +89,7 @@ export default function ForensicPanel({ node, onClose, isPremium = false }) {
                   <div className="h-4 bg-slate-400 w-2/3 rounded"></div>
                </div>
 
-               <Lock size={32} className="mx-auto mb-4 text-amber-400" />
+               <Lock size={32} className="mx-auto mb-4 text-amber-400" aria-hidden="true" />
                <h3 className="text-lg font-bold font-cabinet text-white mb-2">Acesso Auditor Restrito</h3>
                <p className="text-sm text-slate-400 mb-6">
                  Desbloqueie a Teia Societária (QSA) e a Timeline Financeira cruzada com emendas parlamentares.
@@ -103,7 +103,7 @@ export default function ForensicPanel({ node, onClose, isPremium = false }) {
               {/* Seção 2: Teia Societária (Gated) */}
               <section>
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3 flex items-center border-b border-slate-200 pb-2">
-                  <Network size={16} className="mr-2 text-slate-500" />
+                  <Network size={16} className="mr-2 text-slate-500" aria-hidden="true" />
                   Teia Societária (QSA)
                 </h3>
                 <ul className="space-y-2">
@@ -124,7 +124,7 @@ export default function ForensicPanel({ node, onClose, isPremium = false }) {
               {/* Seção 3: Timeline Financeira (Gated) */}
               <section>
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-3 flex items-center border-b border-slate-200 pb-2">
-                  <Clock size={16} className="mr-2 text-slate-500" />
+                  <Clock size={16} className="mr-2 text-slate-500" aria-hidden="true" />
                   Timeline Financeira
                 </h3>
                 <div className="relative border-l-2 border-slate-200 ml-3 pl-4 space-y-6 pb-4">
