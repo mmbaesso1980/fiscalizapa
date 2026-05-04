@@ -41,43 +41,54 @@ export default function GlobalSearch() {
 
   return (
     <div className="relative w-full max-w-2xl z-50">
+      <label htmlFor="global-search-input" className="sr-only">Pesquisar político, partido ou CNPJ</label>
       <div className="relative">
         <input
+          id="global-search-input"
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Pesquisar político, partido ou CNPJ..."
-          className="w-full bg-slate-900 border border-slate-700 text-sm rounded-full px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors"
+          className="w-full bg-slate-900 border border-slate-700 text-sm rounded-full px-4 py-2 text-white focus:outline-none focus-visible:ring-2 transition-colors"
         />
-        <span className="absolute right-3 top-2 text-slate-400 text-sm">
+        <span className="absolute right-3 top-2 text-slate-400 text-sm" aria-hidden="true">
           {isSearching ? '⏳' : '🔍'}
         </span>
       </div>
 
+      {/* Live Region for Screen Readers */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {isSearching && 'Buscando...'}
+        {!isSearching && isOpen && results.length > 0 && `${results.length} resultados encontrados.`}
+        {!isSearching && isOpen && query.trim().length > 2 && results.length === 0 && 'Nenhum resultado encontrado.'}
+      </div>
+
       {isOpen && results.length > 0 && (
-        <div className="absolute top-12 left-0 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-y-auto max-h-96">
+        <ul role="list" className="absolute top-12 left-0 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-y-auto max-h-96">
           {results.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => handleSelect(item.id)}
-              className="flex items-center gap-3 p-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700/50 last:border-0 transition-colors"
-            >
-              {item.avatar_url ? (
-                <img src={item.avatar_url} alt={item.nome} className="w-10 h-10 rounded-full object-cover bg-slate-900 border border-slate-600" />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 border border-slate-600">👤</div>
-              )}
-              <div className="flex-1">
-                <div className="text-white font-bold text-sm">{item.nome}</div>
-                <div className="text-slate-400 text-xs font-mono">{item.cargo} · {item.partido}/{item.uf}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-slate-500 uppercase tracking-widest mb-1">Score</div>
-                <div className="text-red-400 font-bold">{item.score_sep}</div>
-              </div>
-            </div>
+            <li key={item.id} className="border-b border-slate-700/50 last:border-0">
+              <button
+                type="button"
+                onClick={() => handleSelect(item.id)}
+                className="w-full text-left flex items-center gap-3 p-3 hover:bg-slate-700 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:bg-slate-700"
+              >
+                {item.avatar_url ? (
+                  <img src={item.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover bg-slate-900 border border-slate-600" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 border border-slate-600" aria-hidden="true">👤</div>
+                )}
+                <div className="flex-1">
+                  <div className="text-white font-bold text-sm">{item.nome}</div>
+                  <div className="text-slate-400 text-xs font-mono">{item.cargo} · {item.partido}/{item.uf}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-500 uppercase tracking-widest mb-1">Score</div>
+                  <div className="text-red-400 font-bold">{item.score_sep}</div>
+                </div>
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );
