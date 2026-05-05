@@ -3,6 +3,7 @@ import GlobalSearch from './components/GlobalSearch';
 import Home from './pages/Home';
 import Dossie from './pages/Dossie';
 import Mapa from './pages/Mapa';
+import DossieGroundedPage from './pages/DossieGroundedPage';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/dossie/:id" element={<Dossie />} />
+          <Route path="/politica/dossie/:nome" element={<DossieGroundedPage />} />
           <Route path="/mapa" element={<Mapa />} />
         </Routes>
       </main>

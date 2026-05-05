@@ -1,14 +1,12 @@
 // 2. frontend/src/components/Galaxy3D.jsx
 import React, { useRef, useEffect, useState } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
-import { useNavigate } from 'react-router-dom';
 import ForensicPanel from './ForensicPanel';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
 
 export default function Galaxy3D() {
   const fgRef = useRef();
-  const navigate = useNavigate();
   const [data, setData] = useState({ nodes: [], links: [] });
   const [statusMsg, setStatusMsg] = useState('Buscando telemetria forense...');
   const [loading, setLoading] = useState(true);
